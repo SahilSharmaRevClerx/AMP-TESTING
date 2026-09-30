@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { headerKey, loadRulebook, parseCsv, rulebookFromRows, withAllowAllColumn } from '../src/rulebook/parse';
+﻿import { describe, expect, it } from 'vitest';
+import { headerKey, loadRulebook, parseCsv, parseRulebook, rulebookFromRows, rulebookSummary, selectUserTypes } from '../src/rulebook/parse';
 
 describe('parseCsv', () => {
   it('handles quotes, escaped quotes and CRLF', () => {
@@ -54,19 +54,94 @@ describe('rulebookFromRows — simple format (page + one column per user type)',
 
   it('explains what is wrong', () => {
     expect(() => rulebookFromRows([['name', 'cm'], ['Roles', 'Yes']])).toThrow(/column for the page/);
-    expect(() => rulebookFromRows([['page', 'notes'], ['x', '']])).toThrow(/user-type column/);
-    expect(() => rulebookFromRows([['page', 'cm'], ['x', 'maybe']])).toThrow(/Yes\/No/);
-    expect(() => rulebookFromRows([['page', 'cm'], ['', 'Yes']])).toThrow(/no pages/);
+    expect(() => rulebookFromRows([['page', 'notes'], ['x', '']])).toThrow(/No user-type columns/);
+    expect(() => rulebookFromRows([['page', 'Owner'], ['x', 'Rahul']])).toThrow(/Owner \(not Yes\/No values/);
   });
 });
 
-describe('withAllowAllColumn', () => {
-  it('adds a column expecting Yes on every page, keeping existing columns', () => {
-    const rb = rulebookFromRows([['page', 'cm'], ['setup/roles', 'No']]);
-    const out = withAllowAllColumn(rb, 'site_admin');
-    expect(out.userTypes).toEqual(['site_admin', 'cm']);
-    expect(out.rules[0]!.expected).toEqual({ site_admin: 'Yes', cm: 'No' });
-    expect(withAllowAllColumn(out, 'site_admin')).toBe(out);
+describe('column detection', () => {
+  const sheet = [
+    ['Internal User Personas', '', '', '', '', '', ''],
+    ['', '', '', '', '', '', ''],
+    ['Page', 'Name', 'Site Admin', 'Channel Manager', 'Owner', 'Unused', 'Icon'],
+    ['/#setup/roles', 'Roles', 'Yes', 'No', 'Rahul', '', 'fa-user'],
+    ['/#setup/users/list', 'Users', 'Y', 'N', 'Priya', '', 'fa-users'],
+    ['/#connections/contacts', 'Contacts', 'Yes', '', 'Rahul', '', ''],
+  ];
+
+  it('skips title rows above the real header', () => {
+    const rb = rulebookFromRows(sheet.filter((r) => r.some((c) => c)));
+    expect(rb.headerRow).toBe(2); // the title row, then the header (empty rows are already dropped by the readers)
+    expect(rb.rules.map((r) => r.route)).toEqual(['setup/roles', 'setup/users/list', 'connections/contacts']);
+  });
+
+  it('decides user types by values: Yes/No columns only; empty and text columns are info', () => {
+    const rb = rulebookFromRows(sheet.filter((r) => r.some((c) => c)));
+    expect(rb.userTypes).toEqual(['site_admin', 'channel_manager']);
+    const roles = Object.fromEntries(rb.columns!.map((c) => [c.label, c.role + (c.reason ? `: ${c.reason}` : '')]));
+    expect(roles).toEqual({
+      Page: 'page',
+      Name: 'name',
+      'Site Admin': 'user',
+      'Channel Manager': 'user',
+      Owner: 'info: not Yes/No values (e.g. "Rahul")',
+      Unused: 'info: empty column',
+      Icon: 'info: descriptive column',
+    });
+  });
+
+  it('a user-type column with a typo points at the cell instead of being dropped', () => {
+    expect(() =>
+      rulebookFromRows([
+        ['page', 'Partner'],
+        ['a', 'Yes'],
+        ['b', 'No'],
+        ['c', 'Yes'],
+        ['d', 'No'],
+        ['e', 'Yse'],
+      ]),
+    ).toThrow(/Row 6 \(e\), column "Partner": expected Yes\/No\/empty, got "Yse"/);
+  });
+
+  it('the tester can untick a detected column', () => {
+    const rb = rulebookFromRows(sheet.filter((r) => r.some((c) => c)));
+    expect(selectUserTypes(rb, ['channel_manager']).userTypes).toEqual(['channel_manager']);
+    expect(selectUserTypes(rb, undefined)).toBe(rb);
+    expect(() => selectUserTypes(rb, [])).toThrow(/at least one/);
+  });
+});
+
+describe('user types come from the sheet', () => {
+  it('keeps the header text as written, in sheet order, whatever the client calls them', () => {
+    const rb = rulebookFromRows([
+      ['Page', 'Channel Manager', 'Partner User', 'Corporate PRM Admin'],
+      ['/#setup/roles', 'No', 'No', 'Yes'],
+    ]);
+    expect(rb.userTypes).toEqual(['channel_manager', 'partner_user', 'corporate_prm_admin']);
+    expect(rb.userTypeLabels).toEqual({ channel_manager: 'Channel Manager', partner_user: 'Partner User', corporate_prm_admin: 'Corporate PRM Admin' });
+    expect(rulebookSummary(rb).userTypeLabels.corporate_prm_admin).toBe('Corporate PRM Admin');
+  });
+});
+
+describe('Excel (.xlsx) rulebooks', () => {
+  it('reads the first sheet, including URLs Excel turned into hyperlinks', async () => {
+    const { default: ExcelJS } = await import('exceljs');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Rules');
+    ws.addRow(['Page', 'Site Admin', 'Normal User']);
+    ws.addRow(['/#intel/clientsentiment', 'Yes', 'No']);
+    const url = 'https://itbydesign.sb.amp.vg/#intel/account';
+    ws.addRow(['', 'Yes', 'Yes']);
+    ws.getCell('A3').value = { text: url, hyperlink: url };
+    const rb = await parseRulebook('itbd.xlsx', Buffer.from(await wb.xlsx.writeBuffer()));
+    expect(rb.userTypes).toEqual(['site_admin', 'normal_user']);
+    expect(rb.rules.map((r) => r.route)).toEqual(['intel/clientsentiment', 'intel/account']);
+    expect(rb.rules[1]!.expected).toEqual({ site_admin: 'Yes', normal_user: 'Yes' });
+  }, 20000); // first load of the Excel library can be slow on a cold start
+
+  it('gives a clear message for a broken file and for old .xls', async () => {
+    await expect(parseRulebook('broken.xlsx', Buffer.from('not a zip'))).rejects.toThrow(/not a valid Excel/);
+    await expect(parseRulebook('old.xls', Buffer.from('x'))).rejects.toThrow(/\.xls files are not supported/);
   });
 });
 

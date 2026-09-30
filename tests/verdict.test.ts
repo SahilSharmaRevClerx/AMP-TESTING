@@ -1,11 +1,11 @@
-﻿import { describe, expect, it } from 'vitest';
-import type { PageEvidence } from '../src/types';
-import { buildFingerprints, fingerprintScore } from '../src/verdict/fingerprint';
-import { accessState } from '../src/verdict/state';
+import { describe, expect, it } from 'vitest';
+import type { ApiCall, PageEvidence } from '../src/types';
+import { buildFrame, pickReference, type EvidenceByUser } from '../src/verdict/fingerprint';
+import { accessState, type Frame } from '../src/verdict/state';
 import { pageVerdict } from '../src/verdict/compare';
 
 const BASE = 'https://aisb.amp.vg';
-const SHELL = ['id:nav', 'id:header', 'h:dashboard'];
+const FRAME = ['id:nav', 'id:header', 'h:notifications'];
 
 function ev(route: string, extra: Partial<PageEvidence> = {}): PageEvidence {
   return {
@@ -18,74 +18,109 @@ function ev(route: string, extra: Partial<PageEvidence> = {}): PageEvidence {
     blockedRequests: [],
     pageErrors: [],
     textLength: 1000,
-    tokens: [...SHELL, `id:${route}-grid`, `h:${route} title`],
+    tokens: [...FRAME, `id:${route}-grid`, `h:${route} title`],
     title: '',
     screenshot: null,
     durationMs: 1,
     ...extra,
   };
 }
+const api = (func: string, extra: Partial<ApiCall> = {}): ApiCall => ({ func, httpStatus: 200, apiStatus: 0, denied: false, hasData: true, ...extra });
+const byUser = (users: Record<string, PageEvidence[]>): EvidenceByUser => new Map(Object.entries(users).map(([u, list]) => [u, new Map(list.map((e) => [e.route, e]))]));
+const frameOnly = (): PageEvidence => ev('__frame__', { tokens: [...FRAME], apiCalls: [api('getnotifications')] });
 
-const routes = ['a', 'b', 'c', 'd', 'e'];
-const calibration = routes.map((r) => ev(r, { apiCalls: [{ func: `get${r}`, httpStatus: 200, apiStatus: 0, denied: false }, { func: 'getnotifications', httpStatus: 200, apiStatus: 0, denied: false }] }));
-const fps = buildFingerprints(calibration);
-
-describe('buildFingerprints', () => {
-  it('removes shell tokens and shell APIs that appear on most pages', () => {
-    const fp = fps.get('a')!;
-    expect(fp.tokens.sort()).toEqual(['h:a title', 'id:a-grid']);
-    expect(fp.apiFuncs).toEqual(['geta']);
-    expect(fp.usable).toBe(true);
+describe('buildFrame', () => {
+  it('learns the AMP frame from the frame-only snapshot, even with few pages', () => {
+    const f = buildFrame(byUser({ u: [ev('a')] }), [frameOnly()]);
+    expect([...f.tokens].sort()).toEqual([...FRAME].sort());
+    expect([...f.apis]).toEqual(['getnotifications']);
   });
 
-  it('marks pages the calibration user could not open as unusable', () => {
-    const f = buildFingerprints([...calibration, ev('z', { noAccessMarker: true })]);
-    expect(f.get('z')!.usable).toBe(false);
+  it('also learns it from what repeats on most pages when there is no snapshot', () => {
+    const f = buildFrame(byUser({ u: ['a', 'b', 'c', 'd'].map((r) => ev(r)) }), []);
+    expect([...f.tokens].sort()).toEqual([...FRAME].sort());
   });
 });
 
-describe('accessState', () => {
-  const fp = fps.get('a');
-  it('OPENED when fingerprint matches', () => {
-    expect(accessState(ev('a'), fp, 0.6).state).toBe('OPENED');
-    expect(fingerprintScore(fp, ev('a'))).toBe(1);
+describe('accessState — judged on the page itself, not by matching another user', () => {
+  const frame: Frame = buildFrame(byUser({}), [frameOnly()]);
+
+  it('OPENED when there is page content beyond the frame', () => {
+    expect(accessState(ev('a'), frame).state).toBe('OPENED');
   });
-  it('BLOCKED on the no-access marker even with HTTP 200', () => {
-    expect(accessState(ev('a', { noAccessMarker: true }), fp, 0.6).state).toBe('BLOCKED');
+  it('dashboards: different widgets per user both count as OPENED', () => {
+    const admin = ev('dashboard', { tokens: [...FRAME, 'id:widget-revenue', 'id:widget-pipeline', 'h:company overview'] });
+    const partner = ev('dashboard', { tokens: [...FRAME, 'id:widget-my-deals', 'id:widget-training'] });
+    const ref = pickReference('dashboard', byUser({ admin: [admin], partner: [partner] }), { admin: 'Yes', partner: 'Yes' }, frame);
+    expect(accessState(admin, frame, ref).state).toBe('OPENED');
+    expect(accessState(partner, frame, ref).state).toBe('OPENED'); // 0% like the admin's view, still opened
   });
-  it('BLOCKED on redirect to /noaccess', () => {
-    expect(accessState(ev('a', { fragmentStatus: 302, fragmentRedirect: '/noaccess' }), fp, 0.6).state).toBe('BLOCKED');
+  it('BLANK when only the AMP frame rendered', () => {
+    const r = accessState(ev('a', { tokens: [...FRAME] }), frame);
+    expect(r.state).toBe('BLANK');
   });
-  it('BAD_TOKEN on login redirect', () => {
-    expect(accessState(ev('a', { finalUrl: `${BASE}/login` }), fp, 0.6).state).toBe('BAD_TOKEN');
+  it('ERROR when the page shows an error message and nothing else', () => {
+    expect(accessState(ev('a', { tokens: [...FRAME, 'h:oops'], errorText: 'Something went wrong' }), frame).state).toBe('ERROR');
   });
-  it('NOT_FOUND on 404', () => {
-    expect(accessState(ev('a', { fragmentStatus: 404 }), fp, 0.6).state).toBe('NOT_FOUND');
+  it('BLOCKED on AMP no-access screen, own "no permission" message, or /noaccess', () => {
+    expect(accessState(ev('a', { noAccessMarker: true }), frame).state).toBe('BLOCKED');
+    expect(accessState(ev('a', { denialText: 'You do not have permission to view this page.' }), frame).state).toBe('BLOCKED');
+    expect(accessState(ev('a', { fragmentStatus: 302, fragmentRedirect: '/noaccess' }), frame).state).toBe('BLOCKED');
   });
-  it('OPENED_EMPTY when the page loads but its own API is denied', () => {
-    const e = ev('a', { apiCalls: [{ func: 'geta', httpStatus: 200, apiStatus: 5, denied: false }] });
-    expect(accessState(e, fp, 0.6).state).toBe('OPENED_EMPTY');
+  it('BLOCKED when nothing rendered and the page data calls were denied', () => {
+    expect(accessState(ev('a', { tokens: [...FRAME], apiCalls: [api('geta', { denied: true, hasData: false })] }), frame).state).toBe('BLOCKED');
   });
-  it('UNCLEAR when only the shell shows and nothing says denied', () => {
-    expect(accessState(ev('a', { tokens: SHELL }), fp, 0.6).state).toBe('UNCLEAR');
+  it('OPENED_EMPTY when the page renders but its data calls are denied', () => {
+    expect(accessState(ev('a', { apiCalls: [api('geta', { denied: true, hasData: false })] }), frame).state).toBe('OPENED_EMPTY');
+  });
+  it('BAD_TOKEN / NOT_FOUND from hard signals', () => {
+    expect(accessState(ev('a', { finalUrl: `${BASE}/login` }), frame).state).toBe('BAD_TOKEN');
+    expect(accessState(ev('a', { fragmentStatus: 404 }), frame).state).toBe('NOT_FOUND');
+  });
+});
+
+describe('pickReference', () => {
+  const frame: Frame = buildFrame(byUser({}), [frameOnly()]);
+  it('prefers users the rulebook expects to have access, then who saw the most', () => {
+    const views = byUser({
+      partner: [ev('x', { tokens: [...FRAME, 'a', 'b', 'c', 'd'] })], // saw more but expected No
+      manager: [ev('x', { tokens: [...FRAME, 'a', 'b'] })],
+      user: [ev('x', { noAccessMarker: true })],
+    });
+    expect(pickReference('x', views, { partner: 'No', manager: 'Yes', user: 'Yes' }, frame).referenceUser).toBe('manager');
+  });
+  it('no reference when nobody got content (e.g. a No No No page)', () => {
+    const views = byUser({ a: [ev('x', { noAccessMarker: true })], b: [ev('x', { tokens: [...FRAME] })] });
+    const ref = pickReference('x', views, { a: 'No', b: 'No' }, frame);
+    expect(ref.referenceUser).toBeNull();
   });
 });
 
 describe('pageVerdict', () => {
+  const none = { othersWithContent: [] };
+  const someone = { othersWithContent: ['Super Admin'] };
   it.each([
-    ['Yes', true, 'OPENED', 'PASS'],
-    ['Yes', false, 'OPENED', 'PASS'], // not in the (custom) menu is not a failure
-    ['No', false, 'BLOCKED', 'PASS'],
-    ['No', true, 'BLOCKED', 'PASS'],
-    ['No', false, 'OPENED', 'FAIL_SECURITY_GAP'],
-    ['No', false, 'OPENED_EMPTY', 'FAIL_SECURITY_GAP'],
-    ['No', true, 'OPENED', 'FAIL_EXTRA_ACCESS'],
-    ['Yes', false, 'BLOCKED', 'FAIL_MISSING_ACCESS'],
-    ['Yes', true, 'BLOCKED', 'FAIL_MISSING_ACCESS'],
-    ['Yes', true, 'OPENED_EMPTY', 'FAIL_OPENS_EMPTY'],
-    ['Yes', true, 'UNCLEAR', 'REVIEW'],
-    [null, true, 'OPENED', 'NOT_SPECIFIED'],
-  ] as const)('expected %s, menu %s, state %s -> %s', (exp, menu, state, verdict) => {
-    expect(pageVerdict(exp, menu, state).verdict).toBe(verdict);
+    // Rulebook Yes
+    ['Yes', true, 'OPENED', none, 'PASS'],
+    ['Yes', false, 'OPENED', none, 'PASS'], // not in a custom menu is not a failure
+    ['Yes', true, 'OPENED_EMPTY', none, 'FAIL_OPENS_EMPTY'],
+    ['Yes', true, 'BLOCKED', none, 'FAIL_MISSING_ACCESS'],
+    ['Yes', true, 'BLANK', someone, 'FAIL_MISSING_ACCESS'], // others get the page, this user gets blank
+    ['Yes', true, 'ERROR', someone, 'FAIL_MISSING_ACCESS'],
+    ['Yes', true, 'BLANK', none, 'REVIEW'], // nobody got it: broken page, not a permission result
+    ['Yes', true, 'NOT_FOUND', none, 'REVIEW'],
+    // Rulebook No (incl. No No No rows)
+    ['No', false, 'BLOCKED', none, 'PASS'],
+    ['No', false, 'BLANK', none, 'PASS'],
+    ['No', false, 'ERROR', none, 'PASS'],
+    ['No', false, 'NOT_FOUND', none, 'PASS'],
+    ['No', false, 'OPENED', none, 'FAIL_SECURITY_GAP'],
+    ['No', true, 'OPENED', none, 'FAIL_EXTRA_ACCESS'],
+    ['No', false, 'OPENED_EMPTY', none, 'FAIL_SECURITY_GAP'],
+    // Other
+    [null, true, 'OPENED', none, 'NOT_SPECIFIED'],
+    ['Yes', true, 'BAD_TOKEN', none, 'REVIEW'],
+  ] as const)('expected %s, menu %s, state %s -> %s', (exp, menu, state, peers, verdict) => {
+    expect(pageVerdict(exp, menu, state, { othersWithContent: [...peers.othersWithContent] }).verdict).toBe(verdict);
   });
 });

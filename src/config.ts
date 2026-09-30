@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import type { Credentials, RunConfig } from './types';
-import { registerSecret } from './util/mask';
+import { cleanJwt, registerSecret } from './util/mask';
 
 const DEFAULTS: Omit<RunConfig, 'environment' | 'userTypes' | 'calibrationUserType'> = {
   rulebook: 'rulebook/internal-user-personas.csv',
@@ -9,6 +10,7 @@ const DEFAULTS: Omit<RunConfig, 'environment' | 'userTypes' | 'calibrationUserTy
   pageTimeoutMs: 20000,
   settleMs: 1000,
   fingerprintThreshold: 0.6,
+  parallelUsers: 3,
   headless: true,
   outputDir: 'output',
 };
@@ -29,8 +31,22 @@ export function buildConfig(raw: Partial<RunConfig>, source = 'config'): RunConf
     throw new Error(`calibrationUserType "${raw.calibrationUserType}" must also be listed in userTypes`);
   }
   const cfg = { ...DEFAULTS, ...raw, calibrationUserType: raw.calibrationUserType || null } as RunConfig;
+  cfg.parallelUsers = effectiveParallelUsers(cfg);
   cfg.environment = { ...cfg.environment, name: cfg.environment.name?.trim() || url.host, baseUrl: url.origin };
   return cfg;
+}
+
+/** Max user types tested at the same time. */
+export const MAX_PARALLEL_USERS = 5;
+
+/**
+ * How many user types are tested at the same time (each in its own browser and session).
+ * 1–5; production is always 1 so a run never adds more than one user's load there.
+ */
+export function effectiveParallelUsers(cfg: Pick<RunConfig, 'parallelUsers' | 'environment'>): number {
+  if (cfg.environment.isProduction) return 1;
+  const n = Math.round(Number(cfg.parallelUsers));
+  return Number.isFinite(n) ? Math.min(MAX_PARALLEL_USERS, Math.max(1, n)) : 3;
 }
 
 export function loadConfig(file: string): RunConfig {
@@ -55,13 +71,23 @@ export function loadLocalEnv(file = '.env.local'): void {
   }
 }
 
-/** Reads AMP_JWT_<TYPE> / AMP_CSRF_<TYPE>. Returns null when either is missing. */
+/**
+ * Credentials for one user. Only the jwt identifies the user. AMP's CSRF check is a double-submit
+ * (the X-CSRF-Token header must equal the X-CSRF-Token cookie; the value is not tied to the session,
+ * and AMP itself issues a random GUID when the cookie is missing), so when none is given we generate one
+ * and send it as both cookie and header.
+ */
+export function makeCredentials(jwt: string, csrf?: string): Credentials {
+  const c = { jwt: cleanJwt(jwt), csrf: csrf?.trim() || randomUUID() };
+  registerSecret(c.jwt);
+  registerSecret(c.csrf);
+  return c;
+}
+
+/** Reads AMP_JWT_<TYPE> (required) and AMP_CSRF_<TYPE> (optional). Returns null without a jwt. */
 export function credentialsFor(userType: string): Credentials | null {
   const k = envKey(userType);
   const jwt = process.env[`AMP_JWT_${k}`]?.trim();
-  const csrf = process.env[`AMP_CSRF_${k}`]?.trim();
-  if (!jwt || !csrf) return null;
-  registerSecret(jwt);
-  registerSecret(csrf);
-  return { jwt, csrf };
+  if (!jwt) return null;
+  return makeCredentials(jwt, process.env[`AMP_CSRF_${k}`]);
 }

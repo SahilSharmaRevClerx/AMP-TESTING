@@ -12,8 +12,23 @@ export interface Rule {
   notes: string;
 }
 
+export interface RulebookColumn {
+  key: string;
+  label: string;
+  role: 'page' | 'name' | 'user' | 'info';
+  /** Why an info column is not a user type. */
+  reason?: string;
+}
+
 export interface Rulebook {
+  /** Keys derived from the user-type column headers, e.g. "channel_manager". */
   userTypes: string[];
+  /** Header text exactly as written in the sheet, e.g. "Channel Manager". */
+  userTypeLabels: Record<string, string>;
+  /** How every column of the sheet was understood (shown to the tester to confirm). */
+  columns?: RulebookColumn[];
+  /** 1-based row of the header in the sheet (title rows above it are skipped). */
+  headerRow?: number;
   rules: Rule[];
 }
 
@@ -35,6 +50,8 @@ export interface RunConfig {
   pageTimeoutMs: number;
   settleMs: number;
   fingerprintThreshold: number;
+  /** User types tested at the same time, each in its own browser (1–5; always 1 on production). */
+  parallelUsers: number;
   headless: boolean;
   outputDir: string;
 }
@@ -77,6 +94,8 @@ export type AccessState =
   | 'OPENED'
   | 'BLOCKED'
   | 'OPENED_EMPTY'
+  /** Only the AMP frame rendered: no page content, no data, no explicit denial. */
+  | 'BLANK'
   | 'BAD_TOKEN'
   | 'ERROR'
   | 'NOT_FOUND'
@@ -88,6 +107,8 @@ export interface ApiCall {
   apiStatus: number | null;
   /** Response shape says access was denied (401, "Not authorized.", or {code, message}). */
   denied: boolean;
+  /** The call succeeded and returned data (a non-empty list or object). */
+  hasData?: boolean;
 }
 
 export interface PageEvidence {
@@ -96,6 +117,10 @@ export interface PageEvidence {
   fragmentStatus: number | null;
   fragmentRedirect: string | null;
   noAccessMarker: boolean;
+  /** A short visible message such as "You do not have permission to view this page", if any. */
+  denialText?: string;
+  /** A short visible failure message such as "Something went wrong", if any. */
+  errorText?: string;
   apiCalls: ApiCall[];
   blockedRequests: string[];
   pageErrors: string[];
@@ -112,7 +137,7 @@ export interface Fingerprint {
   route: string;
   tokens: string[];
   apiFuncs: string[];
-  /** apiStatus the calibration user got per func, used to spot denials for other users. */
+  /** apiStatus the reference user got per func, used to spot denials for other users. */
   apiStatus: Record<string, number | null>;
   usable: boolean;
   reason?: string;

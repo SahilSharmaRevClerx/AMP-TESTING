@@ -1,17 +1,21 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+﻿import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { extname, join, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { exec } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { buildConfig } from '../config';
-import { parseRulebook, rulebookSummary, withAllowAllColumn } from '../rulebook/parse';
+import { buildConfig, makeCredentials } from '../config';
+import { parseRulebook, rulebookSummary, selectUserTypes } from '../rulebook/parse';
 import { assertSafeEnvironment, RequestGate, SafetyError } from '../safety/gate';
 import { validateToken } from '../sessions/validate';
 import { executeRun, newRunId, planRun, type Progress, type RunOutcome } from '../run';
 import { AuditLog } from '../util/audit';
-import { registerSecret, scrub } from '../util/mask';
+import { forgetSecrets, scrub } from '../util/mask';
+import { createLogger, getLogLevel, isDebug, since } from '../util/logger';
 import type { Credentials, Environment, Rulebook, RunConfig } from '../types';
+
+const log = createLogger('server');
+const httpLog = createLogger('http');
 
 const PORT = Number(process.env.PORT ?? 4545);
 const HOST = '127.0.0.1';
@@ -20,6 +24,7 @@ const RULEBOOK_DIR = join(ROOT, 'rulebook');
 const OUTPUT_DIR = join(ROOT, 'output');
 const UI_FILE = fileURLToPath(new URL('./ui.html', import.meta.url));
 const MAX_BODY = 8 * 1024 * 1024;
+const ALLOWED_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
 
 // ---------------------------------------------------------------- state (memory only)
 
@@ -56,9 +61,10 @@ interface UserInput {
 interface RunRequest {
   environment: Environment;
   rulebookId: string;
-  calibrationKey: string;
+  /** User-type columns the tester confirmed on the rulebook step (default: all detected). */
+  selectedUserTypes?: string[];
   users: UserInput[];
-  options?: { limit?: number; delayMs?: number; fingerprintThreshold?: number; headed?: boolean };
+  options?: { limit?: number; delayMs?: number; fingerprintThreshold?: number; headed?: boolean; parallelUsers?: number };
 }
 
 // ---------------------------------------------------------------- helpers
@@ -138,42 +144,28 @@ function credsFrom(users: UserInput[], keys: string[]): Map<string, Credentials>
   for (const key of keys) {
     const u = users.find((x) => x.key === key);
     const jwt = u?.jwt?.trim();
-    const csrf = u?.csrf?.trim();
-    if (!jwt || !csrf) throw new HttpError(400, `Tokens missing for ${u?.label || key}`);
-    registerSecret(jwt);
-    registerSecret(csrf);
-    creds.set(key, { jwt, csrf });
+    if (!jwt) throw new HttpError(400, `jwt missing for ${u?.label || key}`);
+    creds.set(key, makeCredentials(jwt, u?.csrf));
   }
   return creds;
 }
 
-/** The reference user is used only when its tokens were entered. */
-function referenceKey(body: RunRequest): string | null {
-  const key = body.calibrationKey?.trim();
-  if (!key) return null;
-  if (!KEY_RE.test(key)) throw new HttpError(400, 'Reference user key must be lowercase letters, digits or _');
-  const u = body.users?.find((x) => x.key === key);
-  return u?.jwt?.trim() && u?.csrf?.trim() ? key : null;
-}
-
 function configFrom(body: RunRequest, rb: Rulebook): RunConfig {
-  const calibrationKey = referenceKey(body);
+  // User types and their names come only from the rulebook's column headers.
   const userTypes: Record<string, { label: string }> = {};
-  for (const key of new Set([...(calibrationKey ? [calibrationKey] : []), ...rb.userTypes])) {
-    const u = body.users.find((x) => x.key === key);
-    userTypes[key] = { label: u?.label?.trim() || key };
-  }
+  for (const key of rb.userTypes) userTypes[key] = { label: rb.userTypeLabels[key] ?? key };
   const o = body.options ?? {};
   const cfg = buildConfig(
     {
       environment: environmentFrom(body),
       rulebook: '(uploaded)',
-      calibrationUserType: calibrationKey,
+      calibrationUserType: null,
       userTypes,
       outputDir: OUTPUT_DIR,
       headless: o.headed !== true,
       ...(o.delayMs !== undefined ? { delayMs: clamp(o.delayMs, 200, 5000) } : {}),
       ...(o.fingerprintThreshold !== undefined ? { fingerprintThreshold: clamp(o.fingerprintThreshold, 0.2, 1) } : {}),
+      ...(o.parallelUsers !== undefined ? { parallelUsers: o.parallelUsers } : {}),
     },
     'request',
   );
@@ -197,21 +189,16 @@ function onlyFrom(body: RunRequest, rb: Rulebook): string[] {
   return only;
 }
 
-/**
- * Everything a plan or run needs from a request. When the reference Site Admin is ticked for testing
- * but the rulebook has no column for it, it is expected to see every page.
- */
+/** Everything a plan or run needs from a request. */
 function setupFrom(body: RunRequest) {
   const loaded = getRulebook(body.rulebookId);
-  let rulebook = loaded.rulebook;
-  const notes: string[] = [];
-  const ref = referenceKey(body);
-  const refTested = ref !== null && body.users?.find((u) => u.key === ref)?.test === true;
-  if (refTested && !rulebook.userTypes.includes(ref)) {
-    rulebook = withAllowAllColumn(rulebook, ref);
-    const label = body.users.find((u) => u.key === ref)?.label || ref;
-    notes.push(`The rulebook has no column for ${label}, so ${label} was expected to see every page and menu group (a Site Admin with MFA has access to every module in AMP).`);
+  let rulebook: Rulebook;
+  try {
+    rulebook = selectUserTypes(loaded.rulebook, body.selectedUserTypes);
+  } catch (e) {
+    throw new HttpError(400, (e as Error).message);
   }
+  const notes: string[] = [];
   const cfg = configFrom(body, rulebook);
   const only = onlyFrom(body, rulebook);
   const plan = planRun(cfg, rulebook, only, body.options?.limit);
@@ -315,26 +302,28 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       throw new HttpError(400, `Could not read rulebook: ${(e as Error).message}`);
     }
     const bad = rulebook.userTypes.filter((ut) => !KEY_RE.test(ut));
-    if (bad.length) throw new HttpError(400, `User type columns must be lowercase letters, digits or _: ${bad.join(', ')}`);
+    if (bad.length) throw new HttpError(400, `User-type column names are too long (max 40 characters): ${bad.map((b) => rulebook.userTypeLabels[b] ?? b).join(', ')}`);
     const id = randomUUID();
     rulebooks.set(id, { id, name, data, rulebook });
-    return send(res, 200, { id, name, summary: rulebookSummary(rulebook) });
+    const summary = rulebookSummary(rulebook);
+    log.info('rulebook loaded', { name, source: body.file ? 'saved' : 'upload', bytes: data.length, pages: summary.pages, userTypes: summary.userTypes });
+    return send(res, 200, { id, name, summary });
   }
 
   if (method === 'POST' && path === '/api/tokens/check') {
     const body = (await readBody(req)) as { environment?: Environment; users?: UserInput[] };
     const env = environmentFrom(body);
-    const users = (body.users ?? []).filter((u) => u.key && KEY_RE.test(u.key) && (u.jwt?.trim() || u.csrf?.trim()));
-    if (!users.length) throw new HttpError(400, 'Paste tokens for at least one user first');
+    const users = (body.users ?? []).filter((u) => u.key && KEY_RE.test(u.key) && u.jwt?.trim());
+    if (!users.length) throw new HttpError(400, 'Paste a jwt for at least one user first');
     const gate = new RequestGate(env, 300, new AuditLog(join(OUTPUT_DIR, '_ui', 'token-checks.jsonl')));
     const results = [];
     for (const u of users) {
-      if (!u.jwt?.trim() || !u.csrf?.trim()) {
-        results.push({ key: u.key, identity: { userType: u.key, valid: false, reason: 'jwt and X-CSRF-Token are both required' } });
-        continue;
-      }
       const creds = credsFrom([u], [u.key]);
-      results.push({ key: u.key, identity: await validateToken(gate, u.key, creds.get(u.key)!) });
+      const c = creds.get(u.key)!;
+      const identity = await validateToken(gate, u.key, c).finally(() => forgetSecrets([c.jwt, c.csrf]));
+      results.push({ key: u.key, identity });
+      if (identity.valid) log.info('token check ok', { env: env.name, user: u.key, name: identity.userName, persona: identity.persona, siteAdmin: identity.isSiteAdmin, company: identity.companyName, org: identity.organizationName });
+      else log.warn('token check failed', { env: env.name, user: u.key, reason: identity.reason });
     }
     return send(res, 200, { results });
   }
@@ -345,11 +334,11 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       environment: cfg.environment,
       userTypes: plan.allTypes,
       tested: only,
-      reference: cfg.calibrationUserType,
       notes,
       pages: plan.pages.map((p) => ({ route: p.route, label: p.label })),
       pageOpens: plan.pageOpens,
       estimatedMinutes: plan.estimatedMinutes,
+      parallelUsers: Math.min(cfg.parallelUsers, plan.testedTypes.length),
     });
   }
 
@@ -366,6 +355,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   if (method === 'POST' && cancel) {
     if (!current || current.id !== cancel[1] || current.status !== 'running') throw new HttpError(404, 'No such active run');
     current.controller.abort();
+    log.info('cancel requested', { run: current.id });
     return send(res, 200, { ok: true });
   }
 
@@ -395,10 +385,14 @@ function startRun(
   };
   current = state;
 
+  const runLog = createLogger('run-log');
   const pushLine = (line: string) => {
     for (const l of scrub(line).split('\n')) {
       state.lines.push(l);
       broadcast(state, 'log', l);
+      // The tester-facing log (what the UI shows) is mirrored to the terminal in debug mode only;
+      // the structured [run] lines cover the same events at info level.
+      if (l.trim()) runLog.debug(l.trim());
     }
     if (state.lines.length > 5000) state.lines.splice(0, state.lines.length - 5000);
   };
@@ -423,9 +417,15 @@ function startRun(
     },
     id,
   )
-    .catch((e: unknown) => ({ code: 1, runId: id, outDir: join(OUTPUT_DIR, id), error: scrub((e as Error).message), summary: {} }) as RunOutcome)
+    .catch((e: unknown) => {
+      log.error('run failed unexpectedly', e, { run: id });
+      return { code: 1, runId: id, outDir: join(OUTPUT_DIR, id), error: scrub((e as Error).message), summary: {} } as RunOutcome;
+    })
     .then((outcome) => {
-      creds.clear(); // tokens are not kept after the run
+      // Tokens are not kept after the run, not even in the masking list.
+      forgetSecrets([...creds.values()].flatMap((c) => [c.jwt, c.csrf]));
+      creds.clear();
+      log.debug('tokens cleared from memory', { run: id });
       state.outcome = outcome;
       state.status = outcome.code === 130 ? 'cancelled' : outcome.error ? 'failed' : 'done';
       try {
@@ -470,19 +470,64 @@ function serveOutput(path: string, res: ServerResponse): void {
 
 // ---------------------------------------------------------------- start
 
+/** GETs of the page, reports, history and the live event stream are routine; only shown with --debug. */
+function isRoutine(method: string, path: string): boolean {
+  return method === 'GET' && (path === '/' || path.startsWith('/output/') || path === '/api/runs' || path === '/api/runs/current' || path === '/api/rulebooks' || path.endsWith('/events'));
+}
+
 const server = createServer((req, res) => {
+  const started = Date.now();
+  const method = req.method ?? 'GET';
+  const path = (req.url ?? '/').split('?')[0]!;
+  let failure: { message: string; err?: unknown } | null = null;
+
+  res.on('finish', () => {
+    const fields = { method, path, status: res.statusCode, ms: since(started), error: failure?.message };
+    if (res.statusCode >= 500) httpLog.error('request failed', failure?.err, fields);
+    else if (res.statusCode >= 400) httpLog.warn('request rejected', fields);
+    else if (isRoutine(method, path)) httpLog.debug('request', fields);
+    else httpLog.info('request', fields);
+  });
+
+  // Security headers on everything we serve (tool page and reports).
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+  );
+
+  // DNS-rebinding guard: a website that points its own domain at 127.0.0.1 would arrive with its
+  // own Host header. Only answer requests addressed to this server by its local name.
+  if (!ALLOWED_HOSTS.has((req.headers.host ?? '').toLowerCase())) {
+    failure = { message: `unexpected Host header "${req.headers.host ?? ''}"` };
+    return send(res, 403, { error: 'Forbidden' });
+  }
+
   handle(req, res).catch((e: unknown) => {
     const status = e instanceof HttpError ? e.status : e instanceof SafetyError ? 400 : 500;
     const message = scrub((e as Error).message ?? 'Unexpected error');
+    failure = { message, err: status >= 500 ? e : undefined };
     if (!res.headersSent) send(res, status, { error: message });
     else res.end();
   });
 });
 
+process.on('unhandledRejection', (e) => log.error('unhandled promise rejection', e));
+process.on('uncaughtException', (e) => log.error('uncaught exception', e));
+
+server.on('error', (e: NodeJS.ErrnoException) => {
+  if (e.code === 'EADDRINUSE') log.error(`port ${PORT} is already in use - is the tool already running in another terminal? Stop it or set PORT=<other>`);
+  else log.error('server error', e);
+  process.exit(1);
+});
+
 server.listen(PORT, HOST, () => {
   const url = `http://${HOST}:${PORT}`;
-  console.log(`AMP Permission Testing UI running at ${url}`);
-  console.log('Tokens entered in the UI stay in this process memory only. Press Ctrl+C to stop.');
+  log.info(`UI running at ${url}`, { logLevel: getLogLevel(), node: process.version, cwd: ROOT, output: OUTPUT_DIR });
+  log.info('tokens entered in the UI stay in this process memory only; press Ctrl+C to stop');
+  if (!isDebug()) log.info('for detailed logs (every page, request and blocked call) start with: npm run start:debug');
   if (!process.argv.includes('--no-open')) {
     const cmd = process.platform === 'win32' ? `start "" "${url}"` : process.platform === 'darwin' ? `open "${url}"` : `xdg-open "${url}"`;
     exec(cmd, () => undefined);
