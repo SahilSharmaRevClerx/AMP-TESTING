@@ -47,9 +47,12 @@ export class BrowserProbe {
     this.browser = await chromium.launch({ headless: this.cfg.headless });
     log.debug('chromium launched', { user: this.userType, headless: this.cfg.headless, version: this.browser.version(), ms: since(started) });
     this.context = await this.browser.newContext({ viewport: { width: 1440, height: 900 }, ignoreHTTPSErrors: false });
+    // The jwt is HttpOnly (as AMP sets it): scripts on the page, including third-party ones
+    // loaded by AMP pages, cannot read it; it is only sent to this exact host.
+    // The CSRF cookie must stay readable: AMP's own JavaScript copies it into the X-CSRF-Token header.
     await this.context.addCookies([
-      { name: 'jwt', value: creds.jwt, url: this.baseOrigin },
-      { name: 'X-CSRF-Token', value: creds.csrf, url: this.baseOrigin },
+      { name: 'jwt', value: creds.jwt, url: this.baseOrigin, httpOnly: true, sameSite: 'Lax' },
+      { name: 'X-CSRF-Token', value: creds.csrf, url: this.baseOrigin, sameSite: 'Lax' },
     ]);
 
     // Every request the page makes passes the safety policy first.

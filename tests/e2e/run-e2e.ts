@@ -9,6 +9,7 @@ import { setLogLevel } from '../../src/util/logger';
 
 if (!process.env.LOG_LEVEL) setLogLevel('warn');
 import { received, startFakeAmp, TOKENS } from './fake-amp';
+import { scanForSecrets } from './leak-scan';
 
 const expected: Record<string, string> = {
   'setup/roles': 'PASS',
@@ -46,7 +47,7 @@ async function main(): Promise<number> {
 
   const failures: string[] = [];
   try {
-    const code = await commandRun({ configFile });
+    const code = await commandRun({ configFile, only: ['partner_sales'] });
     if (code !== 2) failures.push(`exit code ${code}, expected 2 (failures present)`);
 
     const runDir = readdirSync(outputDir, { withFileTypes: true }).find((d) => d.isDirectory())!.name;
@@ -65,6 +66,8 @@ async function main(): Promise<number> {
     const audit = readFileSync(join(outputDir, runDir, 'audit.jsonl'), 'utf8');
     if (!/savelastviewed.*"decision":"blocked"/.test(audit)) failures.push('SAFETY: blocked write not recorded in audit log');
     if (audit.includes(TOKENS.partner_sales.jwt) || audit.includes(TOKENS.site_admin.jwt)) failures.push('SAFETY: raw token found in audit log');
+    for (const h of scanForSecrets([outputDir], [TOKENS.site_admin.jwt, TOKENS.partner_sales.jwt])) failures.push(`SAFETY LEAK: ${h}`);
+    if (received.some((r) => r.path === '/leak-probe')) failures.push('SAFETY: a page script could read the jwt cookie');
     const nonGetNonApi = received.filter((r) => r.method !== 'GET' && r.path !== '/services/api.ashx');
     if (nonGetNonApi.length) failures.push(`SAFETY: unexpected non-GET requests: ${JSON.stringify(nonGetNonApi)}`);
   } finally {

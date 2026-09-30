@@ -3,10 +3,12 @@
  * Run: npm run e2e:ui   (optional: SHOT=<path.png> to save a screenshot of the finished UI)
  */
 import { spawn } from 'node:child_process';
+import { request as httpRequest } from 'node:http';
+import { scanForSecrets } from './leak-scan';
 import { readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { startFakeAmp, TOKENS } from './fake-amp';
+import { received, startFakeAmp, TOKENS } from './fake-amp';
 
 const PORT = 4599;
 const UI = `http://127.0.0.1:${PORT}`;
@@ -31,7 +33,25 @@ async function main(): Promise<number> {
     const noHeader = await fetch(`${UI}/api/tokens/check`, { method: 'POST', body: '{}' });
     if (noHeader.status !== 403) failures.push(`API without UI header returned ${noHeader.status}, expected 403`);
 
+    // DNS-rebinding guard: a request carrying another site's Host header is refused, even for reports.
+    const rebound = await new Promise<number>((resolve, reject) => {
+      const r = httpRequest({ host: '127.0.0.1', port: PORT, path: '/api/runs', headers: { Host: `evil.example:${PORT}` } }, (res) => {
+        res.resume();
+        resolve(res.statusCode ?? 0);
+      });
+      r.on('error', reject);
+      r.end();
+    });
+    if (rebound !== 403) failures.push(`request with foreign Host header returned ${rebound}, expected 403`);
+
+    // Security headers on the tool page.
+    const home = await fetch(UI + '/');
+    for (const [h, want] of [['x-frame-options', 'DENY'], ['referrer-policy', 'no-referrer'], ['content-security-policy', "connect-src 'self'"]] as const) {
+      if (!(home.headers.get(h) ?? '').includes(want)) failures.push(`missing security header ${h}: ${home.headers.get(h)}`);
+    }
+
     const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+    page.on('pageerror', (err) => failures.push(`UI script error: ${err.message}`));
     const shot = async (name: string) => {
       if (process.env.SHOT_DIR) await page.screenshot({ path: join(process.env.SHOT_DIR, `${name}.png`), fullPage: true });
     };
@@ -66,6 +86,11 @@ async function main(): Promise<number> {
     // Step 2: rulebook upload
     await page.setInputFiles('#rb-file', 'tests/e2e/rulebook.csv');
     await page.waitForSelector('#rb-msg .msg.ok', { timeout: 10000 });
+    const detected = await page.locator('.col-user').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+    if (detected.join() !== 'site_admin,partner_sales,reviewed') failures.push(`detected user types: ${detected.join()}`);
+    const rbText = (await page.textContent('#step-2')) ?? '';
+    if (!/row 2; the title row/.test(rbText) || !/Owner\s*ignored — not Yes\/No values/.test(rbText)) failures.push(`rulebook step text: ${rbText.slice(0, 400)}`);
+    await page.uncheck('.col-user[value="reviewed"]');
     await shot('3-rulebook');
     await page.click('#next-2');
 
@@ -73,6 +98,10 @@ async function main(): Promise<number> {
     for (const [key, t] of Object.entries(TOKENS)) await fillUser(key, t.jwt);
     await page.click('#btn-check');
     await page.waitForSelector('#users-msg .msg.ok', { timeout: 10000 });
+    const names = await page.locator('#users .uname').allTextContents();
+    if (names.join('|') !== 'Site Admin|Partner Sales') failures.push(`rows should be the sheet's column names, got: ${names.join('|')}`);
+    const checkMsg = (await page.textContent('#users-msg')) ?? '';
+    if (!/Site Admin is a Site Admin and will be the reference/.test(checkMsg)) failures.push(`reference not picked from identity: ${checkMsg}`);
     const who = await page.textContent('#st-partner_sales');
     if (!who?.includes('Pat Partner')) failures.push(`token check did not show partner identity: ${who}`);
     await shot('4-users');
@@ -112,9 +141,20 @@ async function main(): Promise<number> {
     await fillUser('partner_sales', '');
     await fillUser('site_admin', TOKENS.site_admin.jwt);
     await page.click('#next-3');
-    await page.waitForFunction(() => /expected to see every page/.test(document.getElementById('plan-msg')?.textContent ?? ''), null, { timeout: 10000 });
+    await page.waitForFunction(() => /Site Admin.*is the reference/.test(document.getElementById('plan-msg')?.textContent ?? ''), null, { timeout: 10000 });
     const adminOnly = await runAndWait();
     if (!adminOnly.includes('everything matches') || !adminOnly.includes('0 failed')) failures.push(`site-admin-only run: ${adminOnly}`);
+
+    // Pasting a whole cookie pair is cleaned to the bare jwt; "Clear jwts" empties every box.
+    await page.click('#btn-again');
+    await page.fill('.user[data-key="partner_sales"] .u-jwt', `jwt=${TOKENS.partner_sales.jwt}; X-CSRF-Token=abc`);
+    const cleaned = await page.inputValue('.user[data-key="partner_sales"] .u-jwt');
+    if (cleaned !== TOKENS.partner_sales.jwt) failures.push(`pasted cookie pair was not cleaned: ${cleaned.slice(0, 12)}…`);
+    await page.click('#btn-clear');
+    const left = await page.locator('#users .u-jwt').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value).join(''));
+    if (left !== '') failures.push('Clear jwts left values in the boxes');
+    const pwFields = await page.locator('input[type=password]').count();
+    if (pwFields !== 0) failures.push('jwt boxes are password fields (password managers may offer to save them)');
 
     // Past runs screen lists all three.
     await page.click('#go-history');
@@ -122,10 +162,24 @@ async function main(): Promise<number> {
     await shot('7-history');
 
     // Tokens must not be persisted by the UI.
-    const stored = await page.evaluate(() => JSON.stringify(localStorage));
-    if (stored.includes(TOKENS.partner_sales.jwt)) failures.push('SAFETY: token found in localStorage');
+    const stored = await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }));
+    if (stored.includes(TOKENS.partner_sales.jwt) || stored.includes(TOKENS.site_admin.jwt)) failures.push('SAFETY: token found in browser storage');
+
+    // Page scripts in the tested browser never saw the jwt cookie (HttpOnly).
+    if (received.some((r) => r.path === '/leak-probe')) failures.push('SAFETY: a page script could read the jwt cookie');
+
+    // No raw jwt anywhere in what the tool wrote or printed.
+    const runDirs = readdirSync('output').filter((d) => d.startsWith('fake-')).map((d) => join('output', d));
+    const hits = scanForSecrets([...runDirs, join('output', '_ui')], [TOKENS.site_admin.jwt, TOKENS.partner_sales.jwt], { 'server terminal output': uiOut });
+    if (runDirs.length === 0) failures.push('leak scan found no run folders to scan');
+    failures.push(...hits.map((h) => `SAFETY LEAK: ${h}`));
   } catch (e) {
-    failures.push(String(e));
+    failures.push(String(e).split('\n')[0]!);
+    const p = browser.contexts()[0]?.pages()[0];
+    if (p) {
+      failures.push(`at: ${await p.evaluate(() => Array.from(document.querySelectorAll('.panel:not([hidden]) h2, .panel:not([hidden]) .msg')).map((e) => e.textContent?.trim()).join(' | '))}`);
+      if (process.env.SHOT_DIR) await p.screenshot({ path: join(process.env.SHOT_DIR, 'failure.png'), fullPage: true });
+    }
   } finally {
     await browser.close();
     ui.kill();

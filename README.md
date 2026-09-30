@@ -32,6 +32,28 @@ This opens `http://127.0.0.1:4545` in your browser. Everything is entered on tha
 
 Past runs are listed at the bottom. Tokens entered in the UI stay in the server's memory for that run only; they are never written to disk or browser storage. The server listens on `127.0.0.1` only and rejects API calls that don't come from its own page.
 
+## Keeping jwts safe
+
+A jwt is a live AMP session: whoever holds it is logged in as that user until it expires or the user logs out.
+
+**What the tool does**
+
+| Where | Protection |
+|---|---|
+| Tester page | jwt boxes are masked and not password fields (password managers don't offer to save them); never written to browser storage; wiped on **Clear jwts**, **New test**, or page refresh; pasted `jwt=…;` pairs are cleaned to the bare value |
+| Page → tool server | server listens on `127.0.0.1` only; token-carrying APIs require the page's own header and origin; requests with a foreign `Host` header are refused (blocks DNS-rebinding sites from reaching the tool or its reports); security headers (`X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, a Content-Security-Policy that only allows talking to this server) |
+| Tool server | jwts live in memory only for the token check / run, then are dropped (including from the masking list); never written to disk; masked (`eyJhb…x9Q`) in every log line, audit entry, error and report |
+| To AMP | sent only to the environment's own host, over HTTPS (plain HTTP only for localhost); redirects are not followed with the cookie |
+| Test browser | fresh in-memory profile per user, deleted after the run; the jwt cookie is **HttpOnly**, so scripts on AMP pages (including third-party ones) cannot read it; scoped to the environment's host only |
+| Tests | every test run scans all output files and the server's terminal output for raw jwts, and checks that a page script cannot read the jwt cookie |
+
+**What testers should do**
+
+1. **Log out when done.** AMP sessions are revoked server-side on logout (`Authentication.Logout` → session `Revoked`), so the copied jwt stops working everywhere. This is the most effective protection.
+2. Use **test users** on QA/staging, not real admin accounts on production.
+3. Don't paste jwts into chat, email or tickets; clear your clipboard (Windows **Win+V** keeps clipboard history).
+4. Treat `output/` as internal: reports contain screenshots of client pages (but never jwts).
+
 ## Developer logs (terminal)
 
 The terminal running the server shows structured logs:

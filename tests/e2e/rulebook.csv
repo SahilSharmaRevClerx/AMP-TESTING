@@ -1,8 +1,9 @@
-﻿page,name,partner_sales
-/#setup/roles,Roles,No
-/#setup/users/list,Users,No
-/#setup/brand,Brand,Yes
-/#setup/leadrouting,Lead Routing,No
-/#connections/contacts,Contacts,Yes
-/#report/assets,Asset Report,Yes
-/#manage/mdf/funds,Request MDF,Yes
+﻿Fake AMP permission rules,,,,,
+Page,Name,Site Admin,Partner Sales,Owner,Reviewed
+/#setup/roles,Roles,Yes,No,Rahul,Yes
+/#setup/users/list,Users,Yes,No,Priya,Yes
+/#setup/brand,Brand,Yes,Yes,Rahul,No
+/#setup/leadrouting,Lead Routing,Yes,No,Priya,Yes
+/#connections/contacts,Contacts,Yes,Yes,Rahul,Yes
+/#report/assets,Asset Report,Yes,Yes,Priya,No
+/#manage/mdf/funds,Request MDF,Yes,Yes,Rahul,Yes

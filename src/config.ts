@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import type { Credentials, RunConfig } from './types';
-import { registerSecret } from './util/mask';
+import { cleanJwt, registerSecret } from './util/mask';
 
 const DEFAULTS: Omit<RunConfig, 'environment' | 'userTypes' | 'calibrationUserType'> = {
   rulebook: 'rulebook/internal-user-personas.csv',
@@ -63,7 +63,7 @@ export function loadLocalEnv(file = '.env.local'): void {
  * and send it as both cookie and header.
  */
 export function makeCredentials(jwt: string, csrf?: string): Credentials {
-  const c = { jwt: jwt.trim(), csrf: csrf?.trim() || randomUUID() };
+  const c = { jwt: cleanJwt(jwt), csrf: csrf?.trim() || randomUUID() };
   registerSecret(c.jwt);
   registerSecret(c.csrf);
   return c;

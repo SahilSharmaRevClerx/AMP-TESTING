@@ -70,6 +70,8 @@ function load(){
   });
 }
 window.addEventListener('hashchange', load); load(); api('getnotifications');
+// Plays a third-party script on the page trying to read the session: must never see the jwt (HttpOnly).
+if (document.cookie.indexOf('jwt=') >= 0) fetch('/leak-probe?saw=jwt');
 </script></body></html>`;
 }
 
@@ -88,6 +90,7 @@ export function startFakeAmp(): Promise<{ server: Server; baseUrl: string }> {
       res.end(body);
     };
 
+    if (path === '/leak-probe') return send(204, '');
     if (path === '/login') return send(200, '<h1>Login</h1>');
     if (path === '/noaccess') return send(200, NOACCESS);
     if (!user) return send(302, '', 'text/html', { Location: '/login' });

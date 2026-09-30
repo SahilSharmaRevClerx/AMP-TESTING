@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { credentialsFor, envKey, loadConfig, loadLocalEnv } from './config';
-import { loadRulebook } from './rulebook/parse';
+import { loadRulebook, selectUserTypes } from './rulebook/parse';
 import { RequestGate } from './safety/gate';
 import { describeIdentity, validateToken } from './sessions/validate';
 import { fetchMenu, menuHasRoute } from './probe/menu';
@@ -371,7 +371,11 @@ async function cliSetup(opts: CliOptions) {
   loadLocalEnv();
   const cfg = loadConfig(opts.configFile);
   if (opts.headed) cfg.headless = false;
-  const rulebook = await loadRulebook(cfg.rulebook);
+  const full = await loadRulebook(cfg.rulebook);
+  // The config's userTypes decide what the CLI tests; other detected columns are skipped.
+  const skipped = full.userTypes.filter((ut) => !cfg.userTypes[ut]);
+  if (skipped.length) console.warn(`Skipping rulebook columns not in config userTypes: ${skipped.map((s) => full.userTypeLabels[s] ?? s).join(', ')}`);
+  const rulebook = selectUserTypes(full, full.userTypes.filter((ut) => cfg.userTypes[ut]));
   const plan = planRun(cfg, rulebook, opts.only, opts.limit);
   return { cfg, rulebook, plan };
 }

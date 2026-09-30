@@ -5,12 +5,12 @@ import { randomUUID } from 'node:crypto';
 import { exec } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { buildConfig, makeCredentials } from '../config';
-import { parseRulebook, rulebookSummary, withAllowAllColumn } from '../rulebook/parse';
+import { parseRulebook, rulebookSummary, selectUserTypes } from '../rulebook/parse';
 import { assertSafeEnvironment, RequestGate, SafetyError } from '../safety/gate';
 import { validateToken } from '../sessions/validate';
 import { executeRun, newRunId, planRun, type Progress, type RunOutcome } from '../run';
 import { AuditLog } from '../util/audit';
-import { registerSecret, scrub } from '../util/mask';
+import { forgetSecrets, scrub } from '../util/mask';
 import { createLogger, getLogLevel, isDebug, since } from '../util/logger';
 import type { Credentials, Environment, Rulebook, RunConfig } from '../types';
 
@@ -24,6 +24,7 @@ const RULEBOOK_DIR = join(ROOT, 'rulebook');
 const OUTPUT_DIR = join(ROOT, 'output');
 const UI_FILE = fileURLToPath(new URL('./ui.html', import.meta.url));
 const MAX_BODY = 8 * 1024 * 1024;
+const ALLOWED_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
 
 // ---------------------------------------------------------------- state (memory only)
 
@@ -60,6 +61,8 @@ interface UserInput {
 interface RunRequest {
   environment: Environment;
   rulebookId: string;
+  /** User-type columns the tester confirmed on the rulebook step (default: all detected). */
+  selectedUserTypes?: string[];
   calibrationKey: string;
   users: UserInput[];
   options?: { limit?: number; delayMs?: number; fingerprintThreshold?: number; headed?: boolean };
@@ -148,22 +151,22 @@ function credsFrom(users: UserInput[], keys: string[]): Map<string, Credentials>
   return creds;
 }
 
-/** The reference user is used only when its jwt was entered. */
-function referenceKey(body: RunRequest): string | null {
+/**
+ * The reference user (normally whichever tested jwt belongs to a real Site Admin, chosen by the UI
+ * from the token check) must be one of the rulebook's user types, ticked, with a jwt.
+ */
+function referenceKey(body: RunRequest, rb: Rulebook): string | null {
   const key = body.calibrationKey?.trim();
   if (!key) return null;
-  if (!KEY_RE.test(key)) throw new HttpError(400, 'Reference user key must be lowercase letters, digits or _');
   const u = body.users?.find((x) => x.key === key);
-  return u?.jwt?.trim() ? key : null;
+  return rb.userTypes.includes(key) && u?.test === true && u.jwt?.trim() ? key : null;
 }
 
 function configFrom(body: RunRequest, rb: Rulebook): RunConfig {
-  const calibrationKey = referenceKey(body);
+  const calibrationKey = referenceKey(body, rb);
+  // User types and their names come only from the rulebook's column headers.
   const userTypes: Record<string, { label: string }> = {};
-  for (const key of new Set([...(calibrationKey ? [calibrationKey] : []), ...rb.userTypes])) {
-    const u = body.users.find((x) => x.key === key);
-    userTypes[key] = { label: u?.label?.trim() || key };
-  }
+  for (const key of rb.userTypes) userTypes[key] = { label: rb.userTypeLabels[key] ?? key };
   const o = body.options ?? {};
   const cfg = buildConfig(
     {
@@ -198,21 +201,16 @@ function onlyFrom(body: RunRequest, rb: Rulebook): string[] {
   return only;
 }
 
-/**
- * Everything a plan or run needs from a request. When the reference Site Admin is ticked for testing
- * but the rulebook has no column for it, it is expected to see every page.
- */
+/** Everything a plan or run needs from a request. */
 function setupFrom(body: RunRequest) {
   const loaded = getRulebook(body.rulebookId);
-  let rulebook = loaded.rulebook;
-  const notes: string[] = [];
-  const ref = referenceKey(body);
-  const refTested = ref !== null && body.users?.find((u) => u.key === ref)?.test === true;
-  if (refTested && !rulebook.userTypes.includes(ref)) {
-    rulebook = withAllowAllColumn(rulebook, ref);
-    const label = body.users.find((u) => u.key === ref)?.label || ref;
-    notes.push(`The rulebook has no column for ${label}, so ${label} is expected to see every page (a Site Admin with MFA has access to every module in AMP).`);
+  let rulebook: Rulebook;
+  try {
+    rulebook = selectUserTypes(loaded.rulebook, body.selectedUserTypes);
+  } catch (e) {
+    throw new HttpError(400, (e as Error).message);
   }
+  const notes: string[] = [];
   const cfg = configFrom(body, rulebook);
   const only = onlyFrom(body, rulebook);
   const plan = planRun(cfg, rulebook, only, body.options?.limit);
@@ -316,7 +314,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       throw new HttpError(400, `Could not read rulebook: ${(e as Error).message}`);
     }
     const bad = rulebook.userTypes.filter((ut) => !KEY_RE.test(ut));
-    if (bad.length) throw new HttpError(400, `User type columns must be lowercase letters, digits or _: ${bad.join(', ')}`);
+    if (bad.length) throw new HttpError(400, `User-type column names are too long (max 40 characters): ${bad.map((b) => rulebook.userTypeLabels[b] ?? b).join(', ')}`);
     const id = randomUUID();
     rulebooks.set(id, { id, name, data, rulebook });
     const summary = rulebookSummary(rulebook);
@@ -333,7 +331,8 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const results = [];
     for (const u of users) {
       const creds = credsFrom([u], [u.key]);
-      const identity = await validateToken(gate, u.key, creds.get(u.key)!);
+      const c = creds.get(u.key)!;
+      const identity = await validateToken(gate, u.key, c).finally(() => forgetSecrets([c.jwt, c.csrf]));
       results.push({ key: u.key, identity });
       if (identity.valid) log.info('token check ok', { env: env.name, user: u.key, name: identity.userName, persona: identity.persona, siteAdmin: identity.isSiteAdmin, company: identity.companyName, org: identity.organizationName });
       else log.warn('token check failed', { env: env.name, user: u.key, reason: identity.reason });
@@ -435,7 +434,9 @@ function startRun(
       return { code: 1, runId: id, outDir: join(OUTPUT_DIR, id), error: scrub((e as Error).message), summary: {} } as RunOutcome;
     })
     .then((outcome) => {
-      creds.clear(); // tokens are not kept after the run
+      // Tokens are not kept after the run, not even in the masking list.
+      forgetSecrets([...creds.values()].flatMap((c) => [c.jwt, c.csrf]));
+      creds.clear();
       log.debug('tokens cleared from memory', { run: id });
       state.outcome = outcome;
       state.status = outcome.code === 130 ? 'cancelled' : outcome.error ? 'failed' : 'done';
@@ -499,6 +500,22 @@ const server = createServer((req, res) => {
     else if (isRoutine(method, path)) httpLog.debug('request', fields);
     else httpLog.info('request', fields);
   });
+
+  // Security headers on everything we serve (tool page and reports).
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
+  );
+
+  // DNS-rebinding guard: a website that points its own domain at 127.0.0.1 would arrive with its
+  // own Host header. Only answer requests addressed to this server by its local name.
+  if (!ALLOWED_HOSTS.has((req.headers.host ?? '').toLowerCase())) {
+    failure = { message: `unexpected Host header "${req.headers.host ?? ''}"` };
+    return send(res, 403, { error: 'Forbidden' });
+  }
 
   handle(req, res).catch((e: unknown) => {
     const status = e instanceof HttpError ? e.status : e instanceof SafetyError ? 400 : 500;

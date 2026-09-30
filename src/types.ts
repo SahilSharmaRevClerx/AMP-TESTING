@@ -12,8 +12,23 @@ export interface Rule {
   notes: string;
 }
 
+export interface RulebookColumn {
+  key: string;
+  label: string;
+  role: 'page' | 'name' | 'user' | 'info';
+  /** Why an info column is not a user type. */
+  reason?: string;
+}
+
 export interface Rulebook {
+  /** Keys derived from the user-type column headers, e.g. "channel_manager". */
   userTypes: string[];
+  /** Header text exactly as written in the sheet, e.g. "Channel Manager". */
+  userTypeLabels: Record<string, string>;
+  /** How every column of the sheet was understood (shown to the tester to confirm). */
+  columns?: RulebookColumn[];
+  /** 1-based row of the header in the sheet (title rows above it are skipped). */
+  headerRow?: number;
   rules: Rule[];
 }
 
