@@ -27,10 +27,10 @@ code{font:12.5px ui-monospace,Consolas,monospace;background:var(--code);padding:
 /* top bar */
 .top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
 .top .in{max-width:1060px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:12px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:700;cursor:pointer;background:none;border:0;color:var(--fg);font-size:15px;padding:0}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;cursor:pointer;background:none;border:0;color:var(--fg);font-size:15px;padding:0;white-space:nowrap}
 .logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:#fff}
 .top .sp{flex:1}
-.link{background:none;border:0;color:var(--muted);font:inherit;cursor:pointer;padding:6px 10px;border-radius:6px}
+.link{background:none;border:0;color:var(--muted);font:inherit;cursor:pointer;padding:6px 10px;border-radius:6px;white-space:nowrap}
 .link:hover{background:var(--code);color:var(--fg)}
 
 main{max-width:1060px;margin:0 auto;padding:28px 16px 80px}
@@ -55,24 +55,56 @@ input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
 .msg{border-radius:8px;padding:10px 14px;margin-top:14px;font-size:14px}
 .msg.ok{background:var(--ok-bg);color:var(--ok)}.msg.bad{background:var(--bad-bg);color:var(--bad)}.msg.warn{background:var(--warn-bg);color:var(--warn)}
 
-/* ---------- welcome */
-.hero{text-align:center;padding:26px 8px 8px}
-.hero .eyebrow{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);padding:4px 10px;border-radius:999px}
-.hero h1{font-size:34px;line-height:1.2;margin:14px 0 10px}
-.hero h1 span{background:linear-gradient(90deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
-.hero p{max-width:640px;margin:0 auto;color:var(--muted);font-size:16px}
-.flow{display:flex;align-items:stretch;justify-content:center;gap:0;margin:34px 0 10px;flex-wrap:nowrap}
-.fstep{flex:1;min-width:0;max-width:190px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 14px;text-align:center;box-shadow:var(--shadow)}
-.fstep .ic{width:46px;height:46px;border-radius:12px;margin:0 auto 10px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
-.fstep .n{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.06em}
-.fstep h3{margin:2px 0 4px;font-size:15px}
-.fstep p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.4}
-.farrow{flex:0 0 34px;display:grid;place-items:center;color:var(--muted)}
-.cta{text-align:center;margin:30px 0 8px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-.trust{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:22px}
-.trust span{font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 12px;display:inline-flex;gap:6px;align-items:center}
+/* ---------- welcome: three full-screen scenes, revealed on scroll */
+html.snap{scroll-snap-type:y mandatory;scroll-padding-top:57px}
+main.welcome{max-width:none;padding:0}
+.scene{min-height:calc(100vh - 57px);min-height:calc(100svh - 57px);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:56px 20px 96px;position:relative;scroll-snap-align:start}
+.scene-in{max-width:1060px;width:100%}
+.bg-deco{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+.bg-deco .blob{position:absolute;width:560px;height:560px;border-radius:50%;filter:blur(100px);opacity:.22;animation:drift 18s ease-in-out infinite alternate}
+.bg-deco .b1{background:var(--accent);top:-180px;left:-160px}
+.bg-deco .b2{background:var(--accent-2);bottom:-220px;right:-160px;animation-delay:-9s}
+.bg-deco .dots-bg{position:absolute;inset:0;background-image:radial-gradient(color-mix(in srgb,var(--muted) 35%,transparent) 1px,transparent 1.2px);background-size:28px 28px;-webkit-mask-image:radial-gradient(ellipse at center,#000 25%,transparent 72%);mask-image:radial-gradient(ellipse at center,#000 25%,transparent 72%);opacity:.5}
+body:not(.welcome-on) .bg-deco{display:none}
+.hero-mark{width:88px;height:88px;border-radius:26px;margin:0 auto 26px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 22px 50px -16px color-mix(in srgb,var(--accent) 70%,transparent);animation:float 6s ease-in-out infinite}
+.eyebrow{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);padding:5px 12px;border-radius:999px}
+.scene h1{font-size:clamp(34px,5.4vw,60px);line-height:1.08;margin:18px auto 16px;letter-spacing:-.025em;max-width:900px}
+.scene h2{font-size:clamp(28px,3.8vw,42px);line-height:1.15;margin:14px 0 10px;letter-spacing:-.02em}
+.grad{background:linear-gradient(90deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.lead{max-width:660px;margin:0 auto;color:var(--muted);font-size:clamp(15px,1.7vw,19px);line-height:1.6}
+.scroll-cue{position:absolute;bottom:26px;left:0;right:0;margin:0 auto;width:max-content;display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--muted);font:500 13px system-ui,-apple-system,"Segoe UI",sans-serif;background:none;border:0;cursor:pointer;padding:6px 10px;border-radius:10px}
+.scroll-cue:hover{color:var(--fg)}
+.mouse{width:24px;height:38px;border:2px solid currentColor;border-radius:14px;position:relative;opacity:.8}
+.mouse::after{content:"";position:absolute;left:50%;top:7px;width:4px;height:8px;margin-left:-2px;border-radius:2px;background:currentColor;animation:wheel 1.7s ease-in-out infinite}
+@keyframes wheel{0%{opacity:0;transform:translateY(-3px)}35%{opacity:1}100%{opacity:0;transform:translateY(11px)}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes drift{0%{transform:translate(0,0) scale(1)}100%{transform:translate(60px,40px) scale(1.12)}}
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .9s cubic-bezier(.2,.7,.2,1) var(--d,0s),transform .9s cubic-bezier(.2,.7,.2,1) var(--d,0s)}
+.reveal.in{opacity:1;transform:none}
+.flow{display:flex;align-items:stretch;justify-content:center;margin:44px 0 0}
+.fcell{flex:1;min-width:0;max-width:196px;display:flex}
+.fstep{position:relative;width:100%;background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:18px;padding:26px 16px 20px;text-align:center;box-shadow:var(--shadow);transition:transform .25s ease,box-shadow .25s ease,border-color .25s ease}
+.fstep:hover{transform:translateY(-6px);border-color:color-mix(in srgb,var(--accent) 45%,var(--line));box-shadow:0 18px 40px -18px color-mix(in srgb,var(--accent) 55%,transparent)}
+.fstep .num{position:absolute;top:-13px;left:50%;transform:translateX(-50%);width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;font-size:12px;font-weight:700;display:grid;place-items:center;box-shadow:0 4px 12px -4px var(--accent)}
+.fstep .ic{width:50px;height:50px;border-radius:14px;margin:4px auto 12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.fstep h3{margin:0 0 6px;font-size:16px}
+.fstep p{margin:0;font-size:13px;color:var(--muted);line-height:1.45}
+.farrow{flex:0 0 38px;display:grid;place-items:center;color:color-mix(in srgb,var(--accent) 60%,var(--muted))}
+.cta{margin:34px 0 8px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.btn.hero-cta{padding:16px 34px;font-size:18px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent-2));border:0;box-shadow:0 18px 40px -14px color-mix(in srgb,var(--accent) 75%,transparent);transition:transform .2s ease,box-shadow .2s ease}
+.btn.hero-cta:hover{transform:translateY(-2px);filter:none;box-shadow:0 22px 48px -14px color-mix(in srgb,var(--accent) 85%,transparent)}
+.btn.hero-cta svg{transition:transform .2s ease}.btn.hero-cta:hover svg{transform:translateX(4px)}
+.btn.ghost-big{padding:16px 28px;font-size:17px;border-radius:14px;background:color-mix(in srgb,var(--card) 85%,transparent)}
+.trust{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:30px}
+.trust span{font-size:13px;color:var(--muted);background:color-mix(in srgb,var(--card) 85%,transparent);border:1px solid var(--line);border-radius:999px;padding:6px 13px;display:inline-flex;gap:7px;align-items:center}
 .trust svg{color:var(--ok)}
-@media (max-width:760px){.flow{flex-direction:column;align-items:center}.fstep{max-width:360px;width:100%}.farrow{transform:rotate(90deg);height:28px}.hero h1{font-size:27px}}
+.scene-dots{position:fixed;right:24px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;z-index:4}
+.scene-dots button{width:10px;height:10px;border-radius:6px;border:0;padding:0;background:color-mix(in srgb,var(--muted) 45%,transparent);cursor:pointer;transition:height .3s ease,background .3s ease}
+.scene-dots button.on{height:28px;background:linear-gradient(180deg,var(--accent),var(--accent-2))}
+body:not(.welcome-on) .scene-dots{display:none}
+@media (max-width:860px){html.snap{scroll-snap-type:y proximity}.flow{flex-direction:column;align-items:center}.fcell{max-width:380px;width:100%}.farrow{height:56px;align-items:start;padding-top:6px}.farrow svg{transform:rotate(90deg)}.scene-dots{display:none}.scene{padding-top:40px}}
+@media (max-width:480px){.top .in{gap:4px;padding:10px 12px}.brand{font-size:14px}.link{padding:6px 8px}}
+@media (prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}.hero-mark,.mouse::after,.bg-deco .blob{animation:none}}
 
 /* ---------- wizard */
 .stepper{display:flex;gap:0;margin:4px 0 22px;counter-reset:s}
@@ -193,43 +225,67 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   <button class="link" id="go-new">New test</button>
 </div></header>
 
+<div class="bg-deco" aria-hidden="true"><div class="blob b1"></div><div class="blob b2"></div><div class="dots-bg"></div></div>
+
 <main>
 
 <!-- ============================ WELCOME ============================ -->
 <section id="screen-welcome">
-  <div class="hero">
-    <span class="eyebrow">AMP · Role-based access</span>
-    <h1>Welcome to the <span>Permission Testing Platform</span></h1>
-    <p>Check which pages each user type can open on any AMP environment — automatically, read-only, with screenshot proof for every result.</p>
+  <nav class="scene-dots" aria-label="Sections">
+    <button data-go="scene-1" class="on" title="Welcome" aria-label="Welcome"></button>
+    <button data-go="scene-2" title="How it works" aria-label="How it works"></button>
+    <button data-go="scene-3" title="Start" aria-label="Start"></button>
+  </nav>
+
+  <!-- Scene 1: welcome -->
+  <div class="scene" id="scene-1">
+    <div class="scene-in">
+      <div class="reveal"><div class="hero-mark"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></div></div>
+      <span class="eyebrow reveal" style="--d:.12s">AMP · Role-based access</span>
+      <h1 class="reveal" style="--d:.24s">Welcome to the <span class="grad">Permission Testing Platform</span></h1>
+      <p class="lead reveal" style="--d:.38s">Check which pages each user type can open on any AMP environment — automatically, read-only, with screenshot proof for every result.</p>
+    </div>
+    <button class="scroll-cue reveal" style="--d:.7s" data-go="scene-2"><span class="mouse"></span>Scroll to see how it works</button>
   </div>
 
-  <div class="flow" aria-label="How it works">
-    <div class="fstep"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg></div>
-      <div class="n">STEP 1</div><h3>Environment</h3><p>Which client site to test</p></div>
-    <div class="farrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
-    <div class="fstep"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div>
-      <div class="n">STEP 2</div><h3>Rulebook</h3><p>Pages and who should see them</p></div>
-    <div class="farrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
-    <div class="fstep"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></svg></div>
-      <div class="n">STEP 3</div><h3>Users &amp; tokens</h3><p>The jwt cookie for each user type</p></div>
-    <div class="farrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
-    <div class="fstep"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 001.5.86l10.5-6.5a1 1 0 000-1.72L9.5 4.64A1 1 0 008 5.5z"/></svg></div>
-      <div class="n">STEP 4</div><h3>Run</h3><p>Every page opened as every user</p></div>
-    <div class="farrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
-    <div class="fstep"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
-      <div class="n">STEP 5</div><h3>Report</h3><p>Pass / fail with screenshots</p></div>
+  <!-- Scene 2: how it works -->
+  <div class="scene" id="scene-2">
+    <div class="scene-in">
+      <span class="eyebrow reveal">How it works</span>
+      <h2 class="reveal" style="--d:.1s">Five steps, a few minutes</h2>
+      <p class="lead reveal" style="--d:.2s">Give the site, the rulebook and a jwt per user type. The tool opens every page as each user and shows you what doesn't match.</p>
+      <div class="flow" aria-label="How it works">
+        <div class="fcell reveal" style="--d:.3s"><div class="fstep"><span class="num">1</span><div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg></div><h3>Environment</h3><p>Which client site to test</p></div></div>
+        <div class="farrow reveal" style="--d:.38s"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div class="fcell reveal" style="--d:.46s"><div class="fstep"><span class="num">2</span><div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div><h3>Rulebook</h3><p>Pages and who should see them</p></div></div>
+        <div class="farrow reveal" style="--d:.54s"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div class="fcell reveal" style="--d:.62s"><div class="fstep"><span class="num">3</span><div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></svg></div><h3>Users &amp; tokens</h3><p>The jwt cookie for each user type</p></div></div>
+        <div class="farrow reveal" style="--d:.70s"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div class="fcell reveal" style="--d:.78s"><div class="fstep"><span class="num">4</span><div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 001.5.86l10.5-6.5a1 1 0 000-1.72L9.5 4.64A1 1 0 008 5.5z"/></svg></div><h3>Run</h3><p>Every page opened as every user</p></div></div>
+        <div class="farrow reveal" style="--d:.86s"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div class="fcell reveal" style="--d:.94s"><div class="fstep"><span class="num">5</span><div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div><h3>Report</h3><p>Pass / fail with screenshots</p></div></div>
+      </div>
+    </div>
+    <button class="scroll-cue reveal" style="--d:1.1s" data-go="scene-3"><span class="mouse"></span>Scroll to start</button>
   </div>
 
-  <div class="cta">
-    <button class="btn primary big" id="btn-start">Start new test
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
-    <button class="btn big" id="btn-welcome-history">View past runs</button>
-  </div>
-
-  <div class="trust">
-    <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>Read-only — pages are opened, never changed</span>
-    <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>Tokens never saved</span>
-    <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>Runs on your machine</span>
+  <!-- Scene 3: start -->
+  <div class="scene" id="scene-3">
+    <div class="scene-in">
+      <span class="eyebrow reveal">Get started</span>
+      <h2 class="reveal" style="--d:.1s">Ready to <span class="grad">test permissions?</span></h2>
+      <p class="lead reveal" style="--d:.2s">Have the client's site address, the rulebook sheet and a logged-in jwt for each user type you want to check.</p>
+      <div class="cta reveal" style="--d:.32s">
+        <button class="btn primary hero-cta" id="btn-start">Start new test
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        <button class="btn ghost-big" id="btn-welcome-history">View past runs</button>
+      </div>
+      <div class="trust reveal" style="--d:.45s">
+        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>Read-only — pages are opened, never changed</span>
+        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>Tokens never saved</span>
+        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>Runs on your machine</span>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -388,9 +444,39 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   // ---------- screens & steps
   function show(screen) {
     ['welcome', 'wizard', 'history'].forEach(function (s) { $('screen-' + s).hidden = s !== screen; });
+    var welcome = screen === 'welcome';
+    // Full-screen scenes with snap scrolling only on the welcome page.
+    document.documentElement.classList.toggle('snap', welcome);
+    document.body.classList.toggle('welcome-on', welcome);
+    document.querySelector('main').classList.toggle('welcome', welcome);
     if (screen === 'history') loadHistory();
     window.scrollTo(0, 0);
   }
+
+  // ---------- welcome scenes: reveal on scroll, scroll cues, dot navigation
+  (function () {
+    var reveals = document.querySelectorAll('#screen-welcome .reveal');
+    var dots = document.querySelectorAll('.scene-dots button');
+    if (!('IntersectionObserver' in window)) { reveals.forEach(function (el) { el.classList.add('in'); }); return; }
+    var revealObs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); revealObs.unobserve(e.target); } });
+    }, { threshold: 0.15 });
+    reveals.forEach(function (el) { revealObs.observe(el); });
+    var sceneObs = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        dots.forEach(function (d) { d.classList.toggle('on', d.getAttribute('data-go') === e.target.id); });
+      });
+    }, { threshold: 0.55 });
+    document.querySelectorAll('#screen-welcome .scene').forEach(function (s) { sceneObs.observe(s); });
+  })();
+  document.querySelectorAll('#screen-welcome [data-go]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var target = $(b.getAttribute('data-go'));
+      var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (target) target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+    });
+  });
   function goStep(n) {
     state.step = n; state.maxStep = Math.max(state.maxStep, n);
     for (var i = 1; i <= 5; i++) $('step-' + i).hidden = i !== n;
@@ -770,6 +856,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   }
 
   // ---------- init
+  show('welcome');
   renderRecent();
   var envs = load('amp-envs', []);
   if (envs[0]) { $('env-name').value = envs[0].name || ''; $('env-url').value = envs[0].baseUrl; $('env-prod').checked = !!envs[0].isProduction; toggleProd(); }

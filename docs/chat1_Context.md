@@ -1,6 +1,6 @@
 ﻿# Context handoff — AMP Permission Testing Platform (chat 1)
 
-Paste this into a new chat to continue the work. Written 2026-09-30. Everything below reflects the code as committed at that time.
+Paste this into a new chat to continue the work. Written 2026-09-30, **updated 2026-10-01** (parallel users, scroll-based welcome page, AMP role/persona findings, speed decisions). Everything below reflects the code at that time.
 
 ---
 
@@ -38,11 +38,13 @@ Note: there is an unrelated `D:\AMPProjects` repo on this machine, which is not 
 
 Recent commits in the tool repo:
 ```
+3ed0318 parallel users (commit message is the before/after diagram)
 0fc5a99 improved : improved mechanism of how model sees that page is accesible or not to user
 b16086d IMPROVED : rule book and jwt safely handling
 25a3254 - stable with jwt only  - new frontend update
 bdba8f8 Initial commit: AMP permission testing tool
 ```
+Uncommitted at update time: `src/server/ui.html` (scroll-based welcome page, see 4.1) and this doc.
 
 ### Dependencies between the two
 - **No code dependency.** The tool does not import AMP code, share a build, or need AMP running locally.
@@ -60,6 +62,9 @@ bdba8f8 Initial commit: AMP permission testing tool
 | Deployed pages call data APIs as `POST /api/<FuncName>` (older: `/services/api.ashx?func=`); response `{status, result}`; denial = HTTP 401 / `"Not authorized."` / `{code, message}` | `APIRequest.cs`, `ashx/services/api.ashx.cs` | safety gate (read-only allowlist), "opens empty" detection |
 | API pipeline only checks authentication/MFA/CSRF; **permission checks are per handler** (hence the v2 API-leak idea) | `APIRequest.cs` | v2 plan |
 | Site Admin sees all modules only when MFA is enabled | `Entities/Module.cs` `HasAccess`, `Entities/User.cs` | background knowledge |
+| Effective permissions = **max-merge of roles** linked to the user, the **company** (applies to everyone), the user's **user groups**, their **organization** and **org groups**; no deny rules | `Libraries/MindMatrix.Libraries.Entities/Roles/Role.cs` `GetRolesAppliedToUser` (~l.126), `AccessibilityManager.cs` `UpdateMaxRole` (~l.1493) | background for §9 (not used in code yet) |
+| `IsSiteOrSuperAdmin` → Owner on every feature, so a client **Super Admin sees all modules** (except company-disabled modules and persona-restricted custom modules) | `AccessibilityManager.cs` (~l.1430) | background for §9 |
+| Personas (Channel Manager, Partner…) mainly choose the dashboard; roles can be tagged with a persona; a few custom menu modules are persona-restricted; users may switch persona if `SwitchRolePersonaEnabled` | `Entities/User.cs` `GetPersona`, `Role.cs` `GetAssociatedRolesForCompany`, `Module.cs` (~l.2771) | background for §9 |
 | AMP rate-limits APIs and emails `ratelimit@amp.vg` on bursts | `APIRequest.cs` | tool opens one page at a time per user with a delay; users run in parallel (separate sessions, so separate rate-limit keys) |
 
 ---
@@ -83,7 +88,11 @@ Install once: `npm install` then `npx playwright install chromium`.
 
 ### 4.1 Tester web UI (`npm start` → http://127.0.0.1:4545)
 Files: `src/server/index.ts` (server), `src/server/ui.html` (page).
-- **Welcome screen:** "Welcome to the Permission Testing Platform", a 5-step flow diagram (Environment → Rulebook → Users & tokens → Run → Report), Start button, Past runs.
+- **Welcome page (redesigned 2026-10-01, uncommitted at update time):** three **full-screen, centred scenes** with scroll-snap (`html.snap`, mandatory on desktop, proximity on phones), content fading/sliding in via `IntersectionObserver` (`.reveal` → `.in`, staggered with `--d`), clickable animated mouse "scroll" cues, dot navigation on the right (hidden on phones), soft drifting background glows (welcome only), light/dark, `prefers-reduced-motion` respected:
+  1. Scene 1: floating logo, "Welcome to the **Permission Testing Platform**" (gradient), one-line explanation, "Scroll to see how it works".
+  2. Scene 2: "How it works — Five steps, a few minutes", 5 numbered cards (Environment → Rulebook → Users & tokens → Run → Report) appearing one by one with arrows (vertical on phones).
+  3. Scene 3: "Ready to test permissions?", gradient **Start new test** (`#btn-start`) + **View past runs** (`#btn-welcome-history`), trust badges.
+  Snap turns off when leaving the welcome page (`show()` toggles `html.snap`, `body.welcome-on`, `main.welcome`). Gotcha fixed: `.reveal.in { transform:none }` overrides any transform on the same element, so centring/rotation must not rely on `transform` there (scroll cue uses `margin:auto; width:max-content`; mobile arrows rotate the inner `svg`).
 - **Wizard with stepper**, one step at a time, Back/Next, each step validates:
   1. **Environment:** name + base URL (recent URLs remembered, never tokens); production needs an explicit approval tick.
   2. **Rulebook:** pick from `rulebook/` or upload/drag-drop `.xlsx`/`.csv`. Shows detected user-type columns as **tick boxes** (tester can untick) and how every other column was understood; notes skipped title rows.
@@ -109,6 +118,7 @@ Files: `src/server/index.ts` (server), `src/server/ui.html` (page).
    - first loads AMP's main page, then a **frame-only snapshot** (opens nonexistent route `#__permission_test_frame_only__`, so only the AMP frame renders);
    - for each page: sets `location.hash`, waits for network idle, then **waits until the page stops changing** (element/text signature stable, max 8 s);
    - collects: final URL, page request status/redirect, `.error-text-2`, visible **denial text** ("you do not have permission", "access denied", "not authorized"…), visible **error text** ("something went wrong", "an error occurred", "internal server error"…), element ids + headings (same-origin iframes included), each API call (func, status, denied, **hasData**), blocked requests, JS errors, screenshot.
+   **How the browser moves through pages (per user):** one Chromium, **one tab, kept open** for all that user's pages — it does not open/close per page. It loads the AMP main page once, then for each rulebook page changes `location.hash` (exactly like clicking a menu item in AMP's single-page app), waits, records, pauses `delayMs`, moves on. A fresh evidence collector per page keeps pages isolated; if a page leaves the main page (full redirect to `/noaccess` or `/login`) the main page is reloaded first; a redirect to login stops that user (remaining pages → Review). The browser is closed after the user's last page (jwt gone with it). Each user gets a brand-new browser.
 4. **Decide each page** (`src/verdict/state.ts`, `fingerprint.ts`, `compare.ts`), see 4.4.
 5. **Report** (`src/report/write.ts`).
 
@@ -169,15 +179,15 @@ Format `HH:MM:SS.mmm LEVEL [tag] message key=value`, coloured on a TTY, tokens a
 `npm run check | menu | run -- [--config run.config.json] [--only a,b] [--limit n] [--dry-run] [--headed] [--debug]`. Reads `run.config.json` (copy from `run.config.example.json`) and tokens from `AMP_JWT_<TYPE>` env or `.env.local` (`AMP_CSRF_<TYPE>` optional). Only tests rulebook columns listed in config `userTypes`. Exit codes: 0 pass, 2 failures, 1 error, 130 cancelled.
 
 ### 4.9 Tests
-- `npm test`: **86 unit tests** (rulebook parsing and column detection, routes/menu, gate, logger, masking, verdict/state/frame/reference).
-- `npm run e2e`: full CLI pipeline against the fake AMP with two users (site_admin, partner_sales). Scenarios: redirect, security gap, blocked-but-in-menu, inline no-access, custom "no permission" message, data denied, per-user dashboard, blank with No, blank with Yes (other user has it), error box, No No No, broken for everyone, write-API blocking, leak scan.
-- `npm run e2e:ui`: drives the wizard in a real browser (Start → env incl. rejected bad URL → upload rulebook with title row + ignored "Owner" + unticked "Reviewed" column → tokens → run → results; Test again with one user; Test again with the other; Past runs; paste cleaning; Clear jwts; security headers; Host guard; storage and leak checks).
+- `npm test`: **91 unit tests** (rulebook parsing and column detection, routes/menu, gate, logger, masking, verdict/state/frame/reference, `tests/parallel.test.ts`: `runLimited` limit/order/errors, `parallelUsers` clamp + production = 1, parallel-aware time estimate). The `.xlsx` hyperlink test has a 20 s timeout (first exceljs load can take >5 s on a cold start).
+- `npm run e2e`: full CLI pipeline against the fake AMP with two users (site_admin, partner_sales). Scenarios: redirect, security gap, blocked-but-in-menu, inline no-access, custom "no permission" message, data denied, per-user dashboard, blank with No, blank with Yes (other user has it), error box, No No No, broken for everyone, write-API blocking, leak scan, and **parallel proof** (the two users' page loads must overlap in time; fake AMP records request timestamps). `PARALLEL=1 npm run e2e` runs users one after another (then only the overlap check fails, by design).
+- `npm run e2e:ui`: drives the wizard in a real browser (Start → env incl. rejected bad URL → upload rulebook with title row + ignored "Owner" + unticked "Reviewed" column → tokens → run → results; Test again with one user; Test again with the other; Past runs; paste cleaning; Clear jwts; security headers; Host guard; storage and leak checks). `fillUser` re-types and verifies each jwt box (one flaky run seen when rows redrew mid-typing — a test timing issue, not a tool bug). Passing repeatedly after the welcome redesign.
 - `npm run typecheck`. All passing at handoff.
 
 ### 4.10 Docs in the repo
 - `README.md`: setup, usage, judging rules, jwt safety, logs, CLI.
 - `docs/PRD.md`: original spec, with an update note at the top.
-- `docs/how-it-works.html`: offline visual guide. **Partly outdated:** its state/verdict tables still describe the older fingerprint/UNCLEAR model; the README is current.
+- `docs/how-it-works.html`: offline visual guide. **Partly outdated:** its state/verdict tables still describe the older fingerprint/UNCLEAR model and it doesn't mention parallel users; the README is current.
 - `rulebook/README.md`: rulebook format and detection rules.
 - this file.
 
@@ -190,7 +200,21 @@ Format `HH:MM:SS.mmm LEVEL [tag] message key=value`, coloured on a TTY, tokens a
 
 ---
 
-## 6. Open items / next steps
+## 6. Speed
+
+Time grows with pages × users. Each page open ≈ 3–5 s (load, network idle, wait-until-stable up to 8 s, screenshot, `delayMs` 500 ms).
+
+| | One user after another | 3 users in parallel (default) |
+|---|---|---|
+| 100 pages × 3 users | ~20–25 min | ~7–8 min |
+
+Measured on the fake AMP: 2 users × 14 pages → 36.8 s sequential vs 18.6 s parallel.
+
+**Parallel pages per user (several tabs per user)** was discussed with the user (pros: 3–5× faster per user; cons: more load on the client's AMP, AMP rate limiting → false "blocked"/"opens empty", slower pages → false blanks, same session in many tabs, heavier on the tester's PC, harder debugging, moderate build effort). The user chose **parallel users only** ("done this only for now"). **Do not build parallel tabs unless asked.** If ever built: 2–3 tabs per user, total cap, adaptive back-off, rate-limit detection + retry, re-check uncertain pages alone, production = 1.
+
+---
+
+## 7. Open items / next steps
 1. **Validation run on ITBD** with a high-access user (e.g. Super Admin) and a normal User, on pages the User must not see (incl. the No/No/No intel rows). Compare against manual results.
 2. **Risk: content measured by ids/headings.** Proposed fix (not built): also count **visible text beyond the frame** (e.g. >~200 chars) as usable content.
 3. **Risk: short smoke runs (<4 pages)** rely fully on the frame snapshot; verify `frame baseline kept=true` on real AMP.
@@ -198,10 +222,12 @@ Format `HH:MM:SS.mmm LEVEL [tag] message key=value`, coloured on a TTY, tokens a
 5. Optional: auto-logout of tested users after a run (AMP logout endpoint not yet identified).
 6. Optional: "save uploaded rulebook to saved list" checkbox.
 7. **v2:** API data-leak testing with a developer-reviewed read-only API allowlist; hidden-field checks; cross-org/tenant checks; regression diff between runs; CI.
+8. Role/persona-aware enhancements from §9 (user said they'll look into it later).
+9. Commit the welcome-page redesign (`src/server/ui.html`) and this doc update.
 
 ---
 
-## 7. How to run (quick)
+## 8. How to run (quick)
 ```powershell
 cd D:\Ampcode\AMP-PERMISSION-TESTING-REPO
 npm start                 # or: npm run start:debug
@@ -212,8 +238,26 @@ Getting a jwt: log in to the client site in an incognito window as that user →
 
 ---
 
-## 8. Working preferences observed (for the next assistant)
+## 9. AMP roles, groups and personas — findings and proposed (NOT built) enhancements
+
+**What a rulebook column is.** In the user's persona sheet ("Internal User Personas"), Channel Manager / Corporate PRM Admin / Partner Sales are **personas**, not user groups. A persona is a label on the user (chooses the dashboard); **roles** are what grant access. So a column means "a user of that persona, set up the normal way (with the roles that persona usually gets)". Pick test users accordingly; the "Who is it?" line shows the persona.
+
+**Why one user per column can mislead.** A user's access = max of roles from user + company + user groups + organization + org groups. Two users with the same persona can differ if they are in different groups/orgs. A **company-level role** grants to everyone — the most common source of "extra access". A **Super Admin** gets everything, so a "Super Admin: No" rulebook row will always fail (rulebook issue, not an AMP bug). A page blocked for everyone including Super Admin usually means the module is disabled for that company.
+
+**Proposed enhancements (user will decide later; none built):**
+1. Show why a user has access: per jwt also read (read-only) roles applied, groups, org, org groups, persona/persona option, Super/Site Admin — shown on "Who is it?" and in the report. Needs checking which self-service read API works for non-admins (`GetRolesAppliedToMe` is a candidate but lives under `admin/`); add it to the gate allowlist.
+2. More than one test user per column (e.g. Partner in Org A + Partner in Org B), judged against the same Yes/No.
+3. A recommended "baseline" user with no groups/org roles (reveals company-wide grants).
+4. Smarter hints: Super Admin expected No but opens → "Super Admin has all modules; check the rulebook"; blocked for everyone incl. Super Admin → "module likely disabled for this company"; dashboard row resolved per persona.
+5. Optional persona-mismatch **warning** (not a block) when a jwt's persona doesn't match its column.
+6. A test-user matrix template (user type × org × group × persona + baseline).
+7. Later: generate expected results from AMP's own role/module configuration for a three-way compare (rulebook vs AMP config vs reality).
+
+---
+
+## 10. Working preferences observed (for the next assistant)
 - User: Sahil Sharma (AMP developer). Wants practical, visual, tester-friendly results; asks for honest "is this reliable?" answers.
-- Explain before large redesigns, then build. Prove changes with tests (unit + fake-AMP e2e + browser UI e2e) and screenshots.
+- Explain before large redesigns, then build. Prove changes with tests (unit + fake-AMP e2e + browser UI e2e) and screenshots (UI changes: check desktop light/dark and a 390 px phone).
+- Build **only what the user picks** from a list of options (e.g. parallel users yes, parallel tabs no; role enhancements "later").
 - Remind the user to **restart the server** after code changes.
 - In the AMP repo: never build with msbuild directly (use `dotnet nuke compile` / IIS Express). This project doesn't modify AMP.
