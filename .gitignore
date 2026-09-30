@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Run output (screenshots, reports, audit logs)
+output/
+
+# Local run config and tokens: never commit
+run.config.json
+.env
+.env.local
+.env.*.local
+*.local.json
+
+# Build / tool artifacts
+dist/
+build/
+*.tsbuildinfo
+coverage/
+.vitest-cache/
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

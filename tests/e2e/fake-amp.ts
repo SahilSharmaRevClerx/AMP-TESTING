@@ -1,0 +1,129 @@
+import { createServer, type IncomingMessage, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+
+/**
+ * A tiny stand-in for AMP that mimics the behaviours the tool relies on:
+ * cookie auth (jwt + X-CSRF-Token), `var navigation = [...]` in the main page,
+ * hash routes loaded as fragments, 302 → /noaccess, the .error-text-2 no-access page,
+ * and api.ashx returning {status, result}. Each page encodes one scenario for partner_sales.
+ */
+
+export const TOKENS = {
+  site_admin: { jwt: 'admin-jwt-0123456789', csrf: 'csrf-admin-0123456789' },
+  partner_sales: { jwt: 'partner-jwt-0123456789', csrf: 'csrf-partner-0123456789' },
+};
+
+type User = 'admin' | 'partner';
+
+interface PageDef {
+  route: string;
+  title: string;
+  apis: string[];
+  partner: 'open' | 'redirect' | 'inline-noaccess' | 'open-api-denied';
+  partnerMenu: boolean;
+}
+
+export const PAGES: PageDef[] = [
+  { route: 'setup/roles', title: 'Roles', apis: ['getroles'], partner: 'redirect', partnerMenu: false }, // PASS (No)
+  { route: 'setup/users/list', title: 'Users', apis: ['getusers'], partner: 'open', partnerMenu: false }, // SECURITY GAP
+  { route: 'setup/brand', title: 'Brand', apis: ['getbrand'], partner: 'redirect', partnerMenu: true }, // BROKEN (Yes)
+  { route: 'setup/leadrouting', title: 'Lead Routing', apis: ['getleadrouting'], partner: 'inline-noaccess', partnerMenu: false }, // PASS (No), 200 + marker
+  { route: 'connections/contacts', title: 'Contacts', apis: ['getcontacts'], partner: 'open', partnerMenu: true }, // PASS (Yes)
+  { route: 'report/assets', title: 'Asset Report', apis: ['getassetreport'], partner: 'open-api-denied', partnerMenu: true }, // OPENS EMPTY (Yes)
+  { route: 'manage/mdf/funds', title: 'Request MDF', apis: ['getfunds', 'savelastviewed'], partner: 'open', partnerMenu: true }, // PASS, write api must be blocked
+];
+
+export const received: { user: User | null; method: string; path: string; func?: string }[] = [];
+
+function userOf(req: IncomingMessage): User | null {
+  const cookies = Object.fromEntries(
+    (req.headers.cookie ?? '').split(';').map((c) => c.trim().split('=')).filter((p) => p.length === 2) as [string, string][],
+  );
+  if (cookies.jwt === TOKENS.site_admin.jwt && cookies['X-CSRF-Token'] === TOKENS.site_admin.csrf) return 'admin';
+  if (cookies.jwt === TOKENS.partner_sales.jwt && cookies['X-CSRF-Token'] === TOKENS.partner_sales.csrf) return 'partner';
+  return null;
+}
+
+function shell(user: User): string {
+  const links = PAGES.filter((p) => user === 'admin' || p.partnerMenu).map((p) => ({ name: p.title, link: '#' + p.route, key: p.title }));
+  const nav = [{ name: 'Main', link: '', items: links }, { name: 'Dashboard', link: '#dashboard/' + (user === 'admin' ? 'admin' : 'sales') }];
+  return `<!doctype html><html><head><title>AMP</title></head><body>
+<div id="nav">menu</div><div id="header"><h1>AMP</h1></div><div id="content"></div>
+<script>
+var navigation = ${JSON.stringify(nav)};
+function csrf(){ var m = document.cookie.match(/X-CSRF-Token=([^;]+)/); return m ? m[1] : ''; }
+function api(f){ return fetch('/services/api.ashx?func=' + f, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf() }, body: '{}' }).then(function(r){ return r.json(); }).catch(function(){ return null; }); }
+function load(){
+  var h = location.hash.replace(/^#/, ''); if (!h) return;
+  fetch('/' + h).then(function(r){ return r.text(); }).then(function(t){
+    var c = document.getElementById('content'); c.innerHTML = t;
+    var el = c.querySelector('[data-apis]');
+    if (el) el.getAttribute('data-apis').split(',').forEach(function(f){ api(f).then(function(res){
+      if (res && res.status === 0) { var p = document.createElement('p'); p.textContent = 'rows loaded'; el.appendChild(p); }
+    }); });
+  });
+}
+window.addEventListener('hashchange', load); load(); api('getnotifications');
+</script></body></html>`;
+}
+
+const NOACCESS = `<div class="error-text-2">401</div><p>You do not have access to this page.</p>`;
+
+export function startFakeAmp(): Promise<{ server: Server; baseUrl: string }> {
+  const server = createServer((req, res) => {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    const path = url.pathname.replace(/\/+$/, '') || '/';
+    const user = userOf(req);
+    const func = url.searchParams.get('func')?.toLowerCase();
+    received.push({ user, method: req.method ?? '', path, func });
+
+    const send = (status: number, body: string, type = 'text/html', headers: Record<string, string> = {}) => {
+      res.writeHead(status, { 'Content-Type': type, ...headers });
+      res.end(body);
+    };
+
+    if (path === '/login') return send(200, '<h1>Login</h1>');
+    if (path === '/noaccess') return send(200, NOACCESS);
+    if (!user) return send(302, '', 'text/html', { Location: '/login' });
+
+    if (path === '/services/api.ashx') {
+      if (req.method !== 'POST') return send(405, '');
+      if (req.headers['x-csrf-token'] !== TOKENS[user === 'admin' ? 'site_admin' : 'partner_sales'].csrf) {
+        return send(200, JSON.stringify({ status: 3, result: { code: 'c', message: 'CSRF mismatch' } }), 'application/json');
+      }
+      if (func === 'getpermissiondataforuser') {
+        const result =
+          user === 'admin'
+            ? { userName: 'Site Admin', isSiteAdmin: true, personna: 'prmadmin', isCompanyLevelUser: true, userCompanyName: 'Fake Co' }
+            : { userName: 'Pat Partner', isSiteAdmin: false, personna: 'channelpartner', isCompanyLevelUser: false, organizationID: 7, organizationName: 'Partner Org' };
+        return send(200, JSON.stringify({ status: 0, result, version: 'fake-build-1' }), 'application/json');
+      }
+      if (user === 'partner' && func === 'getassetreport') {
+        return send(200, JSON.stringify({ status: 3, result: { code: 'x1', message: 'You do not have access to this report' } }), 'application/json');
+      }
+      return send(200, JSON.stringify({ status: 0, result: { rows: [1, 2, 3] } }), 'application/json');
+    }
+
+    if (path === '/') return send(200, shell(user));
+
+    const page = PAGES.find((p) => '/' + p.route === path);
+    if (!page) return send(404, 'not found');
+    const content = `<div id="${page.route.replace(/\//g, '-')}-grid" data-apis="${page.apis.join(',')}"><h2>${page.title}</h2><table id="${page.route.replace(/\//g, '-')}-table"><tr><td>data</td></tr></table></div>`;
+    if (user === 'admin') return send(200, content);
+    switch (page.partner) {
+      case 'redirect':
+        return send(302, '', 'text/html', { Location: '/noaccess' });
+      case 'inline-noaccess':
+        return send(200, NOACCESS);
+      default:
+        return send(200, content);
+    }
+  });
+
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as AddressInfo;
+      resolve({ server, baseUrl: `http://127.0.0.1:${port}` });
+    });
+  });
+}

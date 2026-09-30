@@ -1,0 +1,6 @@
+page,site_admin,super_admin,normal_user
+/#setup/roles,Yes,Yes,No
+/#setup/users/list,Yes,Yes,No
+/#connections/contacts,Yes,Yes,Yes
+/#manage/opportunity-records,Yes,Yes,Yes
+/#report/assets,Yes,Yes,No

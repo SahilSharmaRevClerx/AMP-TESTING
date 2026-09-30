@@ -1,0 +1,463 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How It Works — AMP Permission Testing</title>
+<style>
+:root{
+  --bg:#f6f7f9;--fg:#1b1c1f;--muted:#5f6570;--card:#fff;--line:#e2e4e9;--code:#f0f1f4;
+  --accent:#2f5bd3;--accent-soft:#e8eefc;--ok:#1f7a4d;--ok-bg:#e3f4ea;--bad:#b42318;--bad-bg:#fde8e6;
+  --warn:#9a5b00;--warn-bg:#fdf1dc;--info:#3b4a9c;--info-bg:#e7eafb;
+  --n-ui:#e8eefc;--n-srv:#e3f4ea;--n-pw:#fdf1dc;--n-amp:#fde8e6;--n-file:#eceef1;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141518;--fg:#e8e9ec;--muted:#9aa0a8;--card:#1c1e23;--line:#2c2f37;--code:#23262d;
+  --accent:#7d9bff;--accent-soft:#232a4d;--ok:#6fd39c;--ok-bg:#173526;--bad:#ff8a80;--bad-bg:#3d1c1a;
+  --warn:#f5c26b;--warn-bg:#3a2d12;--info:#aab6ff;--info-bg:#232a4d;
+  --n-ui:#232a4d;--n-srv:#173526;--n-pw:#3a2d12;--n-amp:#3d1c1a;--n-file:#2a2d34;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1040px;margin:0 auto;padding:28px 16px 80px}
+header h1{font-size:26px;margin:0 0 4px}
+header p{color:var(--muted);margin:0}
+nav.toc{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:20px 0}
+nav.toc b{font-size:13px;color:var(--muted)}
+nav.toc ol{margin:6px 0 0;padding-left:20px;columns:2;column-gap:32px}
+nav.toc a{color:var(--accent);text-decoration:none}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 22px;margin:18px 0}
+h2{font-size:19px;margin:0 0 10px}
+h3{font-size:15px;margin:18px 0 6px}
+p{margin:8px 0}
+.muted{color:var(--muted)}
+code{font:13px ui-monospace,Consolas,monospace;background:var(--code);padding:1px 5px;border-radius:4px;word-break:break-word}
+pre{background:var(--code);border-radius:8px;padding:12px 14px;overflow-x:auto;font:13px/1.5 ui-monospace,Consolas,monospace;margin:10px 0}
+table{border-collapse:collapse;width:100%;margin:10px 0;font-size:14px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.scroll{overflow-x:auto}
+.b{display:inline-block;border-radius:4px;padding:0 6px;font-size:12px;font-weight:600;white-space:nowrap}
+.pass{background:var(--ok-bg);color:var(--ok)}.fail{background:var(--bad-bg);color:var(--bad)}
+.rev{background:var(--warn-bg);color:var(--warn)}.inf{background:var(--info-bg);color:var(--info)}
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:8px 12px;border-radius:0 6px 6px 0;margin:10px 0}
+.steps{counter-reset:s;list-style:none;padding:0;margin:10px 0}
+.steps>li{counter-increment:s;position:relative;padding:10px 12px 10px 48px;border:1px solid var(--line);border-radius:8px;margin:8px 0}
+.steps>li::before{content:counter(s);position:absolute;left:12px;top:10px;width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--card);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+.steps .where{font-size:13px;color:var(--muted);margin-top:4px}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--fg);font:13px system-ui,-apple-system,"Segoe UI",sans-serif}
+svg .sm{font-size:11px;fill:var(--muted)}
+svg .t{font-weight:600}
+svg .edge{stroke:var(--muted);stroke-width:1.5;fill:none}
+svg .ui{fill:var(--n-ui);stroke:var(--line)}svg .srv{fill:var(--n-srv);stroke:var(--line)}
+svg .pw{fill:var(--n-pw);stroke:var(--line)}svg .amp{fill:var(--n-amp);stroke:var(--line)}svg .file{fill:var(--n-file);stroke:var(--line)}
+svg .zone{fill:none;stroke:var(--line);stroke-dasharray:5 4}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:6px}
+.legend span::before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:1px solid var(--line)}
+.l-ui::before{background:var(--n-ui)}.l-srv::before{background:var(--n-srv)}.l-pw::before{background:var(--n-pw)}.l-amp::before{background:var(--n-amp)}.l-file::before{background:var(--n-file)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}nav.toc ol{columns:1}}
+.card{border:1px solid var(--line);border-radius:8px;padding:10px 14px}
+.card h3{margin-top:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>AMP Permission Testing — how it works</h1>
+  <p>What each part does, where the rulebook and tokens are used, and how a page gets its Pass / Fail. For developers and testers working on or with the tool.</p>
+</header>
+
+<nav class="toc"><b>Contents</b>
+<ol>
+  <li><a href="#big-picture">The big picture</a></li>
+  <li><a href="#flow">End-to-end flow</a></li>
+  <li><a href="#rulebook">Rulebook → Playwright</a></li>
+  <li><a href="#tokens">How the jwt is used</a></li>
+  <li><a href="#page">How one page is judged</a></li>
+  <li><a href="#verdicts">States and verdicts</a></li>
+  <li><a href="#files">Which file does what</a></li>
+  <li><a href="#api">Local server API</a></li>
+  <li><a href="#safety">Safety rules</a></li>
+  <li><a href="#output">Output files</a></li>
+  <li><a href="#amp">What the tool relies on in AMP</a></li>
+  <li><a href="#troubleshoot">Troubleshooting</a></li>
+</ol>
+</nav>
+
+<!-- 1 -->
+<section id="big-picture">
+<h2>1. The big picture</h2>
+<p>Everything runs on the tester's own machine. The tester uses a web page served by a small local server; that server drives a real Chromium browser (Playwright) which opens AMP pages <b>as each user</b>, using the tokens the tester pasted.</p>
+
+<svg viewBox="0 0 1000 330" role="img" aria-label="Architecture: tester browser, local server, Playwright Chromium, AMP">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+  <rect class="zone" x="10" y="10" width="640" height="310" rx="10"/>
+  <text x="24" y="32" class="sm">Tester's machine</text>
+  <rect class="zone" x="690" y="10" width="300" height="310" rx="10"/>
+  <text x="704" y="32" class="sm">Client environment (e.g. itbydesign.sb.amp.vg)</text>
+
+  <rect class="ui" x="30" y="55" width="180" height="92" rx="8"/>
+  <text x="120" y="82" text-anchor="middle" class="t">Tester's browser</text>
+  <text x="120" y="102" text-anchor="middle" class="sm">127.0.0.1:4545</text>
+  <text x="120" y="120" text-anchor="middle" class="sm">ui.html</text>
+  <text x="120" y="136" text-anchor="middle" class="sm">URL · rulebook · tokens</text>
+
+  <rect class="srv" x="260" y="55" width="200" height="120" rx="8"/>
+  <text x="360" y="82" text-anchor="middle" class="t">Local server</text>
+  <text x="360" y="102" text-anchor="middle" class="sm">npm start → server/index.ts</text>
+  <text x="360" y="120" text-anchor="middle" class="sm">run.ts orchestrates</text>
+  <text x="360" y="138" text-anchor="middle" class="sm">tokens in memory only</text>
+  <text x="360" y="156" text-anchor="middle" class="sm">safety gate on every request</text>
+
+  <rect class="pw" x="260" y="215" width="200" height="90" rx="8"/>
+  <text x="360" y="242" text-anchor="middle" class="t">Playwright Chromium</text>
+  <text x="360" y="262" text-anchor="middle" class="sm">headless, fresh per user</text>
+  <text x="360" y="280" text-anchor="middle" class="sm">cookies = that user's jwt</text>
+  <text x="360" y="296" text-anchor="middle" class="sm">probe/browser.ts</text>
+
+  <rect class="file" x="500" y="215" width="130" height="90" rx="8"/>
+  <text x="565" y="242" text-anchor="middle" class="t">output/</text>
+  <text x="565" y="262" text-anchor="middle" class="sm">report.html</text>
+  <text x="565" y="278" text-anchor="middle" class="sm">screenshots</text>
+  <text x="565" y="294" text-anchor="middle" class="sm">audit log</text>
+
+  <rect class="file" x="30" y="215" width="180" height="90" rx="8"/>
+  <text x="120" y="242" text-anchor="middle" class="t">rulebook/</text>
+  <text x="120" y="262" text-anchor="middle" class="sm">.csv / .xlsx</text>
+  <text x="120" y="278" text-anchor="middle" class="sm">page + Yes/No per</text>
+  <text x="120" y="294" text-anchor="middle" class="sm">user type</text>
+
+  <rect class="amp" x="720" y="55" width="250" height="250" rx="8"/>
+  <text x="845" y="82" text-anchor="middle" class="t">AMP (deployed)</text>
+  <text x="845" y="110" text-anchor="middle" class="sm">getpermissiondataforuser</text>
+  <text x="845" y="128" text-anchor="middle" class="sm">→ who is this token?</text>
+  <text x="845" y="156" text-anchor="middle" class="sm">main page "/"</text>
+  <text x="845" y="174" text-anchor="middle" class="sm">→ var navigation = [menu]</text>
+  <text x="845" y="202" text-anchor="middle" class="sm">#route pages + /api/Get…</text>
+  <text x="845" y="220" text-anchor="middle" class="sm">→ opens, or 302 /noaccess</text>
+  <text x="845" y="248" text-anchor="middle" class="sm">decides access from</text>
+  <text x="845" y="266" text-anchor="middle" class="sm">the jwt's user + roles</text>
+
+  <path class="edge" d="M210 100 H258" marker-end="url(#a)"/>
+  <text x="234" y="92" text-anchor="middle" class="sm">fetch</text>
+  <path class="edge" d="M120 213 V150" marker-end="url(#a)"/>
+  <path class="edge" d="M210 250 C235 250 235 150 258 140" marker-end="url(#a)"/>
+  <text x="222" y="200" class="sm">read</text>
+  <path class="edge" d="M360 177 V213" marker-end="url(#a)"/>
+  <text x="368" y="200" class="sm">drives</text>
+  <path class="edge" d="M462 90 H718" marker-end="url(#a)"/>
+  <text x="590" y="82" text-anchor="middle" class="sm">token check + menu read (direct HTTP)</text>
+  <path class="edge" d="M462 255 C600 255 620 230 718 225" marker-end="url(#a)"/>
+  <text x="600" y="206" text-anchor="middle" class="sm">open pages as the user</text>
+  <path class="edge" d="M462 290 H498" marker-end="url(#a)"/>
+</svg>
+<div class="legend"><span class="l-ui">Tester UI</span><span class="l-srv">Local server</span><span class="l-pw">Browser automation</span><span class="l-amp">AMP</span><span class="l-file">Files</span></div>
+
+<div class="note">No LLM, no cloud service. The only network traffic is between the tester's machine and the AMP environment being tested.</div>
+</section>
+
+<!-- 2 -->
+<section id="flow">
+<h2>2. End-to-end flow</h2>
+<p>What happens from <code>npm start</code> to the report. Steps 5–9 are one run (<code>executeRun</code> in <code>src/run.ts</code>).</p>
+<ol class="steps">
+  <li><b>Start the tool.</b> <code>npm start</code> launches the local server on <code>127.0.0.1:4545</code> and opens the tester page.
+    <div class="where">src/server/index.ts · src/server/ui.html</div></li>
+  <li><b>Environment.</b> Tester enters the client's base URL, e.g. <code>https://itbydesign.sb.amp.vg</code>. Production URLs are refused unless explicitly allowed.
+    <div class="where">ui.html step 1 → server <code>environmentFrom()</code> → safety/gate.ts <code>assertSafeEnvironment()</code></div></li>
+  <li><b>Rulebook.</b> Tester picks a saved file or uploads one. The server parses it into rules; its user-type columns become the token rows.
+    <div class="where">POST /api/rulebooks/parse → rulebook/parse.ts <code>parseRulebook()</code> → <code>rulebookFromRows()</code></div></li>
+  <li><b>Tokens.</b> Tester pastes <code>jwt</code> + <code>X-CSRF-Token</code> for the users to test (rows auto-tick) and clicks <b>Check tokens</b>.
+    <div class="where">POST /api/tokens/check → sessions/validate.ts <code>validateToken()</code></div></li>
+  <li><b>Plan.</b> Which pages × which users. Users without tokens are skipped. Site Admin, if given, becomes the <i>reference</i>.
+    <div class="where">run.ts <code>planRun()</code> · server <code>setupFrom()</code></div></li>
+  <li><b>① Token check.</b> Each token is sent to AMP's <code>getpermissiondataforuser</code>; AMP says who it is. Invalid token → run stops.
+    <div class="where">run.ts → sessions/validate.ts</div></li>
+  <li><b>② Menu read.</b> AMP's main page is fetched as each user; the embedded <code>var navigation = [...]</code> gives that user's menu links.
+    <div class="where">probe/menu.ts <code>fetchMenu()</code> · <code>extractNavigation()</code> · <code>collectMenuLinks()</code></div></li>
+  <li><b>③ Reference run</b> (if Site Admin tokens given). Site Admin opens every page first; the tool records what each page looks like when it really opens (its <i>fingerprint</i>).
+    <div class="where">run.ts <code>probeAll()</code> → probe/browser.ts → verdict/fingerprint.ts <code>buildFingerprints()</code></div></li>
+  <li><b>④ Each user.</b> A fresh Chromium with that user's cookies opens every page, collects evidence and a screenshot; evidence + fingerprint → page state → verdict.
+    <div class="where">probe/browser.ts <code>probe()</code> → verdict/state.ts <code>accessState()</code> → verdict/compare.ts <code>pageVerdict()</code></div></li>
+  <li><b>⑤ Report.</b> results.json, results.csv, report.html (+ screenshots). The tester page shows the summary and an <b>Open report</b> button; tokens are cleared from memory.
+    <div class="where">report/write.ts <code>writeReports()</code></div></li>
+</ol>
+</section>
+
+<!-- 3 -->
+<section id="rulebook">
+<h2>3. Rulebook → Playwright: where each piece goes</h2>
+<div class="grid2">
+<div class="card">
+<h3>The rulebook file</h3>
+<pre>page,name,site_admin,super_admin,normal_user
+https://itbydesign.sb.amp.vg/#intel/account,Account,Yes,Yes,No</pre>
+<ul>
+  <li><b>page</b> column (also <code>url</code>, <code>route</code>): which page.</li>
+  <li><b>every other column</b>: a user type (except <code>name</code>, <code>notes</code> and similar).</li>
+  <li>Values <code>Yes</code>/<code>No</code>; empty = not specified.</li>
+</ul>
+</div>
+<div class="card">
+<h3>After parsing (in memory)</h3>
+<pre>{
+  route:    "intel/account",
+  label:    "Account",
+  expected: { site_admin: "Yes",
+              super_admin: "Yes",
+              normal_user: "No" }
+}</pre>
+<p class="muted">Only the part after <code>#</code> is kept. The domain in the sheet is ignored; the base URL from step 1 is used.</p>
+</div>
+</div>
+
+<svg viewBox="0 0 1000 210" role="img" aria-label="Route goes to Playwright; Yes/No waits for comparison">
+  <defs><marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+  <rect class="file" x="10" y="70" width="170" height="70" rx="8"/>
+  <text x="95" y="100" text-anchor="middle" class="t">Rulebook row</text>
+  <text x="95" y="120" text-anchor="middle" class="sm">parse.ts</text>
+
+  <rect class="srv" x="230" y="20" width="190" height="60" rx="8"/>
+  <text x="325" y="46" text-anchor="middle" class="t">route</text>
+  <text x="325" y="64" text-anchor="middle" class="sm">"intel/account"</text>
+
+  <rect class="srv" x="230" y="130" width="190" height="60" rx="8"/>
+  <text x="325" y="156" text-anchor="middle" class="t">expected[user]</text>
+  <text x="325" y="174" text-anchor="middle" class="sm">normal_user: "No"</text>
+
+  <rect class="pw" x="470" y="20" width="240" height="60" rx="8"/>
+  <text x="590" y="44" text-anchor="middle" class="t">Playwright, as that user</text>
+  <text x="590" y="64" text-anchor="middle" class="sm">location.hash = "intel/account"</text>
+
+  <rect class="srv" x="470" y="130" width="240" height="60" rx="8"/>
+  <text x="590" y="156" text-anchor="middle" class="t">page state</text>
+  <text x="590" y="174" text-anchor="middle" class="sm">OPENED / BLOCKED / …</text>
+
+  <rect class="ui" x="770" y="75" width="215" height="70" rx="8"/>
+  <text x="877" y="104" text-anchor="middle" class="t">Verdict</text>
+  <text x="877" y="124" text-anchor="middle" class="sm">compare.ts pageVerdict()</text>
+
+  <path class="edge" d="M180 95 C205 95 205 50 228 50" marker-end="url(#b)"/>
+  <path class="edge" d="M180 115 C205 115 205 160 228 160" marker-end="url(#b)"/>
+  <path class="edge" d="M420 50 H468" marker-end="url(#b)"/>
+  <path class="edge" d="M590 80 V128" marker-end="url(#b)"/>
+  <text x="598" y="108" class="sm">evidence</text>
+  <path class="edge" d="M710 160 C740 160 740 120 768 115" marker-end="url(#b)"/>
+  <path class="edge" d="M420 172 C560 205 740 205 790 147" marker-end="url(#b)"/>
+  <text x="600" y="206" text-anchor="middle" class="sm">Yes/No waits here until the page result is known</text>
+</svg>
+<p>The browser only ever receives the <b>route</b>. The Yes/No values are never sent anywhere; they are used only at the end to compare with what actually happened.</p>
+</section>
+
+<!-- 4 -->
+<section id="tokens">
+<h2>4. How the jwt is used</h2>
+<table>
+<thead><tr><th>Where</th><th>How the token is sent</th><th>Why</th><th>Code</th></tr></thead>
+<tbody>
+<tr><td>Token check</td><td>Cookie <code>jwt</code> + cookie and header <code>X-CSRF-Token</code>, POST <code>/services/api.ashx?func=getpermissiondataforuser</code></td><td>Confirm the token is live and see who it belongs to (name, persona, company/org, Site Admin?)</td><td>sessions/validate.ts</td></tr>
+<tr><td>Menu read</td><td>Same cookies, GET <code>/</code></td><td>AMP builds this user's menu into the main page</td><td>probe/menu.ts</td></tr>
+<tr><td>Page checks</td><td><code>context.addCookies()</code> puts <code>jwt</code> and <code>X-CSRF-Token</code> into a fresh Chromium; AMP's own page JavaScript then sends them on every request</td><td>The browser <i>is</i> that user for AMP; AMP decides page access from the jwt's user and roles</td><td>probe/browser.ts <code>open()</code></td></tr>
+</tbody>
+</table>
+<div class="note">Same page, same browser code, different jwt → possibly different result. That difference is exactly what is being tested.</div>
+<h3>Lifetime of a token</h3>
+<ul>
+  <li>Pasted in the tester page → sent to the local server (127.0.0.1 only) → kept in memory for that run.</li>
+  <li>Never written to disk, never stored in the browser (localStorage keeps only URLs and labels), masked as <code>eyJhb…x9Q</code> in every log and report.</li>
+  <li>Cleared from memory when the run ends (<code>creds.clear()</code> in server/index.ts).</li>
+  <li>A refresh of the tester page empties the token fields; paste again for the next run.</li>
+</ul>
+</section>
+
+<!-- 5 -->
+<section id="page">
+<h2>5. How one page is judged</h2>
+<p>For each page and each user, <code>BrowserProbe.probe()</code> sets <code>location.hash</code> to the route, waits for the network to go quiet, then records:</p>
+<div class="scroll"><table>
+<thead><tr><th>Evidence</th><th>Where it comes from</th><th>What it tells us</th></tr></thead>
+<tbody>
+<tr><td>Final URL</td><td><code>page.url()</code></td><td>Ended on <code>/login</code> / <code>/sessionexpired</code> (bad token) or <code>/noaccess</code> (blocked)?</td></tr>
+<tr><td>Page request status + redirect</td><td>Playwright <code>response</code> / <code>request</code> events for <code>/&lt;route&gt;</code></td><td>302 → <code>/noaccess</code>, 404, 5xx</td></tr>
+<tr><td>No-access marker</td><td>DOM: <code>.error-text-2</code> (AMP's no-access page)</td><td>Blocked, even when HTTP said 200</td></tr>
+<tr><td>Page elements</td><td>DOM: visible element ids and headings</td><td>Compared with the fingerprint → did the real page render?</td></tr>
+<tr><td>API calls</td><td>Responses from <code>/api/&lt;Func&gt;</code> and <code>/services/api.ashx</code></td><td>Page opened but its data calls answered "no access" → opens empty</td></tr>
+<tr><td>Blocked requests</td><td>Safety gate decisions</td><td>Write calls the page tried to make (never sent)</td></tr>
+<tr><td>Page errors</td><td>Playwright <code>pageerror</code></td><td>JavaScript crashed</td></tr>
+<tr><td>Screenshot</td><td><code>page.screenshot()</code></td><td>Human-checkable proof</td></tr>
+</tbody></table></div>
+
+<h3>The fingerprint (why a 200 isn't trusted on its own)</h3>
+<p>A page can return 200 and still show nothing useful. So the tool learns what each page looks like when it really opens:</p>
+<ol>
+  <li><b>With a Site Admin reference:</b> Site Admin opens every page first. For each page, the tool keeps the element ids / headings seen, minus those that appear on most pages (the AMP shell: header, menu, notifications).</li>
+  <li><b>Without a reference:</b> each user's own run is used the same way (slightly less precise; the report warns).</li>
+  <li>Another user "opened" a page when at least <b>Match threshold</b> (default 60%) of that page's fingerprint is on their screen.</li>
+</ol>
+<p class="muted">Code: verdict/fingerprint.ts <code>buildFingerprints()</code>, <code>fingerprintScore()</code>; verdict/state.ts <code>accessState()</code>.</p>
+</section>
+
+<!-- 6 -->
+<section id="verdicts">
+<h2>6. States and verdicts</h2>
+<h3>Page state: what the user experienced</h3>
+<div class="scroll"><table>
+<thead><tr><th>State</th><th>Rule (checked in this order)</th></tr></thead>
+<tbody>
+<tr><td><span class="b rev">ERROR</span></td><td>Browser error with nothing on screen</td></tr>
+<tr><td><span class="b rev">BAD_TOKEN</span></td><td>Ended on or redirected to <code>/login</code> / <code>/sessionexpired</code></td></tr>
+<tr><td><span class="b fail">BLOCKED</span></td><td>No-access marker shown, or redirected to <code>/noaccess</code></td></tr>
+<tr><td><span class="b rev">NOT_FOUND</span></td><td>404 or <code>/notfound</code></td></tr>
+<tr><td><span class="b rev">ERROR</span></td><td>5xx or <code>/error</code></td></tr>
+<tr><td><span class="b pass">OPENED</span></td><td>Fingerprint match ≥ threshold, no data call denied</td></tr>
+<tr><td><span class="b rev">OPENED_EMPTY</span></td><td>Page loaded but one of its own data calls was denied</td></tr>
+<tr><td><span class="b rev">UNCLEAR</span></td><td>None of the above; the tester decides from screenshots</td></tr>
+</tbody></table></div>
+
+<h3>Verdict: state compared with the rulebook</h3>
+<p>Only whether the page opens decides pass/fail. The menu is shown as information and only turns "extra access" into "security gap".</p>
+<div class="scroll"><table>
+<thead><tr><th>Rulebook</th><th>Page state</th><th>In menu?</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td>Yes</td><td>OPENED</td><td>any</td><td><span class="b pass">Pass</span></td></tr>
+<tr><td>Yes</td><td>BLOCKED</td><td>any</td><td><span class="b fail">Missing access</span></td></tr>
+<tr><td>Yes</td><td>OPENED_EMPTY</td><td>any</td><td><span class="b fail">Opens empty</span></td></tr>
+<tr><td>No</td><td>BLOCKED</td><td>any</td><td><span class="b pass">Pass</span></td></tr>
+<tr><td>No</td><td>OPENED / OPENED_EMPTY</td><td>yes</td><td><span class="b fail">Extra access</span></td></tr>
+<tr><td>No</td><td>OPENED / OPENED_EMPTY</td><td>no</td><td><span class="b fail">Security gap</span> (hidden but opens by URL)</td></tr>
+<tr><td>Yes/No</td><td>UNCLEAR / ERROR / NOT_FOUND / BAD_TOKEN</td><td>any</td><td><span class="b rev">Review</span></td></tr>
+<tr><td>(empty)</td><td>any</td><td>any</td><td><span class="b inf">Not specified</span></td></tr>
+</tbody></table></div>
+<p class="muted">If Site Admin is tested but the rulebook has no <code>site_admin</code> column, Site Admin is expected <b>Yes</b> on every page (<code>withAllowAllColumn()</code>), because a Site Admin with MFA has access to every module in AMP.</p>
+</section>
+
+<!-- 7 -->
+<section id="files">
+<h2>7. Which file does what</h2>
+<div class="scroll"><table>
+<thead><tr><th>File</th><th>Responsibility</th><th>Key functions</th></tr></thead>
+<tbody>
+<tr><td><code>src/server/index.ts</code></td><td>Local web server for testers; holds tokens in memory; one run at a time; live progress</td><td><code>setupFrom</code>, <code>startRun</code>, <code>assertFromUi</code></td></tr>
+<tr><td><code>src/server/ui.html</code></td><td>The tester page (steps 1–4, progress, past runs)</td><td>—</td></tr>
+<tr><td><code>src/rulebook/parse.ts</code></td><td>Reads .csv/.xlsx into rules; finds the page column and user-type columns</td><td><code>parseRulebook</code>, <code>rulebookFromRows</code>, <code>withAllowAllColumn</code></td></tr>
+<tr><td><code>src/run.ts</code></td><td>Orchestrates a run: tokens → menus → reference → users → report. Also the CLI commands</td><td><code>planRun</code>, <code>executeRun</code>, <code>probeAll</code></td></tr>
+<tr><td><code>src/sessions/validate.ts</code></td><td>Token check against AMP</td><td><code>validateToken</code>, <code>describeIdentity</code></td></tr>
+<tr><td><code>src/probe/menu.ts</code></td><td>Reads the user's menu from AMP's main page</td><td><code>fetchMenu</code>, <code>extractNavigation</code>, <code>menuHasRoute</code></td></tr>
+<tr><td><code>src/probe/browser.ts</code></td><td>Playwright: open Chromium with cookies, open each page, collect evidence and screenshots</td><td><code>BrowserProbe.open</code>, <code>.probe</code>, <code>.close</code></td></tr>
+<tr><td><code>src/verdict/fingerprint.ts</code></td><td>Learns what each page looks like when it opens</td><td><code>buildFingerprints</code>, <code>fingerprintScore</code></td></tr>
+<tr><td><code>src/verdict/state.ts</code></td><td>Evidence → page state</td><td><code>accessState</code>, <code>accessStateFromSignals</code></td></tr>
+<tr><td><code>src/verdict/compare.ts</code></td><td>Page state + rulebook → verdict</td><td><code>pageVerdict</code></td></tr>
+<tr><td><code>src/report/write.ts</code></td><td>Writes results.json, results.csv, report.html</td><td><code>writeReports</code></td></tr>
+<tr><td><code>src/safety/gate.ts</code></td><td>Every request rule: environment guard, tool gate, browser gate</td><td><code>RequestGate</code>, <code>decideBrowserRequest</code>, <code>isReadOnlyApiFunc</code></td></tr>
+<tr><td><code>src/util/*.ts</code></td><td>Audit log, token masking, route normalisation</td><td><code>AuditLog</code>, <code>scrub</code>, <code>normalizeRoute</code></td></tr>
+<tr><td><code>src/config.ts</code>, <code>src/cli.ts</code></td><td>Settings/defaults; optional command line (automation)</td><td><code>buildConfig</code></td></tr>
+<tr><td><code>tests/</code></td><td>Unit tests; <code>tests/e2e/fake-amp.ts</code> simulates AMP for end-to-end tests</td><td><code>npm test</code>, <code>npm run e2e</code>, <code>npm run e2e:ui</code></td></tr>
+</tbody></table></div>
+</section>
+
+<!-- 8 -->
+<section id="api">
+<h2>8. Local server API (tester page ↔ server)</h2>
+<p>Only reachable on <code>127.0.0.1</code>. Calls that change state or carry tokens need the <code>X-Amp-Ui: 1</code> header and a same-origin request, so other websites cannot drive the tool.</p>
+<div class="scroll"><table>
+<thead><tr><th>Method</th><th>Path</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td>GET</td><td><code>/api/rulebooks</code></td><td>List saved rulebooks in <code>rulebook/</code></td></tr>
+<tr><td>POST</td><td><code>/api/rulebooks/parse</code></td><td>Parse a saved or uploaded rulebook; returns an id and summary</td></tr>
+<tr><td>POST</td><td><code>/api/tokens/check</code></td><td>Validate pasted tokens (Who is it?)</td></tr>
+<tr><td>POST</td><td><code>/api/plan</code></td><td>Preview plan: users, pages, estimated time</td></tr>
+<tr><td>POST</td><td><code>/api/runs</code></td><td>Start a run (tokens in the body, kept in memory)</td></tr>
+<tr><td>GET</td><td><code>/api/runs/&lt;id&gt;/events</code></td><td>Live log and progress (server-sent events)</td></tr>
+<tr><td>POST</td><td><code>/api/runs/&lt;id&gt;/cancel</code></td><td>Cancel</td></tr>
+<tr><td>GET</td><td><code>/api/runs</code>, <code>/api/runs/current</code></td><td>Past runs; reconnect to a running run after refresh</td></tr>
+<tr><td>GET</td><td><code>/output/…</code></td><td>Serve reports and screenshots</td></tr>
+</tbody></table></div>
+</section>
+
+<!-- 9 -->
+<section id="safety">
+<h2>9. Safety rules</h2>
+<div class="grid2">
+<div class="card">
+<h3>Requests the tool makes itself</h3>
+<ul>
+  <li>Only to the configured environment's host.</li>
+  <li>GET for pages; POST only to the allow-listed <code>getpermissiondataforuser</code>.</li>
+  <li>Throttled (delay between requests).</li>
+</ul>
+<p class="muted"><code>RequestGate</code></p>
+</div>
+<div class="card">
+<h3>Requests AMP's page makes in the browser</h3>
+<ul>
+  <li>GET: allowed (loads the page).</li>
+  <li><code>/api/&lt;Func&gt;</code> and <code>api.ashx</code>: allowed only for read-only names (<code>Get…</code>, <code>Load…</code>, <code>Check…</code>…), not hidden writes like <code>GetOrAdd…</code>.</li>
+  <li>Any other POST/PUT/DELETE, AI calls (<code>/bridge/ask/ai</code>), third-party tracking, and logout: <b>blocked</b> and logged.</li>
+</ul>
+<p class="muted"><code>decideBrowserRequest()</code>, applied via <code>context.route()</code></p>
+</div>
+</div>
+<ul>
+  <li>The browser only navigates; it never clicks, types or submits.</li>
+  <li>Production environments are refused unless "production" and "approval" are both ticked. Remote URLs must be HTTPS.</li>
+  <li>One page at a time with a delay (AMP rate-limits and alerts on bursts).</li>
+  <li>Every request, allowed or blocked, is in <code>audit.jsonl</code> with tokens masked.</li>
+  <li>Opening pages still writes AMP's normal usage-tracking rows; prefer test users/companies.</li>
+</ul>
+</section>
+
+<!-- 10 -->
+<section id="output">
+<h2>10. Output files</h2>
+<pre>output/
+  itbd-2026-09-30T14-20-05/
+    report.html          ← open this: summary, matrix, issues with screenshots, review buttons
+    results.json         ← every check with full evidence
+    results.csv          ← same, for Excel
+    summary.json         ← used by "Past runs"
+    audit.jsonl          ← every request allowed/blocked (tokens masked)
+    rulebook-*.csv       ← copy of the rulebook used for this run
+    shots/
+      site-admin/intel-account.png
+      normal-user/intel-account.png</pre>
+<p>In the report, each failed or review item shows the reference (Site Admin) screenshot next to the tested user's screenshot, with <b>Confirmed issue / False alarm</b> buttons and a CSV export of the review.</p>
+</section>
+
+<!-- 11 -->
+<section id="amp">
+<h2>11. What the tool relies on in AMP</h2>
+<div class="scroll"><table>
+<thead><tr><th>AMP behaviour</th><th>Where in AMP</th><th>Used by</th></tr></thead>
+<tbody>
+<tr><td>Session = cookie <code>jwt</code>; CSRF = cookie + header <code>X-CSRF-Token</code> (must match)</td><td>Bridge/Pipeline/APIRequest.cs, BeginRequest.cs</td><td>validate.ts, menu.ts, browser.ts</td></tr>
+<tr><td><code>getpermissiondataforuser</code> returns userName, isSiteAdmin, personna, organization/company</td><td>Bridge/LegacyAPI/user/GetPermissionDataForUser.cs</td><td>validate.ts</td></tr>
+<tr><td>Main page embeds the user's menu as <code>var navigation = [...]</code> with <code>link</code> per item</td><td>Pages/navin/default.cshtml, default.navigation.cs</td><td>menu.ts</td></tr>
+<tr><td>Hash routes load server pages; denied pages redirect to <code>/noaccess</code></td><td>Routing/web-navin-routing.xml, Pages/ModuleAwareRazorModel.cs</td><td>browser.ts, state.ts</td></tr>
+<tr><td>No-access page has element <code>.error-text-2</code></td><td>Pages/navin/public/noaccess.cshtml</td><td>browser.ts</td></tr>
+<tr><td>Pages call data APIs as <code>POST /api/&lt;FuncName&gt;</code> (older: <code>/services/api.ashx?func=</code>); denial = 401 / "Not authorized." / <code>{code, message}</code></td><td>Bridge/Pipeline/APIRequest.cs</td><td>gate.ts, browser.ts</td></tr>
+<tr><td>Site Admin sees every module only with MFA enabled</td><td>Entities/Module.cs <code>HasAccess</code>, Entities/User.cs</td><td>reference-user warning</td></tr>
+</tbody></table></div>
+<p class="muted">If AMP changes any of these, the matching part of the tool needs updating. The end-to-end tests use a simulated AMP (<code>tests/e2e/fake-amp.ts</code>) that mimics exactly these behaviours.</p>
+</section>
+
+<!-- 12 -->
+<section id="troubleshoot">
+<h2>12. Troubleshooting</h2>
+<div class="scroll"><table>
+<thead><tr><th>Symptom</th><th>Cause / fix</th></tr></thead>
+<tbody>
+<tr><td>Error mentions an old rule (e.g. "missing column type") or a change doesn't show</td><td>The server is still running old code. In its terminal: <b>Ctrl+C</b>, then <code>npm start</code>, then refresh the page.</td></tr>
+<tr><td>Who is it? shows ✗ / "redirected to /login"</td><td>Token expired or copied from another site. Log in again on <i>that</i> environment and copy fresh cookies.</td></tr>
+<tr><td>Menu read fails: no "var navigation" found</td><td>That environment's main page is not at <code>/</code>; the shell path needs adjusting.</td></tr>
+<tr><td>Many Review / Unclear results</td><td>No Site Admin reference, or Site Admin without MFA. Add Site Admin tokens; lower Match threshold slightly if pages differ a lot per user.</td></tr>
+<tr><td>Not found for rulebook pages</td><td>Route doesn't exist on that client's build; check the route (the report lists the client's actual menu links).</td></tr>
+<tr><td>Want to watch what it does</td><td>Tick <b>Show the browser window while testing</b>.</td></tr>
+</tbody></table></div>
+</section>
+
+<p class="muted">Spec: <code>docs/PRD.md</code> · Usage: <code>README.md</code> · Rulebook format: <code>rulebook/README.md</code></p>
+</div>
+</body>
+</html>

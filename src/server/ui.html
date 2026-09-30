@@ -1,0 +1,424 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMP Permission Testing</title>
+<style>
+:root{--bg:#f6f7f9;--fg:#1b1c1f;--muted:#646a73;--card:#fff;--line:#e2e4e9;--accent:#2f5bd3;--accent-fg:#fff;--ok:#1f7a4d;--ok-bg:#e3f4ea;--bad:#b42318;--bad-bg:#fde8e6;--warn:#9a5b00;--warn-bg:#fdf1dc;--input:#fff;--code:#f0f1f4}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141518;--fg:#e8e9ec;--muted:#9aa0a8;--card:#1c1e23;--line:#2c2f37;--accent:#7d9bff;--accent-fg:#0f1220;--ok:#6fd39c;--ok-bg:#173526;--bad:#ff8a80;--bad-bg:#3d1c1a;--warn:#f5c26b;--warn-bg:#3a2d12;--input:#15171b;--code:#23262d}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1080px;margin:0 auto;padding:24px 16px 80px}
+h1{font-size:22px;margin:0}h2{font-size:16px;margin:0 0 4px}
+.sub{color:var(--muted);margin:4px 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:14px 0}
+.card.disabled{opacity:.55;pointer-events:none}
+.step{display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-fg);font-size:12px;font-weight:700;align-items:center;justify-content:center;margin-right:8px}
+.hint{color:var(--muted);font-size:13px;margin:2px 0 12px}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:200px}
+.field.narrow{flex:0 0 150px;min-width:120px}
+label.lbl{font-size:12px;font-weight:600;color:var(--muted)}
+input[type=text],input[type=url],input[type=password],input[type=number],select{font:inherit;color:var(--fg);background:var(--input);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+button{font:inherit;border-radius:6px;padding:7px 14px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+button.danger{color:var(--bad);border-color:var(--bad)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chip{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:var(--bg);cursor:pointer}
+.chip .x{margin-left:6px;color:var(--muted)}
+.check{display:flex;gap:8px;align-items:center;margin-top:10px}
+.msg{border-radius:6px;padding:8px 12px;margin-top:10px;font-size:13px}
+.msg.ok{background:var(--ok-bg);color:var(--ok)}.msg.bad{background:var(--bad-bg);color:var(--bad)}.msg.warn{background:var(--warn-bg);color:var(--warn)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600}
+td input[type=text],td input[type=password]{min-width:150px}
+.key{font:12px ui-monospace,Consolas,monospace;color:var(--muted)}
+.tag{font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;background:var(--code);color:var(--muted);margin-left:6px}
+.status{font-size:13px;min-width:180px}.status.ok{color:var(--ok)}.status.bad{color:var(--bad)}
+.pw{display:flex;gap:4px}.pw button{padding:4px 8px;font-size:12px}
+details{margin-top:10px}summary{cursor:pointer;color:var(--accent);font-size:13px}
+details ol{margin:8px 0;padding-left:20px;color:var(--muted);font-size:13px}
+code{font:12px ui-monospace,Consolas,monospace;background:var(--code);padding:1px 5px;border-radius:4px}
+.bar{height:8px;background:var(--code);border-radius:999px;overflow:hidden;margin:10px 0 4px}
+.bar>div{height:100%;background:var(--accent);width:0;transition:width .3s}
+pre.log{background:var(--code);border-radius:6px;padding:10px 12px;max-height:340px;overflow:auto;font:12px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;margin:10px 0 0}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.b{display:inline-block;border-radius:4px;padding:1px 6px;font-size:12px;font-weight:600;margin:1px}
+.b.fail{background:var(--bad-bg);color:var(--bad)}.b.pass{background:var(--ok-bg);color:var(--ok)}.b.rev{background:var(--warn-bg);color:var(--warn)}
+.empty{color:var(--muted);font-size:13px}
+@media (max-width:640px){.field.narrow{flex:1}}
+</style>
+</head>
+<body>
+<main>
+  <h1>AMP Permission Testing</h1>
+  <p class="sub">Checks which pages each user type can see and open, against your rulebook. Read-only: pages are only opened, never changed.</p>
+
+  <!-- 1 Environment -->
+  <section class="card" id="c-env">
+    <h2><span class="step">1</span>Environment</h2>
+    <p class="hint">The AMP site to test. Use a QA or staging environment, not production.</p>
+    <div class="row">
+      <div class="field narrow"><label class="lbl" for="env-name">Name</label><input type="text" id="env-name" placeholder="AISB"></div>
+      <div class="field"><label class="lbl" for="env-url">Base URL</label><input type="url" id="env-url" placeholder="https://client.amp.vg"></div>
+    </div>
+    <div class="chips" id="env-recent"></div>
+    <label class="check"><input type="checkbox" id="env-prod"> This is a production environment</label>
+    <label class="check" id="env-allow-wrap" hidden><input type="checkbox" id="env-allow"> I have approval to run read-only checks on production</label>
+  </section>
+
+  <!-- 2 Rulebook -->
+  <section class="card" id="c-rb">
+    <h2><span class="step">2</span>Rulebook</h2>
+    <p class="hint">A sheet with a <code>page</code> column (e.g. <code>/#setup/roles</code> or the full URL) and one Yes/No column per user type, e.g. <code>site_admin</code>, <code>super_admin</code>, <code>normal_user</code>. Those columns become the user types below. See <code>rulebook/template.csv</code>.</p>
+    <div class="row">
+      <div class="field"><label class="lbl" for="rb-select">Saved rulebook</label><select id="rb-select"><option value="">— choose —</option></select></div>
+      <div class="field"><label class="lbl" for="rb-file">or upload .xlsx / .csv</label><input type="file" id="rb-file" accept=".xlsx,.csv"></div>
+    </div>
+    <div id="rb-msg"></div>
+  </section>
+
+  <!-- 3 Users & tokens -->
+  <section class="card disabled" id="c-users">
+    <h2><span class="step">3</span>Users &amp; tokens</h2>
+    <p class="hint">Paste the <code>jwt</code> and <code>X-CSRF-Token</code> cookies only for the user types you want to test; rows with tokens are ticked automatically, empty rows are skipped. Tokens are kept in memory for this run only and never saved.</p>
+    <details>
+      <summary>How to copy the tokens</summary>
+      <ol>
+        <li>Open an incognito/private window (one per user, so logins don't mix).</li>
+        <li>Log in to the environment as that user.</li>
+        <li>Press <b>F12</b> → <b>Application</b> → <b>Cookies</b> → select the site.</li>
+        <li>Copy the <b>Value</b> of <code>jwt</code> and of <code>X-CSRF-Token</code> into that user's row.</li>
+        <li>The <b>reference</b> row is optional but recommended: a <b>Site Admin with MFA enabled</b> opens every page first, so the tool knows what each page looks like when it really opens. Without it, results are slightly less precise.</li>
+      </ol>
+    </details>
+    <div class="scroll"><table>
+      <thead><tr><th>Test</th><th>User type</th><th>jwt</th><th>X-CSRF-Token</th><th>Who is it?</th></tr></thead>
+      <tbody id="users"></tbody>
+    </table></div>
+    <div class="actions"><button id="btn-check">Check tokens</button></div>
+    <div id="users-msg"></div>
+  </section>
+
+  <!-- 4 Run -->
+  <section class="card disabled" id="c-run">
+    <h2><span class="step">4</span>Run</h2>
+    <p class="hint">Start with a smoke test on a few pages, then run everything.</p>
+    <div class="row">
+      <div class="field narrow"><label class="lbl" for="opt-limit">Only first N pages</label><input type="number" id="opt-limit" min="1" placeholder="all"></div>
+      <div class="field narrow"><label class="lbl" for="opt-delay">Delay between pages (ms)</label><input type="number" id="opt-delay" min="200" max="5000" value="500"></div>
+      <div class="field narrow"><label class="lbl" for="opt-th">Match threshold (%)</label><input type="number" id="opt-th" min="20" max="100" value="60"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="opt-headed"> Show the browser window while testing</label>
+    <div class="actions">
+      <button id="btn-plan">Preview plan</button>
+      <button class="primary" id="btn-run">Start run</button>
+      <button class="danger" id="btn-cancel" hidden>Cancel run</button>
+    </div>
+    <div id="run-msg"></div>
+    <div id="run-live" hidden>
+      <div class="bar"><div id="bar"></div></div>
+      <div class="hint" id="phase"></div>
+      <pre class="log" id="log"></pre>
+    </div>
+  </section>
+
+  <!-- History -->
+  <section class="card">
+    <h2>Past runs</h2>
+    <div class="scroll"><table>
+      <thead><tr><th>Started</th><th>Environment</th><th>Result</th><th></th></tr></thead>
+      <tbody id="history"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+    </table></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { rulebook: null, identities: {}, runId: null, es: null };
+  var REF_KEY = 'site_admin';
+  var REF_HINT = '<span class="hint">Optional, recommended: Site Admin with MFA</span>';
+
+  // ---------- storage (non-secret preferences only; never tokens)
+  function load(key, fallback) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
+  function save(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+
+  // ---------- api
+  function api(method, path, body) {
+    return fetch(path, {
+      method: method,
+      headers: body ? { 'Content-Type': 'application/json', 'X-Amp-Ui': '1' } : { 'X-Amp-Ui': '1' },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+        return j;
+      });
+    });
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function msg(el, kind, text) { $(el).innerHTML = text ? '<div class="msg ' + kind + '">' + text + '</div>' : ''; }
+  function pretty(key) { return key.split('_').map(function (w) { return w ? w[0].toUpperCase() + w.slice(1) : w; }).join(' '); }
+
+  // ---------- 1 environment
+  function environment() {
+    return {
+      name: $('env-name').value.trim(),
+      baseUrl: $('env-url').value.trim(),
+      isProduction: $('env-prod').checked,
+      allowProduction: $('env-allow').checked
+    };
+  }
+  function renderRecent() {
+    var list = load('amp-envs', []);
+    $('env-recent').innerHTML = list.map(function (e, i) {
+      return '<span class="chip" data-i="' + i + '">' + esc(e.name || e.baseUrl) + '<span class="x" data-del="' + i + '" title="Forget">×</span></span>';
+    }).join('');
+  }
+  function rememberEnv() {
+    var e = environment(); if (!e.baseUrl) return;
+    var list = load('amp-envs', []).filter(function (x) { return x.baseUrl !== e.baseUrl; });
+    list.unshift({ name: e.name, baseUrl: e.baseUrl, isProduction: e.isProduction });
+    save('amp-envs', list.slice(0, 12)); renderRecent();
+  }
+  $('env-recent').addEventListener('click', function (ev) {
+    var del = ev.target.getAttribute('data-del');
+    var list = load('amp-envs', []);
+    if (del !== null) { list.splice(+del, 1); save('amp-envs', list); renderRecent(); return; }
+    var i = ev.target.closest('.chip') && ev.target.closest('.chip').getAttribute('data-i');
+    if (i === null || i === undefined) return;
+    var e = list[+i]; $('env-name').value = e.name || ''; $('env-url').value = e.baseUrl; $('env-prod').checked = !!e.isProduction; toggleProd();
+    clearIdentities();
+  });
+  function toggleProd() { $('env-allow-wrap').hidden = !$('env-prod').checked; if (!$('env-prod').checked) $('env-allow').checked = false; }
+  $('env-prod').addEventListener('change', toggleProd);
+  ['env-url', 'env-name'].forEach(function (id) { $(id).addEventListener('change', clearIdentities); });
+
+  // ---------- 2 rulebook
+  api('GET', '/api/rulebooks').then(function (r) {
+    r.files.forEach(function (f) { var o = document.createElement('option'); o.value = f; o.textContent = f; $('rb-select').appendChild(o); });
+    var last = load('amp-rulebook', '');
+    if (last && r.files.indexOf(last) >= 0) { $('rb-select').value = last; parseRulebook({ file: last }); }
+  });
+  $('rb-select').addEventListener('change', function () {
+    if (!this.value) return; $('rb-file').value = ''; save('amp-rulebook', this.value); parseRulebook({ file: this.value });
+  });
+  $('rb-file').addEventListener('change', function () {
+    var f = this.files && this.files[0]; if (!f) return;
+    $('rb-select').value = '';
+    var reader = new FileReader();
+    reader.onload = function () { parseRulebook({ name: f.name, contentBase64: String(reader.result).split(',')[1] }); };
+    reader.readAsDataURL(f);
+  });
+  function parseRulebook(body) {
+    msg('rb-msg', 'warn', 'Reading rulebook…');
+    api('POST', '/api/rulebooks/parse', body).then(function (r) {
+      state.rulebook = r;
+      var s = r.summary;
+      var missing = s.userTypes.filter(function (u) { return s.missingExpectations[u] > 0; })
+        .map(function (u) { return pretty(u) + ': ' + s.missingExpectations[u]; });
+      msg('rb-msg', 'ok', '<b>' + esc(r.name) + '</b> — ' + s.pages + ' pages. User types: <b>' +
+        s.userTypes.map(function (u) { return esc(pretty(u)); }).join(', ') + '</b>.' +
+        (missing.length ? '<br>Rows without a Yes/No (reported as "Not specified"): ' + esc(missing.join(', ')) : ''));
+      renderUsers();
+      $('c-users').classList.remove('disabled'); $('c-run').classList.remove('disabled');
+    }).catch(function (e) {
+      state.rulebook = null; msg('rb-msg', 'bad', esc(e.message));
+      $('c-users').classList.add('disabled'); $('c-run').classList.add('disabled');
+    });
+  }
+
+  // ---------- 3 users
+  function userKeys() {
+    var cols = state.rulebook ? state.rulebook.summary.userTypes : [];
+    return [REF_KEY].concat(cols.filter(function (c) { return c !== REF_KEY; }));
+  }
+  function renderUsers() {
+    var labels = load('amp-labels', {});
+    var cols = state.rulebook.summary.userTypes;
+    var prev = collectUsers();
+    $('users').innerHTML = userKeys().map(function (key) {
+      var isRef = key === REF_KEY, inRb = cols.indexOf(key) >= 0;
+      var p = prev[key] || {};
+      var label = labels[key] || (isRef ? 'Site Admin' : pretty(key));
+      var ticked = p.test !== undefined ? p.test : !!(p.jwt && p.csrf);
+      return '<tr data-key="' + esc(key) + '">' +
+        '<td><input type="checkbox" class="u-test" ' + (ticked ? 'checked' : '') + ' aria-label="Test this user type"' +
+          (isRef && !inRb ? ' title="Rulebook has no Site Admin column: Site Admin is expected to see every page"' : '') + '></td>' +
+        '<td><input type="text" class="u-label" value="' + esc(label) + '" aria-label="Label"><div class="key">' + esc(key) +
+          (isRef ? '<span class="tag">reference</span>' : '') + '</div></td>' +
+        '<td><div class="pw"><input type="password" class="u-jwt" autocomplete="off" spellcheck="false" value="' + esc(p.jwt || '') + '" aria-label="jwt"><button type="button" class="show" title="Show/hide">👁</button></div></td>' +
+        '<td><div class="pw"><input type="password" class="u-csrf" autocomplete="off" spellcheck="false" value="' + esc(p.csrf || '') + '" aria-label="X-CSRF-Token"><button type="button" class="show" title="Show/hide">👁</button></div></td>' +
+        '<td class="status" id="st-' + esc(key) + '">' + (isRef ? REF_HINT : '') + '</td></tr>';
+    }).join('');
+    Object.keys(state.identities).forEach(function (k) { showIdentity(k, state.identities[k]); });
+  }
+  $('users').addEventListener('click', function (e) {
+    if (!e.target.classList.contains('show')) return;
+    var input = e.target.previousElementSibling; input.type = input.type === 'password' ? 'text' : 'password';
+  });
+  // Pasting both tokens ticks the row; clearing a token unticks it. The tester can still untick manually.
+  $('users').addEventListener('input', function (e) {
+    if (!e.target.classList.contains('u-jwt') && !e.target.classList.contains('u-csrf')) return;
+    var tr = e.target.closest('tr'), box = tr.querySelector('.u-test');
+    if (box) box.checked = !!(tr.querySelector('.u-jwt').value.trim() && tr.querySelector('.u-csrf').value.trim());
+  });
+  $('users').addEventListener('change', function (e) {
+    if (e.target.classList.contains('u-label')) {
+      var labels = load('amp-labels', {}); labels[e.target.closest('tr').getAttribute('data-key')] = e.target.value.trim(); save('amp-labels', labels);
+    }
+    if (e.target.classList.contains('u-jwt') || e.target.classList.contains('u-csrf')) {
+      var k = e.target.closest('tr').getAttribute('data-key'); delete state.identities[k]; showIdentity(k, null);
+    }
+  });
+  function collectUsers() {
+    var out = {};
+    document.querySelectorAll('#users tr').forEach(function (tr) {
+      var t = tr.querySelector('.u-test');
+      out[tr.getAttribute('data-key')] = {
+        key: tr.getAttribute('data-key'),
+        label: tr.querySelector('.u-label').value.trim(),
+        jwt: tr.querySelector('.u-jwt').value.trim(),
+        csrf: tr.querySelector('.u-csrf').value.trim(),
+        test: t ? t.checked : undefined
+      };
+    });
+    return out;
+  }
+  function usersList() { var u = collectUsers(); return Object.keys(u).map(function (k) { return u[k]; }); }
+  function clearIdentities() { state.identities = {}; document.querySelectorAll('#users tr').forEach(function (tr) { showIdentity(tr.getAttribute('data-key'), null); }); }
+  function showIdentity(key, id) {
+    var el = $('st-' + key); if (!el) return;
+    if (!id) { el.className = 'status'; el.innerHTML = key === REF_KEY ? REF_HINT : ''; return; }
+    if (!id.valid) { el.className = 'status bad'; el.textContent = '✗ ' + (id.reason || 'invalid'); return; }
+    var where = id.organizationName ? 'org ' + id.organizationName : (id.companyName ? id.companyName : 'company level');
+    var warn = key === REF_KEY && !id.isSiteAdmin ? ' ⚠ not a Site Admin (or no MFA)' : '';
+    el.className = 'status ' + (warn ? 'bad' : 'ok');
+    el.innerHTML = '✓ <b>' + esc(id.userName || '?') + '</b><br>' + esc((id.persona || 'no persona') + ' · ' + where) + (id.isSiteAdmin ? ' · Site Admin' : '') + esc(warn);
+  }
+  $('btn-check').addEventListener('click', function () {
+    var btn = this; btn.disabled = true; msg('users-msg', 'warn', 'Checking tokens…');
+    api('POST', '/api/tokens/check', { environment: environment(), users: usersList() }).then(function (r) {
+      var bad = 0;
+      r.results.forEach(function (x) { state.identities[x.key] = x.identity; showIdentity(x.key, x.identity); if (!x.identity.valid) bad++; });
+      rememberEnv();
+      msg('users-msg', bad ? 'bad' : 'ok', bad ? bad + ' token(s) need attention.' : 'All tokens are valid. Check each row shows the user you expect.');
+    }).catch(function (e) { msg('users-msg', 'bad', esc(e.message)); }).then(function () { btn.disabled = false; });
+  });
+
+  // ---------- 4 run
+  function runBody() {
+    var limit = parseInt($('opt-limit').value, 10);
+    return {
+      environment: environment(),
+      rulebookId: state.rulebook && state.rulebook.id,
+      calibrationKey: REF_KEY,
+      users: usersList(),
+      options: {
+        limit: limit > 0 ? limit : undefined,
+        delayMs: parseInt($('opt-delay').value, 10) || 500,
+        fingerprintThreshold: (parseInt($('opt-th').value, 10) || 60) / 100,
+        headed: $('opt-headed').checked
+      }
+    };
+  }
+  $('btn-plan').addEventListener('click', function () {
+    var problem = validateRun(runBody()); if (problem) { msg('run-msg', 'bad', problem); return; }
+    api('POST', '/api/plan', runBody()).then(function (p) {
+      var labels = collectUsers();
+      var tested = p.tested.map(function (k) { return (labels[k] && labels[k].label) || pretty(k); });
+      msg('run-msg', p.reference ? 'ok' : 'warn', 'Will test <b>' + esc(tested.join(', ')) + '</b> on <b>' + esc(p.environment.name) + '</b> (' + esc(p.environment.baseUrl) + '), <b>' +
+        p.pages.length + ' pages</b> → ' + p.pageOpens + ' page opens, about <b>' + p.estimatedMinutes + ' min</b>. Only GET requests and read-only API calls are allowed.' +
+        (p.reference ? '' : '<br>No reference Site Admin: each user is compared with its own run (slightly less precise).') +
+        (p.notes || []).map(function (n) { return '<br>' + esc(n); }).join(''));
+    }).catch(function (e) { msg('run-msg', 'bad', esc(e.message)); });
+  });
+  /** Returns an error message, or '' when the run can start. */
+  function validateRun(body) {
+    var tested = body.users.filter(function (u) { return u.test; });
+    if (!tested.length) return 'Paste tokens for at least one user type (its row gets ticked automatically).';
+    var incomplete = body.users.filter(function (u) { return (u.test || u.key === REF_KEY) && (!!u.jwt !== !!u.csrf || (u.test && !u.jwt)); });
+    if (incomplete.length) return 'Both jwt and X-CSRF-Token are needed for: ' + esc(incomplete.map(function (u) { return u.label || u.key; }).join(', '));
+    return '';
+  }
+  $('btn-run').addEventListener('click', function () {
+    var body = runBody();
+    var problem = validateRun(body); if (problem) { msg('run-msg', 'bad', problem); return; }
+    this.disabled = true; msg('run-msg', 'warn', 'Starting…');
+    rememberEnv();
+    api('POST', '/api/runs', body).then(function (r) { attach(r.run); }).catch(function (e) { msg('run-msg', 'bad', esc(e.message)); $('btn-run').disabled = false; });
+  });
+  $('btn-cancel').addEventListener('click', function () {
+    if (!state.runId || !confirm('Cancel this run? Pages already tested will not produce a report.')) return;
+    api('POST', '/api/runs/' + state.runId + '/cancel', {}).catch(function (e) { msg('run-msg', 'bad', esc(e.message)); });
+  });
+
+  var PHASE = { tokens: 'Checking tokens', menus: 'Reading menus', calibration: 'Reference run', probe: 'Testing', report: 'Writing report' };
+  function attach(run) {
+    state.runId = run.id;
+    $('run-live').hidden = false; $('btn-run').disabled = true; $('btn-cancel').hidden = false;
+    $('log').textContent = '';
+    msg('run-msg', 'warn', 'Running on <b>' + esc(run.environment.name) + '</b>… You can leave this page open; closing it does not stop the run.');
+    if (state.es) state.es.close();
+    var es = new EventSource('/api/runs/' + run.id + '/events'); state.es = es;
+    es.addEventListener('init', function (e) { var d = JSON.parse(e.data); $('log').textContent = d.lines.join('\n') + '\n'; scrollLog(); if (d.state.progress) progress(d.state.progress); if (d.state.status !== 'running') finish(d.state); });
+    es.addEventListener('log', function (e) { $('log').textContent += JSON.parse(e.data) + '\n'; scrollLog(); });
+    es.addEventListener('progress', function (e) { progress(JSON.parse(e.data)); });
+    es.addEventListener('done', function (e) { finish(JSON.parse(e.data)); });
+  }
+  function scrollLog() { var l = $('log'); l.scrollTop = l.scrollHeight; }
+  function progress(p) {
+    var pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
+    $('bar').style.width = pct + '%';
+    $('phase').textContent = (PHASE[p.phase] || p.phase) + (p.userType ? ' — ' + p.userType : '') + ' · ' + p.done + '/' + p.total;
+  }
+  function finish(s) {
+    if (state.es) { state.es.close(); state.es = null; }
+    $('btn-run').disabled = false; $('btn-cancel').hidden = true;
+    var o = s.outcome || {};
+    if (s.status === 'cancelled') msg('run-msg', 'warn', 'Run cancelled.');
+    else if (s.status === 'failed') msg('run-msg', 'bad', 'Run stopped: ' + esc(o.error || 'unknown error'));
+    else msg('run-msg', o.code === 2 ? 'bad' : 'ok', (o.code === 2 ? 'Finished — failures found. ' : 'Finished — everything matches the rulebook. ') + summaryBadges(o.summary) +
+      (o.reportUrl ? '<div class="actions"><a href="' + esc(o.reportUrl) + '" target="_blank"><button class="primary">Open report</button></a></div>' : ''));
+    loadHistory();
+  }
+  function summaryBadges(summary) {
+    if (!summary) return '';
+    var fail = 0, pass = 0, rev = 0;
+    Object.keys(summary).forEach(function (ut) { var c = summary[ut];
+      Object.keys(c).forEach(function (v) { if (/^FAIL/.test(v)) fail += c[v]; else if (v === 'PASS') pass += c[v]; else if (v === 'REVIEW') rev += c[v]; }); });
+    return '<span class="b fail">' + fail + ' failed</span>' +
+      '<span class="b rev">' + rev + ' review</span><span class="b pass">' + pass + ' passed</span>';
+  }
+
+  // ---------- history
+  function loadHistory() {
+    api('GET', '/api/runs').then(function (r) {
+      if (!r.runs.length) { $('history').innerHTML = '<tr><td colspan="4" class="empty">No runs yet.</td></tr>'; return; }
+      $('history').innerHTML = r.runs.map(function (x) {
+        var when = x.startedAt ? new Date(x.startedAt).toLocaleString() : '';
+        var env = x.environment ? esc(x.environment.name) + '<div class="key">' + esc(x.environment.baseUrl) + '</div>' : esc(x.runId);
+        var result = x.status === 'cancelled' ? '<span class="b rev">cancelled</span>' : x.status === 'failed' ? '<span class="b fail">stopped</span> <span class="hint">' + esc(x.error || '') + '</span>' : summaryBadges(x.summary);
+        return '<tr><td>' + esc(when) + '</td><td>' + env + '</td><td>' + result + '</td><td>' + (x.reportUrl ? '<a href="' + esc(x.reportUrl) + '" target="_blank">Open report</a>' : '') + '</td></tr>';
+      }).join('');
+    }).catch(function () { $('history').innerHTML = '<tr><td colspan="4" class="empty">Could not load history.</td></tr>'; });
+  }
+
+  // ---------- init
+  renderRecent();
+  var envs = load('amp-envs', []);
+  if (envs[0]) { $('env-name').value = envs[0].name || ''; $('env-url').value = envs[0].baseUrl; $('env-prod').checked = !!envs[0].isProduction; toggleProd(); }
+  loadHistory();
+  api('GET', '/api/runs/current').then(function (r) { if (r.run && r.run.status === 'running') attach(r.run); });
+})();
+</script>
+</body>
+</html>

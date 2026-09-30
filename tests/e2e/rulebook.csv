@@ -1,0 +1,8 @@
+﻿page,name,partner_sales
+/#setup/roles,Roles,No
+/#setup/users/list,Users,No
+/#setup/brand,Brand,Yes
+/#setup/leadrouting,Lead Routing,No
+/#connections/contacts,Contacts,Yes
+/#report/assets,Asset Report,Yes
+/#manage/mdf/funds,Request MDF,Yes

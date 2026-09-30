@@ -1,0 +1,22 @@
+{
+  "environment": {
+    "name": "AISB",
+    "baseUrl": "https://REPLACE-WITH-AISB-URL",
+    "isProduction": false
+  },
+  "rulebook": "rulebook/internal-user-personas.csv",
+  "shellPath": "/",
+  "calibrationUserType": "site_admin",
+  "userTypes": {
+    "site_admin": { "label": "Site Admin (calibration, MFA enabled)" },
+    "channel_manager": { "label": "Channel Manager" },
+    "corporate_prm_admin": { "label": "Corporate PRM Admin" },
+    "partner_sales": { "label": "Partner Sales" }
+  },
+  "delayMs": 500,
+  "pageTimeoutMs": 20000,
+  "settleMs": 1000,
+  "fingerprintThreshold": 0.6,
+  "headless": true,
+  "outputDir": "output"
+}
