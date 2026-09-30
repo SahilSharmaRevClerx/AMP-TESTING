@@ -45,6 +45,7 @@ async function main(): Promise<number> {
       pageTimeoutMs: 5000,
       settleMs: 300,
       fingerprintThreshold: 0.6,
+      parallelUsers: Number(process.env.PARALLEL ?? 3),
       headless: true,
       outputDir,
     }),
@@ -78,6 +79,11 @@ async function main(): Promise<number> {
     const audit = readFileSync(join(outputDir, runDir, 'audit.jsonl'), 'utf8');
     if (!/savelastviewed.*"decision":"blocked"/.test(audit)) failures.push('SAFETY: blocked write not recorded in audit log');
     if (audit.includes(TOKENS.partner_sales.jwt) || audit.includes(TOKENS.site_admin.jwt)) failures.push('SAFETY: raw token found in audit log');
+    // Parallel users: the two users' page loads must overlap in time (separate browsers at the same time).
+    const pageHits = (u: string) => received.filter((x) => x.user === u && x.method === 'GET' && /^\/(setup|connections|report|manage|insights)\//.test(x.path)).map((x) => x.at);
+    const [a, p] = [pageHits('admin'), pageHits('partner')];
+    const overlap = a.length && p.length && Math.min(Math.max(...a), Math.max(...p)) > Math.max(Math.min(...a), Math.min(...p));
+    if (!overlap) failures.push('users did not run in parallel (page loads did not overlap)');
     for (const h of scanForSecrets([outputDir], [TOKENS.site_admin.jwt, TOKENS.partner_sales.jwt])) failures.push(`SAFETY LEAK: ${h}`);
     if (received.some((r) => r.path === '/leak-probe')) failures.push('SAFETY: a page script could read the jwt cookie');
     const nonGetNonApi = received.filter((r) => r.method !== 'GET' && r.path !== '/services/api.ashx');

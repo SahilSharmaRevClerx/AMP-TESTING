@@ -12,6 +12,7 @@ import { pageVerdict, VERDICT_ORDER } from './verdict/compare';
 import { writeReports } from './report/write';
 import { AuditLog } from './util/audit';
 import { slug } from './util/route';
+import { runLimited } from './util/limit';
 import { scrub } from './util/mask';
 import { createLogger, since } from './util/logger';
 import type { CheckResult, Credentials, Expected, Identity, MenuResult, PageEvidence, Rule, Rulebook, RunConfig, Verdict } from './types';
@@ -85,7 +86,9 @@ export function planRun(cfg: RunConfig, rulebook: Rulebook, only?: string[], lim
   let pages = rulebook.rules.filter((r) => r.type === 'page');
   if (limit && limit > 0) pages = pages.slice(0, limit);
   const pageOpens = pages.length * allTypes.length;
-  const estimatedMinutes = Math.ceil((pageOpens * (cfg.settleMs + cfg.delayMs + 2500)) / 60000);
+  // Users run in batches of `parallelUsers`; within a user, pages go one at a time.
+  const rounds = Math.ceil(testedTypes.length / Math.max(1, cfg.parallelUsers ?? 1));
+  const estimatedMinutes = Math.ceil((rounds * pages.length * (cfg.settleMs + cfg.delayMs + 2500)) / 60000);
   return { pages, testedTypes, allTypes, pageOpens, estimatedMinutes };
 }
 
@@ -180,24 +183,49 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
       r.progress?.({ phase: 'menus', done: i + 1, total: plan.allTypes.length });
     }
 
-    // ③ Open every page as each user
+    // ③ Open every page as each user. Users run in parallel (each in its own browser and session,
+    // nothing shared); within a user, pages are opened one at a time.
+    const parallel = Math.min(cfg.parallelUsers, plan.testedTypes.length);
+    r.log(`\n③ Opening pages: ${plan.testedTypes.length} user type(s), ${parallel} at the same time`);
+    const opened = new Map<string, number>();
+    const totalOpens = plan.pages.length * plan.testedTypes.length;
+    const onPage = (ut: string) => {
+      opened.set(ut, (opened.get(ut) ?? 0) + 1);
+      const done = [...opened.values()].reduce((a, b) => a + b, 0);
+      r.progress?.({ phase: 'probe', done, total: totalOpens });
+    };
+    const probeStarted = Date.now();
+    const outcomes = await runLimited(plan.testedTypes, parallel, async (ut) => {
+      checkCancel();
+      const t0 = Date.now();
+      log.info('user started', { user: ut, pages: plan.pages.length });
+      try {
+        const outcome = await probeAll(input, outDir, audit, ut, plan.pages, 'probe', () => onPage(ut));
+        if (typeof outcome !== 'string') {
+          log.info('user pages opened', { user: ut, pages: outcome.pages.size, frameBaseline: !!outcome.baseline, ms: since(t0) });
+        }
+        return outcome;
+      } catch (e) {
+        if (e instanceof CancelledError) throw e;
+        // One user's browser failing must not stop the others.
+        return `browser failed: ${scrub((e as Error).message).split('\n')[0]}`;
+      }
+    });
+    // Collected in rulebook order so results never depend on which user finished first.
     const byUser: EvidenceByUser = new Map();
     const baselines: PageEvidence[] = [];
     const failedUsers = new Map<string, string>();
-    for (const ut of plan.testedTypes) {
-      checkCancel();
-      r.log(`\n③ ${ut} (${plan.pages.length} pages)`);
-      const t0 = Date.now();
-      const outcome = await probeAll(input, outDir, audit, ut, plan.pages, 'probe');
+    plan.testedTypes.forEach((ut, i) => {
+      const outcome = outcomes[i]!;
       if (typeof outcome === 'string') {
         log.warn('user could not be tested', { user: ut, reason: outcome });
         failedUsers.set(ut, outcome);
       } else {
         byUser.set(ut, outcome.pages);
         if (outcome.baseline) baselines.push(outcome.baseline);
-        log.info('user pages opened', { user: ut, pages: outcome.pages.size, frameBaseline: !!outcome.baseline, ms: since(t0) });
       }
-    }
+    });
+    log.info('all users done', { users: plan.testedTypes.length, parallel, ms: since(probeStarted) });
 
     // ④ Decide each page: did each user get usable content? (Rulebook Yes/No says how to read "not usable".)
     r.log('\n④ Deciding');
@@ -326,6 +354,7 @@ async function probeAll(
   userType: string,
   pages: Rule[],
   phase: 'probe',
+  onPage: () => void = () => undefined,
 ): Promise<{ pages: Map<string, PageEvidence>; baseline: PageEvidence | null } | string> {
   const { cfg, signal } = input;
   const r = input.reporter ?? consoleReporter;
@@ -365,10 +394,11 @@ async function probeAll(
           : ev.error
             ? `error: ${ev.error}`
             : `${ev.tokens.length} elements${ev.apiCalls.some((a) => a.hasData) ? ', data loaded' : ''}`;
-      r.log(`  ${String(idx + 1).padStart(3)}/${pages.length} #${page.route.padEnd(42)} ${signalText}`);
-      r.progress?.({ phase, userType, done: idx + 1, total: pages.length });
+      // Users run in parallel, so every line names its user.
+      r.log(`  [${userType}] ${String(idx + 1).padStart(3)}/${pages.length} #${page.route.padEnd(40)} ${signalText}`);
+      onPage();
       if (/\/(login|sessionexpired)\b/i.test(ev.finalUrl) || (ev.fragmentRedirect && /\/(login|sessionexpired)\b/.test(ev.fragmentRedirect))) {
-        r.log('  token expired mid-run — stopping this user type');
+        r.log(`  [${userType}] token expired mid-run — stopping this user type`);
         log.warn('token expired mid-run, stopping this user', { user: userType, route: page.route, finalUrl: ev.finalUrl });
         break;
       }

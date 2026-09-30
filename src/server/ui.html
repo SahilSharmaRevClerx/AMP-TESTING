@@ -312,6 +312,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
             <div class="field narrow"><label class="lbl" for="opt-limit">Only first N pages</label><input type="number" id="opt-limit" min="1" placeholder="all"></div>
             <div class="field narrow"><label class="lbl" for="opt-delay">Delay between pages (ms)</label><input type="number" id="opt-delay" min="200" max="5000" value="500"></div>
             <div class="field narrow"><label class="lbl" for="opt-th">Match threshold (%)</label><input type="number" id="opt-th" min="20" max="100" value="60"></div>
+            <div class="field narrow"><label class="lbl" for="opt-par">Users tested at the same time</label><input type="number" id="opt-par" min="1" max="5" value="3"></div>
           </div>
           <label class="check"><input type="checkbox" id="opt-headed"> Show the browser window while testing</label>
         </details>
@@ -647,7 +648,8 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
         limit: limit > 0 ? limit : undefined,
         delayMs: parseInt($('opt-delay').value, 10) || 500,
         fingerprintThreshold: (parseInt($('opt-th').value, 10) || 60) / 100,
-        headed: $('opt-headed').checked
+        headed: $('opt-headed').checked,
+        parallelUsers: parseInt($('opt-par').value, 10) || 3
       }
     };
   }
@@ -660,12 +662,12 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
         '<div class="sbox"><div class="v">' + esc(p.environment.name) + '</div><div class="l">' + esc(p.environment.baseUrl) + '</div></div>' +
         '<div class="sbox"><div class="v">' + tested.length + '</div><div class="l">' + esc(tested.join(', ')) + '</div></div>' +
         '<div class="sbox"><div class="v">' + p.pages.length + '</div><div class="l">pages (' + p.pageOpens + ' page opens)</div></div>' +
-        '<div class="sbox"><div class="v">~' + p.estimatedMinutes + ' min</div><div class="l">estimated time</div></div>';
+        '<div class="sbox"><div class="v">~' + p.estimatedMinutes + ' min</div><div class="l">estimated time' + (p.parallelUsers > 1 ? ' (' + p.parallelUsers + ' users at the same time)' : '') + '</div></div>';
       if (tested.length > 1) msg('plan-msg', 'ok', '✓ For each page, the user who sees the most of it is the reference; everyone else is compared with that view.');
       else msg('plan-msg', 'warn', 'Only one user type: pages are judged by that user\'s own view (no-access screens, "no access" messages and redirects are still detected). Add a higher-access user type for the most precise results.');
     }).catch(function (e) { msg('plan-msg', 'bad', esc(e.message)); });
   }
-  ['opt-limit'].forEach(function (id) { $(id).addEventListener('change', function () { if (state.step === 4 && !state.running) loadPlan(); }); });
+  ['opt-limit', 'opt-par'].forEach(function (id) { $(id).addEventListener('change', function () { if (state.step === 4 && !state.running) loadPlan(); }); });
   $('btn-run').addEventListener('click', function () {
     var body = runBody();
     var problem = validateUsers(body.users); if (problem) { msg('run-err', 'bad', problem); return; }

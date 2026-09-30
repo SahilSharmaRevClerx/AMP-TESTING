@@ -1,4 +1,4 @@
-{
+﻿{
   "environment": {
     "name": "AISB",
     "baseUrl": "https://REPLACE-WITH-AISB-URL",
@@ -17,6 +17,7 @@
   "pageTimeoutMs": 20000,
   "settleMs": 1000,
   "fingerprintThreshold": 0.6,
+  "parallelUsers": 3,
   "headless": true,
   "outputDir": "output"
 }

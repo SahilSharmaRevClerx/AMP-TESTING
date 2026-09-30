@@ -43,7 +43,7 @@ export const PAGES: PageDef[] = [
   { route: 'manage/mdf/funds', title: 'Request MDF', apis: ['getfunds', 'savelastviewed'], partner: 'open', partnerMenu: true }, // PASS, write api must be blocked
 ];
 
-export const received: { user: User | null; method: string; path: string; func?: string }[] = [];
+export const received: { user: User | null; method: string; path: string; func?: string; at: number }[] = [];
 
 function cookiesOf(req: IncomingMessage): Record<string, string> {
   return Object.fromEntries(
@@ -92,7 +92,7 @@ export function startFakeAmp(): Promise<{ server: Server; baseUrl: string }> {
     const path = url.pathname.replace(/\/+$/, '') || '/';
     const user = userOf(req);
     const func = url.searchParams.get('func')?.toLowerCase();
-    received.push({ user, method: req.method ?? '', path, func });
+    received.push({ user, method: req.method ?? '', path, func, at: Date.now() });
 
     const send = (status: number, body: string, type = 'text/html', headers: Record<string, string> = {}) => {
       res.writeHead(status, { 'Content-Type': type, ...headers });

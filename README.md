@@ -156,7 +156,7 @@ So "No No No" rows need no reference: if nobody gets usable content, everyone pa
 - The tool only calls `getpermissiondataforuser` (read-only) and GETs AMP's main page itself.
 - In the browser it only navigates; it never clicks or types. Requests the page makes by itself pass a gate: GETs are allowed; `api.ashx` calls are allowed only for read-only API names (`get*`, `load*`, `check*`…, excluding hidden writes like `getoradd*`); every other non-GET, and any logout, is blocked and logged.
 - Environments marked `"isProduction": true` are refused unless `"allowProduction": true` is also set. Remote hosts must use HTTPS.
-- One page at a time with `delayMs` between requests (AMP rate-limits and alerts on bursts).
+- Pages are opened one at a time per user, with `delayMs` between them (AMP rate-limits and alerts on bursts). **User types run in parallel** (default 3 at the same time, each in its own browser and session; 1–5, always 1 on production), set under **Run → Advanced options → Users tested at the same time** or `parallelUsers` in the CLI config.
 - Tokens are masked in logs and reports and never written by the tool. No LLM or third-party calls.
 - Opening pages still writes AMP's normal usage-tracking rows; use test users/company.
 

@@ -64,7 +64,7 @@ interface RunRequest {
   /** User-type columns the tester confirmed on the rulebook step (default: all detected). */
   selectedUserTypes?: string[];
   users: UserInput[];
-  options?: { limit?: number; delayMs?: number; fingerprintThreshold?: number; headed?: boolean };
+  options?: { limit?: number; delayMs?: number; fingerprintThreshold?: number; headed?: boolean; parallelUsers?: number };
 }
 
 // ---------------------------------------------------------------- helpers
@@ -165,6 +165,7 @@ function configFrom(body: RunRequest, rb: Rulebook): RunConfig {
       headless: o.headed !== true,
       ...(o.delayMs !== undefined ? { delayMs: clamp(o.delayMs, 200, 5000) } : {}),
       ...(o.fingerprintThreshold !== undefined ? { fingerprintThreshold: clamp(o.fingerprintThreshold, 0.2, 1) } : {}),
+      ...(o.parallelUsers !== undefined ? { parallelUsers: o.parallelUsers } : {}),
     },
     'request',
   );
@@ -337,6 +338,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       pages: plan.pages.map((p) => ({ route: p.route, label: p.label })),
       pageOpens: plan.pageOpens,
       estimatedMinutes: plan.estimatedMinutes,
+      parallelUsers: Math.min(cfg.parallelUsers, plan.testedTypes.length),
     });
   }
 

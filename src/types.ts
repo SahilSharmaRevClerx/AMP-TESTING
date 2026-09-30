@@ -50,6 +50,8 @@ export interface RunConfig {
   pageTimeoutMs: number;
   settleMs: number;
   fingerprintThreshold: number;
+  /** User types tested at the same time, each in its own browser (1–5; always 1 on production). */
+  parallelUsers: number;
   headless: boolean;
   outputDir: string;
 }

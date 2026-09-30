@@ -65,7 +65,14 @@ async function main(): Promise<number> {
       return (await page.textContent('#run-msg')) ?? '';
     };
     const fillUser = async (key: string, jwt: string) => {
-      await page.fill(`.user[data-key="${key}"] .u-jwt`, jwt);
+      const box = `.user[data-key="${key}"] .u-jwt`;
+      // Type, then confirm the box holds exactly this value (retry if the rows were redrawn mid-typing).
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await page.fill(box, jwt);
+        if ((await page.inputValue(box)) === jwt) return;
+        await page.waitForTimeout(200);
+      }
+      throw new Error(`could not type the jwt into the ${key} row`);
     };
 
     // Welcome → Start

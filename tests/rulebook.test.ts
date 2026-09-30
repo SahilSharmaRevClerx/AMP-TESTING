@@ -137,7 +137,7 @@ describe('Excel (.xlsx) rulebooks', () => {
     expect(rb.userTypes).toEqual(['site_admin', 'normal_user']);
     expect(rb.rules.map((r) => r.route)).toEqual(['intel/clientsentiment', 'intel/account']);
     expect(rb.rules[1]!.expected).toEqual({ site_admin: 'Yes', normal_user: 'Yes' });
-  });
+  }, 20000); // first load of the Excel library can be slow on a cold start
 
   it('gives a clear message for a broken file and for old .xls', async () => {
     await expect(parseRulebook('broken.xlsx', Buffer.from('not a zip'))).rejects.toThrow(/not a valid Excel/);
