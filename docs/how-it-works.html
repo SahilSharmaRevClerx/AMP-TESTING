@@ -171,7 +171,7 @@ svg .zone{fill:none;stroke:var(--line);stroke-dasharray:5 4}
     <div class="where">POST /api/rulebooks/parse → rulebook/parse.ts <code>parseRulebook()</code> → <code>rulebookFromRows()</code></div></li>
   <li><b>Tokens.</b> Tester pastes the <code>jwt</code> cookie for the users to test (rows auto-tick) and clicks <b>Check tokens</b>.
     <div class="where">POST /api/tokens/check → sessions/validate.ts <code>validateToken()</code></div></li>
-  <li><b>Plan.</b> Which pages × which users. Users without tokens are skipped. Site Admin, if given, becomes the <i>reference</i>.
+  <li><b>Plan.</b> Which pages × which users. Users without a jwt are skipped.
     <div class="where">run.ts <code>planRun()</code> · server <code>setupFrom()</code></div></li>
   <li><b>① Token check.</b> Each token is sent to AMP's <code>getpermissiondataforuser</code>; AMP says who it is. Invalid token → run stops.
     <div class="where">run.ts → sessions/validate.ts</div></li>
@@ -292,8 +292,8 @@ https://itbydesign.sb.amp.vg/#intel/account,Account,Yes,Yes,No</pre>
 <h3>The fingerprint (why a 200 isn't trusted on its own)</h3>
 <p>A page can return 200 and still show nothing useful. So the tool learns what each page looks like when it really opens:</p>
 <ol>
-  <li><b>With a Site Admin reference:</b> Site Admin opens every page first. For each page, the tool keeps the element ids / headings seen, minus those that appear on most pages (the AMP shell: header, menu, notifications).</li>
-  <li><b>Without a reference:</b> each user's own run is used the same way (slightly less precise; the report warns).</li>
+  <li><b>Per page, the user who saw the most is the reference</b> (whatever that user type is called — Super Admin on one page, Channel Manager on another). Elements present on most pages (the AMP frame) are ignored; what remains is the page's own content.</li>
+  <li><b>With one user type only:</b> each page is compared with that user's own view (the report warns). A visible "no access / permission denied / not authorized" message always counts as blocked.</li>
   <li>Another user "opened" a page when at least <b>Match threshold</b> (default 60%) of that page's fingerprint is on their screen.</li>
 </ol>
 <p class="muted">Code: verdict/fingerprint.ts <code>buildFingerprints()</code>, <code>fingerprintScore()</code>; verdict/state.ts <code>accessState()</code>.</p>
@@ -330,7 +330,7 @@ https://itbydesign.sb.amp.vg/#intel/account,Account,Yes,Yes,No</pre>
 <tr><td>Yes/No</td><td>UNCLEAR / ERROR / NOT_FOUND / BAD_TOKEN</td><td>any</td><td><span class="b rev">Review</span></td></tr>
 <tr><td>(empty)</td><td>any</td><td>any</td><td><span class="b inf">Not specified</span></td></tr>
 </tbody></table></div>
-<p class="muted">If Site Admin is tested but the rulebook has no <code>site_admin</code> column, Site Admin is expected <b>Yes</b> on every page (<code>withAllowAllColumn()</code>), because a Site Admin with MFA has access to every module in AMP.</p>
+<p class="muted">User types come only from the rulebook's columns. No role is special: Site Admin is a MindMatrix-internal role that client rulebooks usually don't have.</p>
 </section>
 
 <!-- 7 -->
@@ -342,7 +342,7 @@ https://itbydesign.sb.amp.vg/#intel/account,Account,Yes,Yes,No</pre>
 <tr><td><code>src/server/index.ts</code></td><td>Local web server for testers; holds tokens in memory; one run at a time; live progress</td><td><code>setupFrom</code>, <code>startRun</code>, <code>assertFromUi</code></td></tr>
 <tr><td><code>src/server/ui.html</code></td><td>The tester page (steps 1–4, progress, past runs)</td><td>—</td></tr>
 <tr><td><code>src/rulebook/parse.ts</code></td><td>Reads .csv/.xlsx into rules; finds the page column and user-type columns</td><td><code>parseRulebook</code>, <code>rulebookFromRows</code>, <code>withAllowAllColumn</code></td></tr>
-<tr><td><code>src/run.ts</code></td><td>Orchestrates a run: tokens → menus → reference → users → report. Also the CLI commands</td><td><code>planRun</code>, <code>executeRun</code>, <code>probeAll</code></td></tr>
+<tr><td><code>src/run.ts</code></td><td>Orchestrates a run: tokens → menus → open pages as each user → per-page reference → verdicts → report. Also the CLI commands</td><td><code>planRun</code>, <code>executeRun</code>, <code>probeAll</code></td></tr>
 <tr><td><code>src/sessions/validate.ts</code></td><td>Token check against AMP</td><td><code>validateToken</code>, <code>describeIdentity</code></td></tr>
 <tr><td><code>src/probe/menu.ts</code></td><td>Reads the user's menu from AMP's main page</td><td><code>fetchMenu</code>, <code>extractNavigation</code>, <code>menuHasRoute</code></td></tr>
 <tr><td><code>src/probe/browser.ts</code></td><td>Playwright: open Chromium with cookies, open each page, collect evidence and screenshots</td><td><code>BrowserProbe.open</code>, <code>.probe</code>, <code>.close</code></td></tr>
@@ -422,7 +422,7 @@ https://itbydesign.sb.amp.vg/#intel/account,Account,Yes,Yes,No</pre>
     shots/
       site-admin/intel-account.png
       normal-user/intel-account.png</pre>
-<p>In the report, each failed or review item shows the reference (Site Admin) screenshot next to the tested user's screenshot, with <b>Confirmed issue / False alarm</b> buttons and a CSV export of the review.</p>
+<p>In the report, each failed or review item shows the reference user's screenshot (whoever saw the most of that page) next to the tested user's screenshot, with <b>Confirmed issue / False alarm</b> buttons and a CSV export of the review.</p>
 </section>
 
 <!-- 11 -->
@@ -437,7 +437,7 @@ https://itbydesign.sb.amp.vg/#intel/account,Account,Yes,Yes,No</pre>
 <tr><td>Hash routes load server pages; denied pages redirect to <code>/noaccess</code></td><td>Routing/web-navin-routing.xml, Pages/ModuleAwareRazorModel.cs</td><td>browser.ts, state.ts</td></tr>
 <tr><td>No-access page has element <code>.error-text-2</code></td><td>Pages/navin/public/noaccess.cshtml</td><td>browser.ts</td></tr>
 <tr><td>Pages call data APIs as <code>POST /api/&lt;FuncName&gt;</code> (older: <code>/services/api.ashx?func=</code>); denial = 401 / "Not authorized." / <code>{code, message}</code></td><td>Bridge/Pipeline/APIRequest.cs</td><td>gate.ts, browser.ts</td></tr>
-<tr><td>Site Admin sees every module only with MFA enabled</td><td>Entities/Module.cs <code>HasAccess</code>, Entities/User.cs</td><td>reference-user warning</td></tr>
+
 </tbody></table></div>
 <p class="muted">If AMP changes any of these, the matching part of the tool needs updating. The end-to-end tests use a simulated AMP (<code>tests/e2e/fake-amp.ts</code>) that mimics exactly these behaviours.</p>
 </section>
@@ -451,7 +451,7 @@ https://itbydesign.sb.amp.vg/#intel/account,Account,Yes,Yes,No</pre>
 <tr><td>Error mentions an old rule (e.g. "missing column type") or a change doesn't show</td><td>The server is still running old code. In its terminal: <b>Ctrl+C</b>, then <code>npm start</code>, then refresh the page.</td></tr>
 <tr><td>Who is it? shows ✗ / "redirected to /login"</td><td>Token expired or copied from another site. Log in again on <i>that</i> environment and copy fresh cookies.</td></tr>
 <tr><td>Menu read fails: no "var navigation" found</td><td>That environment's main page is not at <code>/</code>; the shell path needs adjusting.</td></tr>
-<tr><td>Many Review / Unclear results</td><td>No Site Admin reference, or Site Admin without MFA. Add Site Admin tokens; lower Match threshold slightly if pages differ a lot per user.</td></tr>
+<tr><td>Many Review / Unclear results</td><td>Only one (low-access) user type tested, or a page renders differently per role. Add a higher-access user type (e.g. Super Admin); lower Match threshold slightly if pages differ a lot per user.</td></tr>
 <tr><td>Not found for rulebook pages</td><td>Route doesn't exist on that client's build; check the route (the report lists the client's actual menu links).</td></tr>
 <tr><td>Want to watch what it does</td><td>Tick <b>Show the browser window while testing</b>.</td></tr>
 </tbody></table></div>

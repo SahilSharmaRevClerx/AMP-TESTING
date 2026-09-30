@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage, type Server } from 'node:http';
+﻿import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 
@@ -20,8 +20,10 @@ interface PageDef {
   route: string;
   title: string;
   apis: string[];
-  partner: 'open' | 'redirect' | 'inline-noaccess' | 'open-api-denied';
+  partner: 'open' | 'redirect' | 'inline-noaccess' | 'open-api-denied' | 'custom-deny' | 'blank' | 'error-box' | 'dashboard';
   partnerMenu: boolean;
+  /** How the page behaves for the admin (default: opens). */
+  admin?: 'open' | 'redirect' | 'blank' | 'dashboard';
 }
 
 export const PAGES: PageDef[] = [
@@ -31,6 +33,13 @@ export const PAGES: PageDef[] = [
   { route: 'setup/leadrouting', title: 'Lead Routing', apis: ['getleadrouting'], partner: 'inline-noaccess', partnerMenu: false }, // PASS (No), 200 + marker
   { route: 'connections/contacts', title: 'Contacts', apis: ['getcontacts'], partner: 'open', partnerMenu: true }, // PASS (Yes)
   { route: 'report/assets', title: 'Asset Report', apis: ['getassetreport'], partner: 'open-api-denied', partnerMenu: true }, // OPENS EMPTY (Yes)
+  { route: 'setup/customdeny', title: 'Custom Deny', apis: ['getcustom'], partner: 'custom-deny', partnerMenu: false }, // PASS (No): page's own message, not AMP's screen
+  { route: 'insights/dashboard', title: 'Dashboard', apis: [], partner: 'dashboard', admin: 'dashboard', partnerMenu: true }, // PASS both: different widgets per user
+  { route: 'setup/blankno', title: 'Blank No', apis: ['getblankno'], partner: 'blank', partnerMenu: false }, // PASS (No): blank page = nothing usable
+  { route: 'setup/blankyes', title: 'Blank Yes', apis: ['getblankyes'], partner: 'blank', partnerMenu: true }, // FAIL (Yes): blank for partner, admin gets it
+  { route: 'setup/errorbox', title: 'Error Box', apis: ['geterrorbox'], partner: 'error-box', partnerMenu: false }, // PASS (No): error = nothing usable
+  { route: 'manage/nonono', title: 'No No No', apis: ['getnonono'], partner: 'redirect', admin: 'redirect', partnerMenu: false }, // PASS for everyone
+  { route: 'setup/broken', title: 'Broken', apis: ['getbroken'], partner: 'blank', admin: 'blank', partnerMenu: true }, // REVIEW: renders for nobody
   { route: 'manage/mdf/funds', title: 'Request MDF', apis: ['getfunds', 'savelastviewed'], partner: 'open', partnerMenu: true }, // PASS, write api must be blocked
 ];
 
@@ -124,12 +133,34 @@ export function startFakeAmp(): Promise<{ server: Server; baseUrl: string }> {
     const page = PAGES.find((p) => '/' + p.route === path);
     if (!page) return send(404, 'not found');
     const content = `<div id="${page.route.replace(/\//g, '-')}-grid" data-apis="${page.apis.join(',')}"><h2>${page.title}</h2><table id="${page.route.replace(/\//g, '-')}-table"><tr><td>data</td></tr></table></div>`;
-    if (user === 'admin') return send(200, content);
+    const dashboard = (who: User) => who === 'admin'
+      ? '<div id="dash"><h2>Company overview</h2><div id="widget-revenue">Revenue</div><div id="widget-pipeline">Pipeline</div></div>'
+      : '<div id="dash-partner"><div id="widget-my-deals">My deals</div><div id="widget-training">Training</div></div>';
+    if (user === 'admin') {
+      switch (page.admin ?? 'open') {
+        case 'redirect':
+          return send(302, '', 'text/html', { Location: '/noaccess' });
+        case 'blank':
+          return send(200, '<div></div>');
+        case 'dashboard':
+          return send(200, dashboard('admin'));
+        default:
+          return send(200, content);
+      }
+    }
     switch (page.partner) {
+      case 'blank':
+        return send(200, '<div></div>');
+      case 'error-box':
+        return send(200, '<div class="alert">Something went wrong. Please try again later.</div>');
+      case 'dashboard':
+        return send(200, dashboard('partner'));
       case 'redirect':
         return send(302, '', 'text/html', { Location: '/noaccess' });
       case 'inline-noaccess':
         return send(200, NOACCESS);
+      case 'custom-deny':
+        return send(200, '<div class="alert"><h3>Restricted area</h3><p>You do not have permission to view this page.</p></div>');
       default:
         return send(200, content);
     }

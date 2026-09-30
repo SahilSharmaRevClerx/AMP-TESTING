@@ -288,7 +288,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
           <li>Press <b>F12</b> → <b>Application</b> → <b>Cookies</b> → select the site.</li>
           <li>Copy the <b>Value</b> of the <code>jwt</code> cookie into that user's row. That's the only thing needed.</li>
           <li>The row names come from your rulebook and are only labels: the tool does not force a row to be that role. After checking, each row shows <b>who the jwt really belongs to</b> — make sure it matches.</li>
-          <li>If one of the pasted jwts belongs to a <b>Site Admin</b> (with MFA), it is used automatically as the <b>reference</b>: it opens every page first, so the tool knows what each page looks like when it really opens. Recommended, not required.</li>
+          <li>For each page, the user who sees the most of it (often the highest-access type, e.g. a Super Admin) is used as the <b>reference</b> for what the page looks like when it really opens. Testing at least one high-access user type alongside the others gives the most precise results.</li>
         </ol>
       </details>
       <div class="users" id="users"></div>
@@ -531,19 +531,6 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
     var l = state.rulebook && state.rulebook.summary.userTypeLabels;
     return (l && l[key]) || pretty(key);
   }
-  /**
-   * The reference user: the first ticked row whose jwt AMP confirmed as a Site Admin.
-   * Decided by who the token really is, not by the column name.
-   */
-  function referenceKey() {
-    var u = collectUsers();
-    var keys = userKeys();
-    for (var i = 0; i < keys.length; i++) {
-      var k = keys[i], id = state.identities[k];
-      if (u[k] && u[k].test && u[k].jwt && id && id.valid && id.isSiteAdmin) return k;
-    }
-    return '';
-  }
   function renderUsers() {
     var prev = collectUsers();
     $('users').innerHTML = userKeys().map(function (key) {
@@ -552,17 +539,11 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
       return '<div class="user' + (ticked ? ' on' : '') + '" data-key="' + esc(key) + '">' +
         '<input type="checkbox" class="u-test" ' + (ticked ? 'checked' : '') + ' aria-label="Test ' + esc(labelOf(key)) + '">' +
         '<div><label class="lbl">User type</label><div class="uname">' + esc(labelOf(key)) + '</div>' +
-          '<span class="tag" id="ref-' + esc(key) + '" hidden title="This jwt belongs to a Site Admin, so its run is the reference for what each page looks like">reference</span></div>' +
+          '</div>' +
         '<div class="pwf"><label class="lbl">jwt</label><div class="pw"><input type="text" class="u-jwt secret" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" placeholder="paste the jwt of a ' + esc(labelOf(key)) + ' user" value="' + esc(p.jwt || '') + '"><button type="button" class="show" title="Show/hide">👁</button></div></div>' +
         '<div class="who" id="st-' + esc(key) + '"></div></div>';
     }).join('');
     Object.keys(state.identities).forEach(function (k) { showIdentity(k, state.identities[k]); });
-    updateReference();
-  }
-  function updateReference() {
-    var ref = referenceKey();
-    userKeys().forEach(function (k) { var t = $('ref-' + k); if (t) t.hidden = k !== ref; });
-    return ref;
   }
   function rowOf(el) { return el.closest('.user'); }
   var LOGOUT_TIP = '<div class="msg warn">🔒 When you are done, <b>log out</b> of the AMP windows you copied the jwts from. AMP then revokes those sessions on the server, so the pasted jwts stop working everywhere.</div>';
@@ -579,7 +560,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
       var i = row.querySelector('.u-jwt'); i.value = ''; i.classList.add('secret');
       row.querySelector('.u-test').checked = false; row.classList.remove('on');
     });
-    clearIdentities(); updateReference(); msg('users-msg', '', '');
+    clearIdentities(); msg('users-msg', '', '');
   }
   $('btn-clear').addEventListener('click', function () { clearJwts(); msg('users-msg', 'ok', 'All jwts removed from this page.'); });
   $('users').addEventListener('click', function (e) {
@@ -597,11 +578,10 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
     // just as the tester clicks Next, and the click misses the button.
     var k = row.getAttribute('data-key');
     if (state.identities[k]) { delete state.identities[k]; showIdentity(k, null); }
-    updateReference();
   });
   $('users').addEventListener('change', function (e) {
     var row = rowOf(e.target); if (!row) return;
-    if (e.target.classList.contains('u-test')) { row.classList.toggle('on', e.target.checked); updateReference(); }
+    if (e.target.classList.contains('u-test')) row.classList.toggle('on', e.target.checked);
   });
   function collectUsers() {
     var out = {};
@@ -640,9 +620,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
     return api('POST', '/api/tokens/check', { environment: environment(), users: users }).then(function (r) {
       var bad = 0;
       r.results.forEach(function (x) { state.identities[x.key] = x.identity; showIdentity(x.key, x.identity); if (!x.identity.valid) bad++; });
-      var ref = updateReference();
-      var refNote = ref ? ' <b>' + esc(labelOf(ref)) + '</b> is a Site Admin and will be the reference.' : ' None of these users is a Site Admin, so each user is compared with its own run (slightly less precise).';
-      msg('users-msg', bad ? 'bad' : 'ok', bad ? bad + ' jwt(s) need attention — log in again on this site and copy a fresh jwt.' : '✓ All valid. Check each row shows the user you expect.' + refNote);
+      msg('users-msg', bad ? 'bad' : 'ok', bad ? bad + ' jwt(s) need attention — log in again on this site and copy a fresh jwt.' : '✓ All valid. Check each row shows the user you expect.');
       return bad;
     });
   }
@@ -664,7 +642,6 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
       environment: environment(),
       rulebookId: state.rulebook && state.rulebook.id,
       selectedUserTypes: state.selected,
-      calibrationKey: referenceKey(),
       users: usersList(),
       options: {
         limit: limit > 0 ? limit : undefined,
@@ -684,8 +661,8 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
         '<div class="sbox"><div class="v">' + tested.length + '</div><div class="l">' + esc(tested.join(', ')) + '</div></div>' +
         '<div class="sbox"><div class="v">' + p.pages.length + '</div><div class="l">pages (' + p.pageOpens + ' page opens)</div></div>' +
         '<div class="sbox"><div class="v">~' + p.estimatedMinutes + ' min</div><div class="l">estimated time</div></div>';
-      if (p.reference) msg('plan-msg', 'ok', '✓ <b>' + esc(labelOf(p.reference)) + '</b> (a Site Admin) is the reference, so results are as precise as possible.');
-      else msg('plan-msg', 'warn', 'No reference Site Admin among the tested users: each user is compared with its own run (slightly less precise).');
+      if (tested.length > 1) msg('plan-msg', 'ok', '✓ For each page, the user who sees the most of it is the reference; everyone else is compared with that view.');
+      else msg('plan-msg', 'warn', 'Only one user type: pages are judged by that user\'s own view (no-access screens, "no access" messages and redirects are still detected). Add a higher-access user type for the most precise results.');
     }).catch(function (e) { msg('plan-msg', 'bad', esc(e.message)); });
   }
   ['opt-limit'].forEach(function (id) { $(id).addEventListener('change', function () { if (state.step === 4 && !state.running) loadPlan(); }); });
@@ -701,7 +678,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
     api('POST', '/api/runs/' + state.runId + '/cancel', {}).catch(function (e) { msg('run-err', 'bad', esc(e.message)); });
   });
 
-  var PHASES = [['tokens', 'Checking tokens'], ['menus', 'Reading menus'], ['calibration', 'Reference run'], ['probe', 'Testing users'], ['report', 'Writing report']];
+  var PHASES = [['tokens', 'Checking tokens'], ['menus', 'Reading menus'], ['probe', 'Testing users'], ['report', 'Writing report']];
   function attach(run) {
     state.runId = run.id; state.running = true;
     goStep(4);
@@ -742,7 +719,8 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
     else if (s.status === 'failed') html = hero('bad', '✗', 'Run stopped', esc(o.error || 'unknown error')) + LOGOUT_TIP;
     else {
       var t = totals(o.summary);
-      html = hero(o.code === 2 ? 'bad' : 'ok', o.code === 2 ? '!' : '✓', o.code === 2 ? 'Finished — failures found' : 'Finished — everything matches the rulebook',
+      var title = o.code === 2 ? 'Finished — failures found' : t.rev ? 'Finished — no failures, ' + t.rev + ' to review' : 'Finished — everything matches the rulebook';
+      html = hero(o.code === 2 ? 'bad' : t.rev ? 'warn' : 'ok', o.code === 2 ? '!' : t.rev ? '?' : '✓', title,
         esc(s.environment.name) + ' · ' + esc(s.environment.baseUrl)) +
         '<div class="tiles"><div class="tile fail"><div class="v">' + t.fail + '</div><div class="l">failed</div></div>' +
         '<div class="tile rev"><div class="v">' + t.rev + '</div><div class="l">need review</div></div>' +

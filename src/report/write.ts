@@ -13,8 +13,8 @@ export interface RunMeta {
   rulebookFile: string;
   identities: Identity[];
   menus: MenuResult[];
-  calibrationUserType: string | null;
-  calibrationShots: Record<string, string | null>;
+  /** Per page: the user whose view was the reference (saw the most of it) and their screenshot. */
+  referenceShots: Record<string, { user: string; shot: string | null }>;
   warnings: string[];
 }
 
@@ -113,7 +113,7 @@ function renderHtml(cfg: RunConfig, meta: RunMeta, results: CheckResult[], rel: 
   const identityRows = meta.identities
     .map((id) => {
       const menu = meta.menus.find((m) => m.userType === id.userType);
-      const role = id.userType === meta.calibrationUserType ? ' <em>(reference)</em>' : '';
+      const role = '';
       return `<tr><th>${esc(label(id.userType))}${role}</th><td>${esc(describeIdentity(id))}</td><td>${menu ? (menu.ok ? `${menu.links.length} links` : esc(menu.reason)) : '-'}</td></tr>`;
     })
     .join('');
@@ -140,7 +140,8 @@ function renderHtml(cfg: RunConfig, meta: RunMeta, results: CheckResult[], rel: 
     .sort((a, b) => VERDICT_ORDER.indexOf(a.verdict) - VERDICT_ORDER.indexOf(b.verdict))
     .map((r) => {
       const ev = r.evidence;
-      const calShot = rel(meta.calibrationShots[r.route]);
+      const refInfo = meta.referenceShots[r.route];
+      const calShot = refInfo && refInfo.user !== r.userType ? rel(refInfo.shot) : null;
       const userShot = rel(ev?.screenshot);
       const details: string[] = [];
       if (ev) {
@@ -156,7 +157,7 @@ function renderHtml(cfg: RunConfig, meta: RunMeta, results: CheckResult[], rel: 
       const key = `${r.ruleId}|${r.userType}`;
       const shots =
         calShot || userShot
-          ? `<div class="shots">${calShot ? `<figure><a href="${esc(calShot)}" target="_blank"><img loading="lazy" src="${esc(calShot)}"></a><figcaption>${esc(label(meta.calibrationUserType ?? ''))} (reference)</figcaption></figure>` : ''}${userShot ? `<figure><a href="${esc(userShot)}" target="_blank"><img loading="lazy" src="${esc(userShot)}"></a><figcaption>${esc(label(r.userType))}</figcaption></figure>` : ''}</div>`
+          ? `<div class="shots">${calShot ? `<figure><a href="${esc(calShot)}" target="_blank"><img loading="lazy" src="${esc(calShot)}"></a><figcaption>${esc(label(refInfo?.user ?? ''))} — reference (saw the most of this page)</figcaption></figure>` : ''}${userShot ? `<figure><a href="${esc(userShot)}" target="_blank"><img loading="lazy" src="${esc(userShot)}"></a><figcaption>${esc(label(r.userType))}</figcaption></figure>` : ''}</div>`
           : '';
       return `<section class="issue" id="i-${esc(r.ruleId)}-${esc(r.userType)}" data-v="${r.verdict}">
   <header>${badge(r.verdict)} <strong>${esc(r.label)}</strong> <span class="route">${esc(r.route ? '#' + r.route : '(group)')}</span> â€” ${esc(label(r.userType))}</header>

@@ -1,4 +1,4 @@
-import { commandCheck, commandMenu, commandRun, type CliOptions as RunOptions } from './run';
+﻿import { commandCheck, commandMenu, commandRun, type CliOptions as RunOptions } from './run';
 import { SafetyError } from './safety/gate';
 import { scrub } from './util/mask';
 import { setLogLevel } from './util/logger';
@@ -8,11 +8,11 @@ const USAGE = `AMP permission testing
 Usage:
   npm run check -- [options]     Validate each user type's token and show who it belongs to
   npm run menu  -- [options]     Show each user type's menu links vs the rulebook
-  npm run run -- [options]       Full run: tokens → menus → calibration → page checks → report
+  npm run run -- [options]       Full run: tokens → menus → page checks → compare → report
 
 Options:
   --config <file>     Run config (default: run.config.json)
-  --only <a,b>        Only test these rulebook user types (calibration user always runs)
+  --only <a,b>        Only test these rulebook user types
   --limit <n>         Only the first n pages of the rulebook (smoke test)
   --dry-run           Show the plan without making any request (run only)
   --headed            Show the browser window

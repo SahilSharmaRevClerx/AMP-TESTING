@@ -7,3 +7,10 @@ Page,Name,Site Admin,Partner Sales,Owner,Reviewed
 /#connections/contacts,Contacts,Yes,Yes,Rahul,Yes
 /#report/assets,Asset Report,Yes,Yes,Priya,No
 /#manage/mdf/funds,Request MDF,Yes,Yes,Rahul,Yes
+/#setup/customdeny,Custom Deny,Yes,No,Priya,Yes
+/#insights/dashboard,Dashboard,Yes,Yes,Rahul,Yes
+/#setup/blankno,Blank No,Yes,No,Rahul,Yes
+/#setup/blankyes,Blank Yes,Yes,Yes,Rahul,Yes
+/#setup/errorbox,Error Box,Yes,No,Rahul,Yes
+/#manage/nonono,No No No,No,No,Rahul,Yes
+/#setup/broken,Broken,Yes,Yes,Rahul,Yes

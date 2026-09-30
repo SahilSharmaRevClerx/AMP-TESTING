@@ -92,6 +92,8 @@ export type AccessState =
   | 'OPENED'
   | 'BLOCKED'
   | 'OPENED_EMPTY'
+  /** Only the AMP frame rendered: no page content, no data, no explicit denial. */
+  | 'BLANK'
   | 'BAD_TOKEN'
   | 'ERROR'
   | 'NOT_FOUND'
@@ -103,6 +105,8 @@ export interface ApiCall {
   apiStatus: number | null;
   /** Response shape says access was denied (401, "Not authorized.", or {code, message}). */
   denied: boolean;
+  /** The call succeeded and returned data (a non-empty list or object). */
+  hasData?: boolean;
 }
 
 export interface PageEvidence {
@@ -111,6 +115,10 @@ export interface PageEvidence {
   fragmentStatus: number | null;
   fragmentRedirect: string | null;
   noAccessMarker: boolean;
+  /** A short visible message such as "You do not have permission to view this page", if any. */
+  denialText?: string;
+  /** A short visible failure message such as "Something went wrong", if any. */
+  errorText?: string;
   apiCalls: ApiCall[];
   blockedRequests: string[];
   pageErrors: string[];
@@ -127,7 +135,7 @@ export interface Fingerprint {
   route: string;
   tokens: string[];
   apiFuncs: string[];
-  /** apiStatus the calibration user got per func, used to spot denials for other users. */
+  /** apiStatus the reference user got per func, used to spot denials for other users. */
   apiStatus: Record<string, number | null>;
   usable: boolean;
   reason?: string;

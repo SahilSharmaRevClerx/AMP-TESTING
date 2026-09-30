@@ -19,6 +19,13 @@ const expected: Record<string, string> = {
   'connections/contacts': 'PASS',
   'report/assets': 'FAIL_OPENS_EMPTY',
   'manage/mdf/funds': 'PASS',
+  'setup/customdeny': 'PASS',
+  'insights/dashboard': 'PASS', // different widgets per user
+  'setup/blankno': 'PASS', // blank + rulebook No
+  'setup/blankyes': 'FAIL_MISSING_ACCESS', // blank for partner while the admin gets it
+  'setup/errorbox': 'PASS', // error box + rulebook No
+  'manage/nonono': 'PASS', // No No No
+  'setup/broken': 'REVIEW', // renders for nobody
 };
 
 async function main(): Promise<number> {
@@ -47,19 +54,24 @@ async function main(): Promise<number> {
 
   const failures: string[] = [];
   try {
-    const code = await commandRun({ configFile, only: ['partner_sales'] });
+    const code = await commandRun({ configFile });
     if (code !== 2) failures.push(`exit code ${code}, expected 2 (failures present)`);
 
     const runDir = readdirSync(outputDir, { withFileTypes: true }).find((d) => d.isDirectory())!.name;
     const data = JSON.parse(readFileSync(join(outputDir, runDir, 'results.json'), 'utf8')) as {
-      results: { route: string; label: string; type: string; verdict: string; reason: string }[];
+      results: { route: string; label: string; type: string; userType: string; verdict: string; reason: string }[];
     };
-    const byRoute = new Map(data.results.map((r) => [r.route, r]));
+    const byRoute = new Map(data.results.filter((r) => r.userType === 'partner_sales').map((r) => [r.route, r]));
+    // The admin should get every page except the one that is broken for everyone.
+    for (const r of data.results.filter((x) => x.userType === 'site_admin')) {
+      const want = r.route === 'setup/broken' ? 'REVIEW' : 'PASS';
+      if (r.verdict !== want) failures.push(`admin #${r.route}: expected ${want}, got ${r.verdict} (${r.reason})`);
+    }
     for (const [route, v] of Object.entries(expected)) {
       const got = byRoute.get(route);
       if (got?.verdict !== v) failures.push(`#${route}: expected ${v}, got ${got?.verdict} (${got?.reason})`);
     }
-    if (data.results.length !== Object.keys(expected).length) failures.push(`expected ${Object.keys(expected).length} results, got ${data.results.length}`);
+    if (data.results.length !== Object.keys(expected).length * 2) failures.push(`expected ${Object.keys(expected).length * 2} results, got ${data.results.length}`);
 
     // Safety: the page's write API must never reach the server, and must be in the audit log as blocked.
     if (received.some((r) => r.func === 'savelastviewed')) failures.push('SAFETY: savelastviewed reached the server');

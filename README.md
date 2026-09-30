@@ -27,7 +27,7 @@ This opens `http://127.0.0.1:4545` in your browser. Everything is entered on tha
 
 1. **Environment**: name and base URL of the client's AMP. Recent environments are remembered (URLs only).
 2. **Rulebook**: pick one from `rulebook/` or upload an `.xlsx`/`.csv`. Its Yes/No columns become the user types for the run.
-3. **Users & tokens**: for the reference Site Admin and each user type, paste the `jwt` cookie (the page explains how). Only the jwt is needed: the tool generates the matching CSRF value itself, as AMP's CSRF check only requires header = cookie, then **Check tokens** to see who each belongs to.
+3. **Users & tokens**: one row per user type from your rulebook. Paste the `jwt` cookie (the page explains how) for the ones you want to test. Only the jwt is needed: the tool generates the matching CSRF value itself, as AMP's CSRF check only requires header = cookie
 4. **Run**: preview the plan, optionally test only the first N pages, start, watch progress, then **Open report**.
 
 Past runs are listed at the bottom. Tokens entered in the UI stay in the server's memory for that run only; they are never written to disk or browser storage. The server listens on `127.0.0.1` only and rejects API calls that don't come from its own page.
@@ -59,7 +59,7 @@ A jwt is a live AMP session: whoever holds it is logged in as that user until it
 The terminal running the server shows structured logs:
 
 ```
-20:56:34.346 INFO  [run] run started run=itbd-2026-… env=ITBD users=site_admin,normal_user reference=site_admin pages=3
+20:56:34.346 INFO  [run] run started run=itbd-2026-… env=ITBD users=super_admin,normal_user pages=3
 20:56:54.209 INFO  [run] verdict user=normal_user route=intel/account expected=No state=OPENED inMenu=false verdict=FAIL_SECURITY_GAP why="…"
 ```
 
@@ -76,7 +76,7 @@ The CLI reads the environment from `run.config.json` (copy `run.config.example.j
 
 ### Tokens for the CLI
 
-For each user type in `run.config.json` (including the calibration Site Admin):
+For each user type you want to test (keys from the rulebook columns, listed in `run.config.json`):
 
 1. Log in to AMP as that user in a normal browser (a separate browser profile or incognito window per user).
 2. DevTools → Application → Cookies → copy the value of `jwt`.
@@ -86,7 +86,7 @@ For each user type in `run.config.json` (including the calibration Site Admin):
 $env:AMP_JWT_PARTNER_SALES = "..."
 ```
 
-The calibration user should be a **Site Admin with MFA enabled**, so it can open every page. Its run is used as the reference for what each page looks like when it opens.
+Test at least one high-access user type (e.g. a Super Admin) alongside the others: for each page, the tested user who sees the most of it is used as the reference for what the page looks like when it really opens.
 
 Tokens expire. The tool checks them first and stops if any is invalid. Delete `.env.local` after the run.
 
@@ -98,7 +98,7 @@ npm run menu                        # each user's menu vs the rulebook
 npm run run -- --dry-run            # show what would be requested, send nothing
 npm run run -- --limit 5            # smoke test on the first 5 pages
 npm run run                         # full run
-npm run run -- --only partner_sales # one user type (+ calibration)
+npm run run -- --only partner_sales # one user type
 npm run run -- --headed             # watch the browser
 ```
 
@@ -115,27 +115,40 @@ Exit code: `0` all pass, `2` failures found, `1` setup/run error.
 
 ## How a page is judged
 
-1. **Menu:** the user's menu is read from AMP's main page (`var navigation = [...]`).
-2. **Page:** the page is opened in a real browser as the user (`#route`), and the tool records: final URL, the page request's status/redirect, AMP's no-access page marker, which of the page's own API calls were denied, the elements on screen, and a screenshot.
-3. **Fingerprint:** the calibration run records what each page looks like when it opens (its elements minus the shared AMP shell). A user "opened" the page when enough of that fingerprint is on screen (`fingerprintThreshold`, default 60%).
+The question for each page and user is **"did this user get a usable page?"**, not "does it look like someone else's view?" (dashboards and many pages legitimately differ per user). The rulebook's Yes/No then says how to read a page that isn't usable.
+
+1. **Menu:** the user's menu is read from AMP's main page (`var navigation = [...]`); shown as information only.
+2. **Frame:** for each user the tool opens a route that doesn't exist, so only the AMP frame renders (menu, header, notifications). Together with what repeats on most pages, this is the frame, and it is ignored when judging content.
+3. **Page:** each page is opened as the user (`#route`); the tool waits until the page stops changing, then records the final URL, the page request's status/redirect, AMP's no-access screen, visible "no permission" or "something went wrong" messages, the elements on screen, which data calls returned data or were denied, and a screenshot. Same-origin iframes are included.
+4. **State of each page view:**
 
 | Page state | Meaning |
 |---|---|
-| OPENED | Fingerprint matched, nothing denied |
-| BLOCKED | No-access page shown or redirected to `/noaccess` |
-| OPENED_EMPTY | Page loaded but its own data calls were denied |
+| OPENED | Page content beyond the AMP frame (page-specific elements, or elements plus loaded data) |
+| OPENED_EMPTY | Page content, but its own data calls were denied |
+| BLOCKED | AMP no-access screen, redirect to `/noaccess`, an on-screen "no permission / access denied / not authorized" message, or nothing shown and its data calls denied |
+| BLANK | Only the AMP frame rendered |
+| ERROR | "Something went wrong"-type message with nothing else, script crash with nothing rendered, or HTTP 5xx |
+| NOT_FOUND | Route doesn't exist on this build |
 | BAD_TOKEN | Sent to login / session expired |
-| NOT_FOUND / ERROR | Route missing on this build / server or script error |
-| UNCLEAR | Nothing conclusive; a tester decides from the screenshots |
+
+5. **Verdict** (rulebook × state, with the other tested users as a cross-check):
+
+| Rulebook | Usable (OPENED / OPENED_EMPTY) | Not usable (BLOCKED / BLANK / ERROR / NOT_FOUND) |
+|---|---|---|
+| **Yes** | Pass (Opens empty if data denied) | **Missing access**, or **Review** when *no* tested user got the page (broken page / wrong route, not a permission result) |
+| **No** | **Extra access**, or **Security gap** if hidden from the menu | Pass |
+
+So "No No No" rows need no reference: if nobody gets usable content, everyone passes. For information, each page also records a **reference view** (the tested user expected to have access who saw the most of it) and how much of it each user saw.
 
 | Verdict | When |
 |---|---|
 | Pass | Matches the rulebook |
 | **Security gap** | Rulebook says No, the page is hidden from the menu, but opens by URL |
 | Extra access | Rulebook says No, but the page opens (and is in the menu) |
-| Missing access | Rulebook says Yes, but the page is blocked |
+| Missing access | Rulebook says Yes, but the page is blocked, or blank/error for this user while others get it |
 | Opens empty | Rulebook says Yes, the page opens but its data is denied |
-| Review | Unclear, error or not found; check manually |
+| Review | Page didn't render for any tested user, or the session expired |
 | Not specified | Rulebook has no Yes/No for this cell |
 
 ## Safety

@@ -1,4 +1,4 @@
-# PRD — AMP Permission Testing Tool (v1: Page Visibility)
+﻿# PRD — AMP Permission Testing Tool (v1: Page Visibility)
 
 | | |
 |---|---|
@@ -7,6 +7,8 @@
 | **Date** | 2026-09-30 |
 | **First target environment** | AISB (deployed) — URL to be confirmed |
 | **Repo** | `AMP-PERMISSION-TESTING-REPO` (standalone, separate from the AMP repo) |
+
+> **Update (2026-09-30):** the Site Admin "calibration" run described below was replaced. User types come only from the rulebook's columns (clients have Super Admin / users / partners, not the internal Site Admin). Each user opens every page once; then, per page, the tested user who saw the most of it is the reference. Visible "no access" messages count as blocked. Testers provide the jwt only.
 
 ---
 

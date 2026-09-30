@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+﻿import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { credentialsFor, envKey, loadConfig, loadLocalEnv } from './config';
 import { loadRulebook, selectUserTypes } from './rulebook/parse';
@@ -6,18 +6,18 @@ import { RequestGate } from './safety/gate';
 import { describeIdentity, validateToken } from './sessions/validate';
 import { fetchMenu, menuHasRoute } from './probe/menu';
 import { BrowserProbe } from './probe/browser';
-import { buildFingerprints } from './verdict/fingerprint';
-import { accessState } from './verdict/state';
+import { buildFrame, pickReference, type EvidenceByUser, type PageReference } from './verdict/fingerprint';
+import { accessState, type StateResult } from './verdict/state';
 import { pageVerdict, VERDICT_ORDER } from './verdict/compare';
 import { writeReports } from './report/write';
 import { AuditLog } from './util/audit';
 import { slug } from './util/route';
 import { scrub } from './util/mask';
 import { createLogger, since } from './util/logger';
-import type { CheckResult, Credentials, Identity, MenuResult, PageEvidence, Rule, Rulebook, RunConfig, Verdict } from './types';
+import type { CheckResult, Credentials, Expected, Identity, MenuResult, PageEvidence, Rule, Rulebook, RunConfig, Verdict } from './types';
 
 export interface Progress {
-  phase: 'tokens' | 'menus' | 'calibration' | 'probe' | 'report';
+  phase: 'tokens' | 'menus' | 'probe' | 'report';
   userType?: string;
   done: number;
   total: number;
@@ -80,7 +80,8 @@ export function planRun(cfg: RunConfig, rulebook: Rulebook, only?: string[], lim
     testedTypes = only;
   }
   if (testedTypes.length === 0) throw new Error('Choose at least one user type to test');
-  const allTypes = [...new Set([...(cfg.calibrationUserType ? [cfg.calibrationUserType] : []), ...testedTypes])];
+  // Every tested user is also a candidate reference (per page, the one who sees the most), so no extra user is needed.
+  const allTypes = [...testedTypes];
   let pages = rulebook.rules.filter((r) => r.type === 'page');
   if (limit && limit > 0) pages = pages.slice(0, limit);
   const pageOpens = pages.length * allTypes.length;
@@ -93,7 +94,7 @@ export function newRunId(envName: string): string {
   return `${slug(envName)}-${stamp}`;
 }
 
-/** Full run: tokens → menus → calibration → probes → verdicts → report. Used by both CLI and web UI. */
+/** Full run: tokens → menus → open pages as each user → per-page reference → verdicts → report. Used by CLI and web UI. */
 export async function executeRun(input: RunInput, runId = newRunId(input.cfg.environment.name)): Promise<RunOutcome> {
   const { cfg, rulebook, creds, signal } = input;
   const r = input.reporter ?? consoleReporter;
@@ -122,14 +123,12 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
     const startedAt = new Date().toISOString();
     const warnings: string[] = [...(input.notes ?? [])];
     r.log(`Run ${runId} on ${cfg.environment.name} (${cfg.environment.baseUrl})`);
-    const ref = cfg.calibrationUserType;
-    r.log(`User types: ${plan.testedTypes.join(', ')} · reference: ${ref ?? 'none (each user is its own reference)'} · ${plan.pages.length} pages · ~${plan.estimatedMinutes} min`);
+    r.log(`User types: ${plan.testedTypes.join(', ')} · ${plan.pages.length} pages · ~${plan.estimatedMinutes} min`);
     log.info('run started', {
       run: runId,
       env: cfg.environment.name,
       baseUrl: cfg.environment.baseUrl,
       users: plan.testedTypes,
-      reference: ref ?? 'none',
       pages: plan.pages.length,
       pageOpens: plan.pageOpens,
       estMin: plan.estimatedMinutes,
@@ -157,13 +156,8 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
     }
     const invalid = identities.filter((i) => !i.valid);
     if (invalid.length) return fail(`${invalid.map((i) => i.userType).join(', ')} token(s) invalid. Log in again and paste fresh tokens.`);
-    if (ref) {
-      const cal = identities.find((i) => i.userType === ref)!;
-      if (!cal.isSiteAdmin) {
-        warnings.push(`Reference user "${ref}" is not a Site Admin (or has no MFA), so it may not see every page. Pages it cannot open will be marked Review.`);
-      }
-    } else {
-      warnings.push('No reference Site Admin was given, so each user was compared with its own run. Blocked, redirected and missing pages are still detected, but a page that opens with an unusual error or empty content may be reported as opened. Add Site Admin tokens for full accuracy.');
+    if (plan.testedTypes.length === 1) {
+      warnings.push('Only one user type was tested, so each page was compared with that user\'s own view. AMP\'s no-access screen, "no access" messages, redirects and missing pages are still detected; test a higher-access user type too (e.g. a Super Admin) to also catch pages that open with unexpected content.');
     }
 
     // ② Menus
@@ -185,54 +179,73 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
       menus.set(ut, m);
       r.progress?.({ phase: 'menus', done: i + 1, total: plan.allTypes.length });
     }
-    // ③ Reference run (optional)
-    let calEvidence = new Map<string, PageEvidence>();
-    let fingerprints: ReturnType<typeof buildFingerprints> | null = null;
-    if (ref) {
-      const calLinks = menus.get(ref)!.links.length;
-      for (const ut of plan.testedTypes) {
-        const n = menus.get(ut)!.links.length;
-        if (n > calLinks) warnings.push(`${ut} sees more menu links (${n}) than the reference user (${calLinks}).`);
-      }
-      r.log(`\n③ Reference run as ${ref} (${plan.pages.length} pages)`);
+
+    // ③ Open every page as each user
+    const byUser: EvidenceByUser = new Map();
+    const baselines: PageEvidence[] = [];
+    const failedUsers = new Map<string, string>();
+    for (const ut of plan.testedTypes) {
+      checkCancel();
+      r.log(`\n③ ${ut} (${plan.pages.length} pages)`);
       const t0 = Date.now();
-      const ev = await probeAll(input, outDir, audit, ref, plan.pages, 'calibration');
-      if (typeof ev === 'string') return fail(`reference browser failed: ${ev}`);
-      calEvidence = ev;
-      fingerprints = buildFingerprints([...calEvidence.values()]);
-      const unusable = [...fingerprints.values()].filter((f) => !f.usable);
-      log.info('reference built', { user: ref, pages: calEvidence.size, usable: fingerprints.size - unusable.length, unusable: unusable.length, ms: since(t0) });
-      for (const f of unusable) log.warn('no reference for page', { route: f.route, reason: f.reason });
-      for (const f of fingerprints.values()) if (f.usable) log.debug('fingerprint', { route: f.route, elements: f.tokens.length, apis: f.apiFuncs });
-      if (unusable.length) {
-        warnings.push(`${unusable.length} page(s) have no usable reference; their results will be Review: ${unusable.map((f) => '#' + f.route).join(', ')}`);
+      const outcome = await probeAll(input, outDir, audit, ut, plan.pages, 'probe');
+      if (typeof outcome === 'string') {
+        log.warn('user could not be tested', { user: ut, reason: outcome });
+        failedUsers.set(ut, outcome);
+      } else {
+        byUser.set(ut, outcome.pages);
+        if (outcome.baseline) baselines.push(outcome.baseline);
+        log.info('user pages opened', { user: ut, pages: outcome.pages.size, frameBaseline: !!outcome.baseline, ms: since(t0) });
       }
     }
 
-    // ④ Each tested user type
+    // ④ Decide each page: did each user get usable content? (Rulebook Yes/No says how to read "not usable".)
+    r.log('\n④ Deciding');
+    const frame = buildFrame(byUser, baselines);
+    log.debug('AMP frame learned', { elements: frame.tokens.size, apis: [...frame.apis] });
+    const states = new Map<string, Map<string, StateResult>>(); // route → user → state
+    const references = new Map<string, PageReference>();
+    for (const rule of plan.pages) {
+      const expectedByUser: Record<string, Expected> = {};
+      for (const ut of plan.testedTypes) expectedByUser[ut] = rule.expected[ut] ?? null;
+      const ref = pickReference(rule.route, byUser, expectedByUser, frame);
+      references.set(rule.route, ref);
+      const perUser = new Map<string, StateResult>();
+      for (const [ut, pages] of byUser) {
+        const ev = pages.get(rule.route);
+        if (ev) perUser.set(ut, accessState(ev, frame, ref));
+      }
+      states.set(rule.route, perUser);
+      log.debug('page decided', { route: rule.route, reference: ref.referenceUser ?? 'none', states: Object.fromEntries([...perUser].map(([u, s]) => [u, s.state])) });
+    }
+    const brokenForAll = plan.pages.filter((p) => {
+      const s = [...(states.get(p.route)?.values() ?? [])];
+      return s.length > 0 && s.every((x) => x.state === 'BLANK' || x.state === 'ERROR' || x.state === 'NOT_FOUND') && plan.testedTypes.some((ut) => p.expected[ut] === 'Yes');
+    });
+    if (brokenForAll.length) {
+      warnings.push(`${brokenForAll.length} page(s) rendered for none of the tested users although some should see them (broken page or wrong route?) — marked Review: ${brokenForAll.map((p) => '#' + p.route).join(', ')}`);
+    }
+
     const results: CheckResult[] = [];
     for (const ut of plan.testedTypes) {
-      checkCancel();
-      r.log(`\n④ ${ut} (${plan.pages.length} pages)`);
-      const t0 = Date.now();
-      const evidence = ut === ref ? calEvidence : await probeAll(input, outDir, audit, ut, plan.pages, 'probe');
-      if (typeof evidence === 'string') log.warn('user could not be tested', { user: ut, reason: evidence });
       const menu = menus.get(ut)!;
-      // Without a reference user, the user's own run tells page content apart from the shared AMP shell.
-      const fps = fingerprints ?? (typeof evidence === 'string' ? new Map() : buildFingerprints([...evidence.values()]));
-
+      const evidence = byUser.get(ut);
       for (const rule of plan.pages) {
         const expected = rule.expected[ut] ?? null;
         const inMenu = menuHasRoute(menu, rule.route);
-        const ev = typeof evidence === 'string' ? undefined : evidence.get(rule.route);
-        if (!ev) {
-          const why = typeof evidence === 'string' ? evidence : 'not probed (run stopped for this user type)';
+        const ev = evidence?.get(rule.route);
+        const st = states.get(rule.route)?.get(ut);
+        if (!ev || !st) {
+          const why = failedUsers.get(ut) ?? 'not probed (run stopped for this user type)';
           results.push({ ...base(rule, ut, expected), inMenu, state: null, fingerprintScore: null, verdict: 'REVIEW', reason: why });
           continue;
         }
-        const st = accessState(ev, fps.get(rule.route), cfg.fingerprintThreshold);
-        const v = pageVerdict(expected, inMenu, st.state);
-        const fields = { user: ut, route: rule.route, expected: expected ?? '-', state: st.state, score: st.score ?? undefined, inMenu, verdict: v.verdict };
+        const othersWithContent = [...(states.get(rule.route) ?? [])]
+          .filter(([u, s]) => u !== ut && (s.state === 'OPENED' || s.state === 'OPENED_EMPTY'))
+          .map(([u]) => u);
+        const v = pageVerdict(expected, inMenu, st.state, { othersWithContent });
+        const ref = references.get(rule.route);
+        const fields = { user: ut, route: rule.route, expected: expected ?? '-', state: st.state, score: st.score ?? undefined, reference: ref?.referenceUser ?? undefined, inMenu, verdict: v.verdict };
         if (v.verdict === 'PASS' || v.verdict === 'NOT_SPECIFIED') log.debug('verdict', fields);
         else log.info('verdict', { ...fields, why: st.reason });
         results.push({
@@ -252,14 +265,16 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
         fail: mine.filter((x) => x.verdict.startsWith('FAIL')).length,
         review: mine.filter((x) => x.verdict === 'REVIEW').length,
         notSpecified: mine.filter((x) => x.verdict === 'NOT_SPECIFIED').length,
-        ms: since(t0),
       });
     }
 
     // ⑤ Report
     r.progress?.({ phase: 'report', done: 0, total: 1 });
-    const calibrationShots: Record<string, string | null> = {};
-    for (const [route, ev] of calEvidence) calibrationShots[route] = ev.screenshot;
+    const referenceShots: Record<string, { user: string; shot: string | null }> = {};
+    for (const ref of references.values()) {
+      if (!ref.referenceUser) continue;
+      referenceShots[ref.route] = { user: ref.referenceUser, shot: byUser.get(ref.referenceUser)?.get(ref.route)?.screenshot ?? null };
+    }
     const reportFile = writeReports(
       outDir,
       cfg,
@@ -271,8 +286,7 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
         rulebookFile: input.rulebookSource.name,
         identities,
         menus: [...menus.values()],
-        calibrationUserType: cfg.calibrationUserType,
-        calibrationShots,
+        referenceShots,
         warnings,
       },
       results,
@@ -304,15 +318,15 @@ function base(rule: Rule, userType: string, expected: CheckResult['expected']) {
   return { ruleId: rule.id, label: rule.label, parent: rule.parent, route: rule.route, type: rule.type, userType, expected };
 }
 
-/** Opens every page as one user. Returns evidence by route, or an error string if the browser/session failed. */
+/** Opens every page as one user. Returns evidence by route plus the user's frame-only snapshot, or an error string. */
 async function probeAll(
   input: RunInput,
   outDir: string,
   audit: AuditLog,
   userType: string,
   pages: Rule[],
-  phase: 'calibration' | 'probe',
-): Promise<Map<string, PageEvidence> | string> {
+  phase: 'probe',
+): Promise<{ pages: Map<string, PageEvidence>; baseline: PageEvidence | null } | string> {
   const { cfg, signal } = input;
   const r = input.reporter ?? consoleReporter;
   const probe = new BrowserProbe(cfg, audit, userType, join(outDir, 'shots', slug(userType)));
@@ -332,6 +346,9 @@ async function probeAll(
         http: ev.fragmentStatus ?? undefined,
         redirect: ev.fragmentRedirect ?? undefined,
         noAccessMarker: ev.noAccessMarker || undefined,
+        denial: ev.denialText,
+        errorText: ev.errorText,
+        dataApis: ev.apiCalls.filter((a) => a.hasData).map((a) => a.func),
         finalUrl: ev.finalUrl,
         elements: ev.tokens.length,
         apis: ev.apiCalls.length,
@@ -341,7 +358,13 @@ async function probeAll(
         error: ev.error,
         ms: ev.durationMs,
       });
-      const signalText = ev.noAccessMarker ? 'no-access' : ev.error ? `error: ${ev.error}` : `${ev.tokens.length} elements`;
+      const signalText = ev.noAccessMarker
+        ? 'no-access screen'
+        : ev.denialText
+          ? `says "${ev.denialText.slice(0, 40)}"`
+          : ev.error
+            ? `error: ${ev.error}`
+            : `${ev.tokens.length} elements${ev.apiCalls.some((a) => a.hasData) ? ', data loaded' : ''}`;
       r.log(`  ${String(idx + 1).padStart(3)}/${pages.length} #${page.route.padEnd(42)} ${signalText}`);
       r.progress?.({ phase, userType, done: idx + 1, total: pages.length });
       if (/\/(login|sessionexpired)\b/i.test(ev.finalUrl) || (ev.fragmentRedirect && /\/(login|sessionexpired)\b/.test(ev.fragmentRedirect))) {
@@ -351,7 +374,7 @@ async function probeAll(
       }
       await new Promise((res) => setTimeout(res, cfg.delayMs));
     }
-    return out;
+    return { pages: out, baseline: probe.baseline };
   } finally {
     await probe.close();
   }
@@ -434,7 +457,7 @@ export async function commandRun(opts: CliOptions): Promise<number> {
   const { cfg, rulebook, plan } = await cliSetup(opts);
   if (opts.dryRun) {
     console.log(`DRY RUN — no requests will be made.\nEnvironment: ${cfg.environment.name} (${cfg.environment.baseUrl})`);
-    console.log(`User types: ${plan.allTypes.join(', ')} (reference: ${cfg.calibrationUserType})`);
+    console.log(`User types: ${plan.allTypes.join(', ')} (per page, the user who sees the most is the reference)`);
     console.log(`Planned: ${plan.allTypes.length} token checks, ${plan.allTypes.length} menu reads, ${plan.pageOpens} page opens (GET only; page's own write calls are blocked).`);
     console.log(`Estimated time: ~${plan.estimatedMinutes} min`);
     console.log(`Pages:\n${plan.pages.map((p) => `  #${p.route}  (${p.label})`).join('\n')}`);

@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+﻿import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { extname, join, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -63,7 +63,6 @@ interface RunRequest {
   rulebookId: string;
   /** User-type columns the tester confirmed on the rulebook step (default: all detected). */
   selectedUserTypes?: string[];
-  calibrationKey: string;
   users: UserInput[];
   options?: { limit?: number; delayMs?: number; fingerprintThreshold?: number; headed?: boolean };
 }
@@ -151,19 +150,7 @@ function credsFrom(users: UserInput[], keys: string[]): Map<string, Credentials>
   return creds;
 }
 
-/**
- * The reference user (normally whichever tested jwt belongs to a real Site Admin, chosen by the UI
- * from the token check) must be one of the rulebook's user types, ticked, with a jwt.
- */
-function referenceKey(body: RunRequest, rb: Rulebook): string | null {
-  const key = body.calibrationKey?.trim();
-  if (!key) return null;
-  const u = body.users?.find((x) => x.key === key);
-  return rb.userTypes.includes(key) && u?.test === true && u.jwt?.trim() ? key : null;
-}
-
 function configFrom(body: RunRequest, rb: Rulebook): RunConfig {
-  const calibrationKey = referenceKey(body, rb);
   // User types and their names come only from the rulebook's column headers.
   const userTypes: Record<string, { label: string }> = {};
   for (const key of rb.userTypes) userTypes[key] = { label: rb.userTypeLabels[key] ?? key };
@@ -172,7 +159,7 @@ function configFrom(body: RunRequest, rb: Rulebook): RunConfig {
     {
       environment: environmentFrom(body),
       rulebook: '(uploaded)',
-      calibrationUserType: calibrationKey,
+      calibrationUserType: null,
       userTypes,
       outputDir: OUTPUT_DIR,
       headless: o.headed !== true,
@@ -346,7 +333,6 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       environment: cfg.environment,
       userTypes: plan.allTypes,
       tested: only,
-      reference: cfg.calibrationUserType,
       notes,
       pages: plan.pages.map((p) => ({ route: p.route, label: p.label })),
       pageOpens: plan.pageOpens,

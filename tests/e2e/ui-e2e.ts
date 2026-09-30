@@ -100,8 +100,6 @@ async function main(): Promise<number> {
     await page.waitForSelector('#users-msg .msg.ok', { timeout: 10000 });
     const names = await page.locator('#users .uname').allTextContents();
     if (names.join('|') !== 'Site Admin|Partner Sales') failures.push(`rows should be the sheet's column names, got: ${names.join('|')}`);
-    const checkMsg = (await page.textContent('#users-msg')) ?? '';
-    if (!/Site Admin is a Site Admin and will be the reference/.test(checkMsg)) failures.push(`reference not picked from identity: ${checkMsg}`);
     const who = await page.textContent('#st-partner_sales');
     if (!who?.includes('Pat Partner')) failures.push(`token check did not show partner identity: ${who}`);
     await shot('4-users');
@@ -115,7 +113,7 @@ async function main(): Promise<number> {
     const result = await runAndWait();
     await shot('6-results');
     if (!result.includes('failures found')) failures.push(`unexpected run result: ${result}`);
-    if (!result.includes('3 failed')) failures.push(`expected 3 failures in summary: ${result}`);
+    if (!result.includes('4 failed')) failures.push(`expected 4 failures in summary: ${result}`);
 
     const href = await page.getAttribute('#btn-report', 'href');
     if (!href) failures.push('no report link');
@@ -129,21 +127,21 @@ async function main(): Promise<number> {
     await page.click('#btn-again');
     await fillUser('site_admin', '');
     await page.click('#next-3');
-    await page.waitForFunction(() => /No reference Site Admin/.test(document.getElementById('plan-msg')?.textContent ?? ''), null, { timeout: 10000 });
+    await page.waitForFunction(() => /Only one user type/.test(document.getElementById('plan-msg')?.textContent ?? ''), null, { timeout: 10000 });
     const single = await runAndWait();
     if (!single.includes('3 failed')) failures.push(`single-user run without reference: expected 3 failures, got: ${single}`);
     const singleHref = await page.getAttribute('#btn-report', 'href');
     const singleHtml = singleHref ? await (await fetch(UI + singleHref)).text() : '';
-    if (!singleHtml.includes('No reference Site Admin was given')) failures.push('single-user report is missing the no-reference warning');
+    if (!singleHtml.includes('Only one user type was tested')) failures.push('single-user report is missing the one-user-type warning');
 
     // Third run: only the Site Admin (no rulebook column for it → expected to see every page).
     await page.click('#btn-again');
     await fillUser('partner_sales', '');
     await fillUser('site_admin', TOKENS.site_admin.jwt);
     await page.click('#next-3');
-    await page.waitForFunction(() => /Site Admin.*is the reference/.test(document.getElementById('plan-msg')?.textContent ?? ''), null, { timeout: 10000 });
+    await page.waitForFunction(() => /Only one user type/.test(document.getElementById('plan-msg')?.textContent ?? ''), null, { timeout: 10000 });
     const adminOnly = await runAndWait();
-    if (!adminOnly.includes('everything matches') || !adminOnly.includes('0 failed')) failures.push(`site-admin-only run: ${adminOnly}`);
+    if (!adminOnly.includes('no failures, 1 to review') || !adminOnly.includes('0 failed')) failures.push(`site-admin-only run: ${adminOnly}`);
 
     // Pasting a whole cookie pair is cleaned to the bare jwt; "Clear jwts" empties every box.
     await page.click('#btn-again');
