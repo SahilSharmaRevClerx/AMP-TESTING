@@ -1,12 +1,17 @@
-﻿# AMP Permission Testing
+# AMP Permission Testing
 
-Checks, for every user type, which AMP pages **appear in the menu** and which **actually open**, compares that with an expected-access rulebook, and produces a report with screenshot evidence for tester review.
+A standalone tool that checks, for every user type, which AMP pages **actually open**, compares that with an expected-access rulebook, and produces a report with screenshot evidence for tester review.
 
-- Spec: [docs/PRD.md](docs/PRD.md)
-- How it works (flow, files, diagrams; open in a browser): [docs/how-it-works.html](docs/how-it-works.html)
-- Rulebook: [rulebook/](rulebook/)
+A tester enters the client's site, uploads the client's rulebook (page + Yes/No per user type) and pastes a **jwt** per user type. The tool opens every page **as each user** in a real (headless) browser, decides whether that user got a usable page, and flags every mismatch.
 
-Status: v1 (page visibility) implemented with a tester web UI, verified against a simulated AMP (`npm run e2e`, `npm run e2e:ui`). Not yet run against a real environment.
+- Handoff / full context for developers: [docs/chat1_Context.md](docs/chat1_Context.md)
+- How it works (flow, files, diagrams; open in a browser): [docs/how-it-works.html](docs/how-it-works.html). Its judging tables are partly outdated; this README is current.
+- Original spec: [docs/PRD.md](docs/PRD.md)
+- Rulebook format: [rulebook/README.md](rulebook/README.md)
+
+**Status:** v1 (page-level access) with a tester web UI. Used on real environments (`ai.sb.amp.vg`, `itbydesign.sb.amp.vg`, jwt-only confirmed). Verified end to end against a simulated AMP. API data-leak testing is a planned v2.
+
+No LLM and no third-party services: every verdict is decided by code, and nothing leaves the tester's machine except requests to the AMP environment being tested.
 
 ## Setup (once per machine)
 
@@ -20,107 +25,65 @@ npx playwright install chromium
 ## Using it (testers)
 
 ```powershell
-npm start
+npm start              # or: npm run start:debug  (detailed logs)
 ```
 
-This opens `http://127.0.0.1:4545` in your browser. Everything is entered on that page, per run, so each client can have its own URL and user types:
+This opens `http://127.0.0.1:4545`. After any code update, restart (`Ctrl+C`, `npm start`) and hard-refresh the page (`Ctrl+Shift+R`).
 
-1. **Environment**: name and base URL of the client's AMP. Recent environments are remembered (URLs only).
-2. **Rulebook**: pick one from `rulebook/` or upload an `.xlsx`/`.csv`. Its Yes/No columns become the user types for the run.
-3. **Users & tokens**: one row per user type from your rulebook. Paste the `jwt` cookie (the page explains how) for the ones you want to test. Only the jwt is needed: the tool generates the matching CSRF value itself, as AMP's CSRF check only requires header = cookie
-4. **Run**: preview the plan, optionally test only the first N pages, start, watch progress, then **Open report**.
+**Welcome page:** three full-screen scenes you scroll through: a welcome, a "How it works" flow (Environment → Rulebook → Users & tokens → Run → Report), then **Start new test** / **View past runs**.
 
-Past runs are listed at the bottom. Tokens entered in the UI stay in the server's memory for that run only; they are never written to disk or browser storage. The server listens on `127.0.0.1` only and rejects API calls that don't come from its own page.
+**The wizard** takes one step at a time; each **Next** checks its step:
 
-## Keeping jwts safe
+1. **Environment:** name and base URL of the client's AMP (e.g. `https://itbydesign.sb.amp.vg`). Recent URLs are remembered, never tokens. Production needs an explicit approval tick.
+2. **Rulebook:** pick one from `rulebook/` or upload/drag-drop an `.xlsx`/`.csv`. The detected **user-type columns are shown as tick boxes** (untick any that isn't a user type), along with how every other column was understood.
+3. **Users & tokens:** one row per user type, named exactly as in your sheet. Paste only the **`jwt` cookie** for the users you want to test (the row ticks itself). **Check tokens** (or Next) shows *"✓ Logged in as <name> · persona · company"*. **Clear jwts** empties everything. Row names are labels; the tool shows who each jwt really belongs to, so make sure it matches.
+4. **Run:** plan preview (site, users, pages, estimated time). **Advanced options:** only first N pages (smoke test), delay between pages, match threshold, **users tested at the same time** (default 3), show the browser window. Then live progress with a cancel button.
+5. **Results:** failed / review / passed totals per user type, **Open full report**, **Test again** (keeps site and rulebook), and a reminder to log out.
 
-A jwt is a live AMP session: whoever holds it is logged in as that user until it expires or the user logs out.
+**Past runs** lists every earlier report.
 
-**What the tool does**
+**Getting a jwt:** open an incognito window per user, log in to the client site as that user, press **F12 → Application → Cookies**, and copy the value of `jwt`. **Log out when done.**
 
-| Where | Protection |
-|---|---|
-| Tester page | jwt boxes are masked and not password fields (password managers don't offer to save them); never written to browser storage; wiped on **Clear jwts**, **New test**, or page refresh; pasted `jwt=…;` pairs are cleaned to the bare value |
-| Page → tool server | server listens on `127.0.0.1` only; token-carrying APIs require the page's own header and origin; requests with a foreign `Host` header are refused (blocks DNS-rebinding sites from reaching the tool or its reports); security headers (`X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, a Content-Security-Policy that only allows talking to this server) |
-| Tool server | jwts live in memory only for the token check / run, then are dropped (including from the masking list); never written to disk; masked (`eyJhb…x9Q`) in every log line, audit entry, error and report |
-| To AMP | sent only to the environment's own host, over HTTPS (plain HTTP only for localhost); redirects are not followed with the cookie |
-| Test browser | fresh in-memory profile per user, deleted after the run; the jwt cookie is **HttpOnly**, so scripts on AMP pages (including third-party ones) cannot read it; scoped to the environment's host only |
-| Tests | every test run scans all output files and the server's terminal output for raw jwts, and checks that a page script cannot read the jwt cookie |
+## Rulebook
 
-**What testers should do**
+One column with the page, and one Yes/No column per user type. Any user-type names work, since each client has its own:
 
-1. **Log out when done.** AMP sessions are revoked server-side on logout (`Authentication.Logout` → session `Revoked`), so the copied jwt stops working everywhere. This is the most effective protection.
-2. Use **test users** on QA/staging, not real admin accounts on production.
-3. Don't paste jwts into chat, email or tickets; clear your clipboard (Windows **Win+V** keeps clipboard history).
-4. Treat `output/` as internal: reports contain screenshots of client pages (but never jwts).
+| page | Site Admin | Channel Manager | Partner User |
+|---|---|---|---|
+| /#setup/roles | Yes | No | No |
+| https://client.amp.vg/#connections/contacts | Yes | Yes | Yes |
 
-## Developer logs (terminal)
+- The page column can be `page`, `page url`, `url`, `route`, `link` or `path`. Only the part after `#` is used; the site comes from step 1.
+- **User types are detected by their values:** a column whose filled cells are Yes/No (Y/N, true/false, 1/0) is a user type. Empty columns and text columns (e.g. "Owner") are ignored; `name`/`notes`/`icon`/`description` columns are recognised by name. A typo such as `Yse` stops the upload and names the exact row and column.
+- Title rows above the header are skipped automatically. Empty cells are reported as "Not specified", never guessed.
+- Examples: `rulebook/template.csv`, `rulebook/itbd-demo.csv`. Full rules: [rulebook/README.md](rulebook/README.md).
 
-The terminal running the server shows structured logs:
+**Column names are usually personas, not user groups.** In AMP, a persona (Channel Manager, Partner…) is mainly a label that picks the dashboard; **roles** grant access, and a user's access is the combination of roles from their user record, the company, their user groups, their organization and their org groups. So use a test user set up the normal way for that persona. A client **Super Admin** gets every module in AMP, so a "Super Admin: No" row will fail by design.
 
-```
-20:56:34.346 INFO  [run] run started run=itbd-2026-… env=ITBD users=super_admin,normal_user pages=3
-20:56:54.209 INFO  [run] verdict user=normal_user route=intel/account expected=No state=OPENED inMenu=false verdict=FAIL_SECURITY_GAP why="…"
-```
+## How it runs
 
-| Start with | Shows |
-|---|---|
-| `npm start` | `info`: startup, API requests, rulebook loads, token checks, menus, run start/finish, failures with reasons, per-user totals, warnings, errors with stack traces |
-| `npm run start:debug` | also `debug`: every page's evidence (HTTP status, redirect, elements, API calls, denied/blocked calls, time), every request the tool makes, every blocked browser request, AMP page JavaScript errors, fingerprints, menu links |
+Per user (each in a **fresh, separate browser and session**):
 
-You can also set `LOG_LEVEL=debug|info|warn|error`, and `NO_COLOR=1` to disable colours. Tags: `[server]` UI server, `[http]` API requests, `[run]` run engine, `[gate]` tool requests, `[browser]` Playwright. Tokens are always masked.
+1. Put the user's jwt into the browser as an HttpOnly cookie for the client's host only.
+2. Load AMP's main page, then take a "frame only" snapshot (a route that doesn't exist, so only the menu, header and notifications render).
+3. For each rulebook page, in the **same tab**: change the `#route` (like clicking a menu item), wait until the page stops changing, record the evidence and a screenshot, pause `delayMs`, then go to the next page.
+4. Close the browser.
 
-## Command line (optional, for automation)
+**User types run in parallel** (default 3 at a time, 1–5, always 1 on production). Pages within a user stay one at a time to keep load on AMP low.
 
-The CLI reads the environment from `run.config.json` (copy `run.config.example.json`) and tokens from environment variables.
+| Rulebook size | One user after another | 3 users in parallel |
+|---|---|---|
+| 10 pages × 3 users | ~2 min | < 1 min |
+| 100 pages × 3 users | ~20–25 min | ~7–8 min |
 
-### Tokens for the CLI
-
-For each user type you want to test (keys from the rulebook columns, listed in `run.config.json`):
-
-1. Log in to AMP as that user in a normal browser (a separate browser profile or incognito window per user).
-2. DevTools → Application → Cookies → copy the value of `jwt`.
-3. Put them in `.env.local` (copy from `.env.example`; git-ignored) or set them in the terminal:
-
-```powershell
-$env:AMP_JWT_PARTNER_SALES = "..."
-```
-
-Test at least one high-access user type (e.g. a Super Admin) alongside the others: for each page, the tested user who sees the most of it is used as the reference for what the page looks like when it really opens.
-
-Tokens expire. The tool checks them first and stops if any is invalid. Delete `.env.local` after the run.
-
-### CLI commands
-
-```powershell
-npm run check                       # who does each token belong to?
-npm run menu                        # each user's menu vs the rulebook
-npm run run -- --dry-run            # show what would be requested, send nothing
-npm run run -- --limit 5            # smoke test on the first 5 pages
-npm run run                         # full run
-npm run run -- --only partner_sales # one user type
-npm run run -- --headed             # watch the browser
-```
-
-Output goes to `output/<env>-<timestamp>/`:
-
-| File | Content |
-|---|---|
-| `report.html` | Summary, matrix, issues with admin-vs-user screenshots, tester review (Confirmed / False alarm) with CSV export |
-| `results.json`, `results.csv` | Every check with its evidence |
-| `shots/<user type>/*.png` | One screenshot per page per user |
-| `audit.jsonl` | Every request made or allowed, and every request blocked (tokens masked) |
-
-Exit code: `0` all pass, `2` failures found, `1` setup/run error.
+Start with **Only first N pages = 5** to check the setup, then run everything.
 
 ## How a page is judged
 
-The question for each page and user is **"did this user get a usable page?"**, not "does it look like someone else's view?" (dashboards and many pages legitimately differ per user). The rulebook's Yes/No then says how to read a page that isn't usable.
+The question for each page and user is **"did this user get a usable page?"**, not "does it look like someone else's view?", since dashboards and many pages legitimately differ per user. The rulebook's Yes/No then says how to read a page that isn't usable.
 
-1. **Menu:** the user's menu is read from AMP's main page (`var navigation = [...]`); shown as information only.
-2. **Frame:** for each user the tool opens a route that doesn't exist, so only the AMP frame renders (menu, header, notifications). Together with what repeats on most pages, this is the frame, and it is ignored when judging content.
-3. **Page:** each page is opened as the user (`#route`); the tool waits until the page stops changing, then records the final URL, the page request's status/redirect, AMP's no-access screen, visible "no permission" or "something went wrong" messages, the elements on screen, which data calls returned data or were denied, and a screenshot. Same-origin iframes are included.
-4. **State of each page view:**
+- **Frame:** everything on the frame-only snapshot, plus whatever repeats on most pages, is the AMP frame and is ignored when judging content.
+- **Evidence per page:** final URL, page request status/redirect, AMP's no-access screen, visible "no permission" or "something went wrong" messages, elements on screen (same-origin iframes included), which data calls returned data or were denied, JS errors, screenshot.
 
 | Page state | Meaning |
 |---|---|
@@ -132,14 +95,14 @@ The question for each page and user is **"did this user get a usable page?"**, n
 | NOT_FOUND | Route doesn't exist on this build |
 | BAD_TOKEN | Sent to login / session expired |
 
-5. **Verdict** (rulebook × state, with the other tested users as a cross-check):
+**Verdict** (rulebook × state, with the other tested users as a cross-check):
 
 | Rulebook | Usable (OPENED / OPENED_EMPTY) | Not usable (BLOCKED / BLANK / ERROR / NOT_FOUND) |
 |---|---|---|
 | **Yes** | Pass (Opens empty if data denied) | **Missing access**, or **Review** when *no* tested user got the page (broken page / wrong route, not a permission result) |
 | **No** | **Extra access**, or **Security gap** if hidden from the menu | Pass |
 
-So "No No No" rows need no reference: if nobody gets usable content, everyone passes. For information, each page also records a **reference view** (the tested user expected to have access who saw the most of it) and how much of it each user saw.
+"No No No" rows need no reference: if nobody gets usable content, everyone passes. The user's menu is read too, but only as information: it never decides pass/fail, it only upgrades "extra access" to "security gap". For information, each page also records a **reference view** (the tested user expected to have access who saw the most of it) and how much of it each user saw.
 
 | Verdict | When |
 |---|---|
@@ -151,20 +114,103 @@ So "No No No" rows need no reference: if nobody gets usable content, everyone pa
 | Review | Page didn't render for any tested user, or the session expired |
 | Not specified | Rulebook has no Yes/No for this cell |
 
+## Report
+
+Written to `output/<env>-<timestamp>/` and opened from the Results step or **Past runs**:
+
+| File | Content |
+|---|---|
+| `report.html` | Summary, matrix (with "in menu / not in menu" hints), issues with the reference user's screenshot next to the tested user's, tester review (Confirmed / False alarm) with CSV export, menu items not covered by the rulebook |
+| `results.json`, `results.csv` | Every check with its evidence |
+| `summary.json` | Used by Past runs |
+| `shots/<user type>/*.png` | One screenshot per page per user |
+| `audit.jsonl` | Every request made or allowed, and every request blocked (tokens masked) |
+| `rulebook-<name>` | Copy of the rulebook used |
+
 ## Safety
 
-- The tool only calls `getpermissiondataforuser` (read-only) and GETs AMP's main page itself.
-- In the browser it only navigates; it never clicks or types. Requests the page makes by itself pass a gate: GETs are allowed; `api.ashx` calls are allowed only for read-only API names (`get*`, `load*`, `check*`…, excluding hidden writes like `getoradd*`); every other non-GET, and any logout, is blocked and logged.
-- Environments marked `"isProduction": true` are refused unless `"allowProduction": true` is also set. Remote hosts must use HTTPS.
-- Pages are opened one at a time per user, with `delayMs` between them (AMP rate-limits and alerts on bursts). **User types run in parallel** (default 3 at the same time, each in its own browser and session; 1–5, always 1 on production), set under **Run → Advanced options → Users tested at the same time** or `parallelUsers` in the CLI config.
-- Tokens are masked in logs and reports and never written by the tool. No LLM or third-party calls.
-- Opening pages still writes AMP's normal usage-tracking rows; use test users/company.
+- The tool itself only calls `getpermissiondataforuser` (read-only, to identify the jwt) and GETs AMP's main page.
+- In the browser it only navigates; it never clicks or types. Requests the page makes by itself pass a gate: GETs are allowed; `/api/<Func>` and `/services/api.ashx` calls are allowed only for read-only API names (`get*`, `load*`, `check*`…, excluding hidden writes like `getoradd*`). Every other non-GET (including AI calls and third-party tracking) and any logout is blocked and logged.
+- Production environments are refused unless explicitly approved. Remote hosts must use HTTPS.
+- Pages are opened one at a time per user, with `delayMs` between them (AMP rate-limits and alerts on bursts). Users run in parallel, each in its own session.
+- Opening pages still writes AMP's normal usage-tracking rows; use test users on QA/staging.
+
+## Keeping jwts safe
+
+A jwt is a live AMP session: whoever holds it is logged in as that user until it expires or the user logs out.
+
+| Where | Protection |
+|---|---|
+| Tester page | jwt boxes are masked and not password fields (password managers don't offer to save them); never written to browser storage; wiped on **Clear jwts**, **New test**, or page refresh; pasted `jwt=…;` pairs are cleaned to the bare value |
+| Page → tool server | server listens on `127.0.0.1` only; token-carrying APIs require the page's own header and origin; requests with a foreign `Host` header are refused (blocks DNS-rebinding); security headers (`X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, a Content-Security-Policy that only allows talking to this server) |
+| Tool server | jwts live in memory only for the token check / run, then are dropped (including from the masking list); never written to disk; masked (`eyJhb…x9Q`) in every log line, audit entry, error and report |
+| To AMP | sent only to the environment's own host, over HTTPS (plain HTTP only for localhost); the CSRF value is generated by the tool (AMP only checks header = cookie) |
+| Test browser | fresh in-memory profile per user, deleted after the run; the jwt cookie is **HttpOnly**, so scripts on AMP pages (including third-party ones) cannot read it; scoped to the environment's host only |
+| Tests | every test run scans all output files and the server's terminal output for raw jwts, and checks that a page script cannot read the jwt cookie |
+
+**Testers should:**
+1. **Log out when done.** AMP revokes the session on logout, so the copied jwt stops working everywhere. This is the most effective protection.
+2. Use **test users** on QA/staging, not real admin accounts on production.
+3. Not paste jwts into chat, email or tickets, and clear the clipboard (Windows **Win+V** keeps clipboard history).
+4. Treat `output/` as internal: reports contain screenshots of client pages (but never jwts).
+
+## Developer logs (terminal)
+
+```
+20:56:34.346 INFO  [run] run started run=itbd-2026-… env=ITBD users=super_admin,normal_user pages=3
+20:56:54.209 INFO  [run] verdict user=normal_user route=intel/account expected=No state=OPENED inMenu=false verdict=FAIL_SECURITY_GAP why="…"
+```
+
+| Start with | Shows |
+|---|---|
+| `npm start` | `info`: startup, API requests, rulebook loads, token checks, menus, run start/finish, users started/done, failures with reasons, per-user totals, warnings, errors with stack traces |
+| `npm run start:debug` | also `debug`: every page's evidence (status, redirect, elements, data loaded, denied/blocked calls, time), every request the tool makes, every blocked browser request, AMP page JavaScript errors, AMP frame and page references, menu links |
+
+You can also set `LOG_LEVEL=debug|info|warn|error`, and `NO_COLOR=1`. Tags: `[server]` UI server, `[http]` API requests, `[run]` run engine, `[run-log]` tester-facing log (debug), `[gate]` tool requests, `[browser]` Playwright. The live run log prefixes lines with the user (`[partner_sales] 3/14 #setup/roles …`) because users run in parallel. Tokens are always masked.
+
+## Command line (optional, for automation)
+
+The CLI reads the environment from `run.config.json` (copy `run.config.example.json`) and jwts from environment variables or `.env.local` (copy `.env.example`; git-ignored). It tests the rulebook columns listed in the config's `userTypes`; other columns are skipped with a warning.
+
+```powershell
+$env:AMP_JWT_PARTNER_SALES = "..."   # one per user type; AMP_CSRF_<TYPE> is optional
+
+npm run check                       # who does each token belong to?
+npm run menu                        # each user's menu vs the rulebook
+npm run run -- --dry-run            # show what would be requested, send nothing
+npm run run -- --limit 5            # smoke test on the first 5 pages
+npm run run                         # full run
+npm run run -- --only partner_sales # one user type
+npm run run -- --headed             # watch the browser
+npm run run -- --debug              # detailed developer logs
+```
+
+Config options include `parallelUsers` (default 3), `delayMs`, `pageTimeoutMs`, `settleMs`, `fingerprintThreshold` and `headless`. Exit code: `0` all pass, `2` failures found, `1` setup/run error, `130` cancelled. Delete `.env.local` after the run.
+
+## Project layout
+
+| Path | Responsibility |
+|---|---|
+| `src/server/index.ts`, `src/server/ui.html` | Local web server (127.0.0.1:4545) and the tester page (welcome, wizard, past runs) |
+| `src/run.ts` | Run engine shared by UI and CLI: tokens → menus → pages per user (parallel users) → decide → report; CLI commands |
+| `src/rulebook/parse.ts` | `.xlsx`/`.csv` reader, header-row search, value-based user-type detection |
+| `src/probe/browser.ts` | Playwright: cookies, frame snapshot, open each page, wait until stable, collect evidence and screenshots |
+| `src/probe/menu.ts` | Reads the user's menu from AMP's main page |
+| `src/sessions/validate.ts` | Token check ("Who is it?") |
+| `src/verdict/state.ts`, `fingerprint.ts`, `compare.ts` | Page state, AMP frame, reference view, verdict |
+| `src/report/write.ts` | `report.html`, `results.json`, `results.csv` |
+| `src/safety/gate.ts` | Environment guard, tool request gate, browser request gate |
+| `src/util/` | Logger, token masking, audit log, route helpers, `runLimited` (parallel users) |
+| `src/config.ts`, `src/cli.ts` | Settings/defaults, credentials, command line |
+| `tests/` | Unit tests; `tests/e2e/fake-amp.ts` simulates AMP for the end-to-end tests |
 
 ## Development
 
 ```powershell
-npm test          # unit tests
-npm run e2e       # full pipeline against a simulated AMP (tests/e2e/fake-amp.ts)
+npm test          # 91 unit tests
+npm run e2e       # full pipeline against a simulated AMP (tests/e2e/fake-amp.ts), incl. proof that users run in parallel
 npm run e2e:ui    # the tester web UI driven in a real browser against the simulated AMP
 npm run typecheck
 ```
+
+`PARALLEL=1 npm run e2e` runs the users one after another (the parallel-overlap check then fails by design).
