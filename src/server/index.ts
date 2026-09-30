@@ -4,14 +4,18 @@ import { extname, join, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { exec } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { buildConfig } from '../config';
+import { buildConfig, makeCredentials } from '../config';
 import { parseRulebook, rulebookSummary, withAllowAllColumn } from '../rulebook/parse';
 import { assertSafeEnvironment, RequestGate, SafetyError } from '../safety/gate';
 import { validateToken } from '../sessions/validate';
 import { executeRun, newRunId, planRun, type Progress, type RunOutcome } from '../run';
 import { AuditLog } from '../util/audit';
 import { registerSecret, scrub } from '../util/mask';
+import { createLogger, getLogLevel, isDebug, since } from '../util/logger';
 import type { Credentials, Environment, Rulebook, RunConfig } from '../types';
+
+const log = createLogger('server');
+const httpLog = createLogger('http');
 
 const PORT = Number(process.env.PORT ?? 4545);
 const HOST = '127.0.0.1';
@@ -138,22 +142,19 @@ function credsFrom(users: UserInput[], keys: string[]): Map<string, Credentials>
   for (const key of keys) {
     const u = users.find((x) => x.key === key);
     const jwt = u?.jwt?.trim();
-    const csrf = u?.csrf?.trim();
-    if (!jwt || !csrf) throw new HttpError(400, `Tokens missing for ${u?.label || key}`);
-    registerSecret(jwt);
-    registerSecret(csrf);
-    creds.set(key, { jwt, csrf });
+    if (!jwt) throw new HttpError(400, `jwt missing for ${u?.label || key}`);
+    creds.set(key, makeCredentials(jwt, u?.csrf));
   }
   return creds;
 }
 
-/** The reference user is used only when its tokens were entered. */
+/** The reference user is used only when its jwt was entered. */
 function referenceKey(body: RunRequest): string | null {
   const key = body.calibrationKey?.trim();
   if (!key) return null;
   if (!KEY_RE.test(key)) throw new HttpError(400, 'Reference user key must be lowercase letters, digits or _');
   const u = body.users?.find((x) => x.key === key);
-  return u?.jwt?.trim() && u?.csrf?.trim() ? key : null;
+  return u?.jwt?.trim() ? key : null;
 }
 
 function configFrom(body: RunRequest, rb: Rulebook): RunConfig {
@@ -210,7 +211,7 @@ function setupFrom(body: RunRequest) {
   if (refTested && !rulebook.userTypes.includes(ref)) {
     rulebook = withAllowAllColumn(rulebook, ref);
     const label = body.users.find((u) => u.key === ref)?.label || ref;
-    notes.push(`The rulebook has no column for ${label}, so ${label} was expected to see every page and menu group (a Site Admin with MFA has access to every module in AMP).`);
+    notes.push(`The rulebook has no column for ${label}, so ${label} is expected to see every page (a Site Admin with MFA has access to every module in AMP).`);
   }
   const cfg = configFrom(body, rulebook);
   const only = onlyFrom(body, rulebook);
@@ -318,23 +319,24 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     if (bad.length) throw new HttpError(400, `User type columns must be lowercase letters, digits or _: ${bad.join(', ')}`);
     const id = randomUUID();
     rulebooks.set(id, { id, name, data, rulebook });
-    return send(res, 200, { id, name, summary: rulebookSummary(rulebook) });
+    const summary = rulebookSummary(rulebook);
+    log.info('rulebook loaded', { name, source: body.file ? 'saved' : 'upload', bytes: data.length, pages: summary.pages, userTypes: summary.userTypes });
+    return send(res, 200, { id, name, summary });
   }
 
   if (method === 'POST' && path === '/api/tokens/check') {
     const body = (await readBody(req)) as { environment?: Environment; users?: UserInput[] };
     const env = environmentFrom(body);
-    const users = (body.users ?? []).filter((u) => u.key && KEY_RE.test(u.key) && (u.jwt?.trim() || u.csrf?.trim()));
-    if (!users.length) throw new HttpError(400, 'Paste tokens for at least one user first');
+    const users = (body.users ?? []).filter((u) => u.key && KEY_RE.test(u.key) && u.jwt?.trim());
+    if (!users.length) throw new HttpError(400, 'Paste a jwt for at least one user first');
     const gate = new RequestGate(env, 300, new AuditLog(join(OUTPUT_DIR, '_ui', 'token-checks.jsonl')));
     const results = [];
     for (const u of users) {
-      if (!u.jwt?.trim() || !u.csrf?.trim()) {
-        results.push({ key: u.key, identity: { userType: u.key, valid: false, reason: 'jwt and X-CSRF-Token are both required' } });
-        continue;
-      }
       const creds = credsFrom([u], [u.key]);
-      results.push({ key: u.key, identity: await validateToken(gate, u.key, creds.get(u.key)!) });
+      const identity = await validateToken(gate, u.key, creds.get(u.key)!);
+      results.push({ key: u.key, identity });
+      if (identity.valid) log.info('token check ok', { env: env.name, user: u.key, name: identity.userName, persona: identity.persona, siteAdmin: identity.isSiteAdmin, company: identity.companyName, org: identity.organizationName });
+      else log.warn('token check failed', { env: env.name, user: u.key, reason: identity.reason });
     }
     return send(res, 200, { results });
   }
@@ -366,6 +368,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   if (method === 'POST' && cancel) {
     if (!current || current.id !== cancel[1] || current.status !== 'running') throw new HttpError(404, 'No such active run');
     current.controller.abort();
+    log.info('cancel requested', { run: current.id });
     return send(res, 200, { ok: true });
   }
 
@@ -395,10 +398,14 @@ function startRun(
   };
   current = state;
 
+  const runLog = createLogger('run-log');
   const pushLine = (line: string) => {
     for (const l of scrub(line).split('\n')) {
       state.lines.push(l);
       broadcast(state, 'log', l);
+      // The tester-facing log (what the UI shows) is mirrored to the terminal in debug mode only;
+      // the structured [run] lines cover the same events at info level.
+      if (l.trim()) runLog.debug(l.trim());
     }
     if (state.lines.length > 5000) state.lines.splice(0, state.lines.length - 5000);
   };
@@ -423,9 +430,13 @@ function startRun(
     },
     id,
   )
-    .catch((e: unknown) => ({ code: 1, runId: id, outDir: join(OUTPUT_DIR, id), error: scrub((e as Error).message), summary: {} }) as RunOutcome)
+    .catch((e: unknown) => {
+      log.error('run failed unexpectedly', e, { run: id });
+      return { code: 1, runId: id, outDir: join(OUTPUT_DIR, id), error: scrub((e as Error).message), summary: {} } as RunOutcome;
+    })
     .then((outcome) => {
       creds.clear(); // tokens are not kept after the run
+      log.debug('tokens cleared from memory', { run: id });
       state.outcome = outcome;
       state.status = outcome.code === 130 ? 'cancelled' : outcome.error ? 'failed' : 'done';
       try {
@@ -470,19 +481,48 @@ function serveOutput(path: string, res: ServerResponse): void {
 
 // ---------------------------------------------------------------- start
 
+/** GETs of the page, reports, history and the live event stream are routine; only shown with --debug. */
+function isRoutine(method: string, path: string): boolean {
+  return method === 'GET' && (path === '/' || path.startsWith('/output/') || path === '/api/runs' || path === '/api/runs/current' || path === '/api/rulebooks' || path.endsWith('/events'));
+}
+
 const server = createServer((req, res) => {
+  const started = Date.now();
+  const method = req.method ?? 'GET';
+  const path = (req.url ?? '/').split('?')[0]!;
+  let failure: { message: string; err?: unknown } | null = null;
+
+  res.on('finish', () => {
+    const fields = { method, path, status: res.statusCode, ms: since(started), error: failure?.message };
+    if (res.statusCode >= 500) httpLog.error('request failed', failure?.err, fields);
+    else if (res.statusCode >= 400) httpLog.warn('request rejected', fields);
+    else if (isRoutine(method, path)) httpLog.debug('request', fields);
+    else httpLog.info('request', fields);
+  });
+
   handle(req, res).catch((e: unknown) => {
     const status = e instanceof HttpError ? e.status : e instanceof SafetyError ? 400 : 500;
     const message = scrub((e as Error).message ?? 'Unexpected error');
+    failure = { message, err: status >= 500 ? e : undefined };
     if (!res.headersSent) send(res, status, { error: message });
     else res.end();
   });
 });
 
+process.on('unhandledRejection', (e) => log.error('unhandled promise rejection', e));
+process.on('uncaughtException', (e) => log.error('uncaught exception', e));
+
+server.on('error', (e: NodeJS.ErrnoException) => {
+  if (e.code === 'EADDRINUSE') log.error(`port ${PORT} is already in use - is the tool already running in another terminal? Stop it or set PORT=<other>`);
+  else log.error('server error', e);
+  process.exit(1);
+});
+
 server.listen(PORT, HOST, () => {
   const url = `http://${HOST}:${PORT}`;
-  console.log(`AMP Permission Testing UI running at ${url}`);
-  console.log('Tokens entered in the UI stay in this process memory only. Press Ctrl+C to stop.');
+  log.info(`UI running at ${url}`, { logLevel: getLogLevel(), node: process.version, cwd: ROOT, output: OUTPUT_DIR });
+  log.info('tokens entered in the UI stay in this process memory only; press Ctrl+C to stop');
+  if (!isDebug()) log.info('for detailed logs (every page, request and blocked call) start with: npm run start:debug');
   if (!process.argv.includes('--no-open')) {
     const cmd = process.platform === 'win32' ? `start "" "${url}"` : process.platform === 'darwin' ? `open "${url}"` : `xdg-open "${url}"`;
     exec(cmd, () => undefined);

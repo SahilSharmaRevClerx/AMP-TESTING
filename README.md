@@ -27,10 +27,26 @@ This opens `http://127.0.0.1:4545` in your browser. Everything is entered on tha
 
 1. **Environment**: name and base URL of the client's AMP. Recent environments are remembered (URLs only).
 2. **Rulebook**: pick one from `rulebook/` or upload an `.xlsx`/`.csv`. Its Yes/No columns become the user types for the run.
-3. **Users & tokens**: for the reference Site Admin and each user type, paste the `jwt` and `X-CSRF-Token` cookies (the page explains how), then **Check tokens** to see who each belongs to.
+3. **Users & tokens**: for the reference Site Admin and each user type, paste the `jwt` cookie (the page explains how). Only the jwt is needed: the tool generates the matching CSRF value itself, as AMP's CSRF check only requires header = cookie, then **Check tokens** to see who each belongs to.
 4. **Run**: preview the plan, optionally test only the first N pages, start, watch progress, then **Open report**.
 
 Past runs are listed at the bottom. Tokens entered in the UI stay in the server's memory for that run only; they are never written to disk or browser storage. The server listens on `127.0.0.1` only and rejects API calls that don't come from its own page.
+
+## Developer logs (terminal)
+
+The terminal running the server shows structured logs:
+
+```
+20:56:34.346 INFO  [run] run started run=itbd-2026-… env=ITBD users=site_admin,normal_user reference=site_admin pages=3
+20:56:54.209 INFO  [run] verdict user=normal_user route=intel/account expected=No state=OPENED inMenu=false verdict=FAIL_SECURITY_GAP why="…"
+```
+
+| Start with | Shows |
+|---|---|
+| `npm start` | `info`: startup, API requests, rulebook loads, token checks, menus, run start/finish, failures with reasons, per-user totals, warnings, errors with stack traces |
+| `npm run start:debug` | also `debug`: every page's evidence (HTTP status, redirect, elements, API calls, denied/blocked calls, time), every request the tool makes, every blocked browser request, AMP page JavaScript errors, fingerprints, menu links |
+
+You can also set `LOG_LEVEL=debug|info|warn|error`, and `NO_COLOR=1` to disable colours. Tags: `[server]` UI server, `[http]` API requests, `[run]` run engine, `[gate]` tool requests, `[browser]` Playwright. Tokens are always masked.
 
 ## Command line (optional, for automation)
 
@@ -41,12 +57,11 @@ The CLI reads the environment from `run.config.json` (copy `run.config.example.j
 For each user type in `run.config.json` (including the calibration Site Admin):
 
 1. Log in to AMP as that user in a normal browser (a separate browser profile or incognito window per user).
-2. DevTools → Application → Cookies → copy the values of `jwt` and `X-CSRF-Token`.
+2. DevTools → Application → Cookies → copy the value of `jwt`.
 3. Put them in `.env.local` (copy from `.env.example`; git-ignored) or set them in the terminal:
 
 ```powershell
 $env:AMP_JWT_PARTNER_SALES = "..."
-$env:AMP_CSRF_PARTNER_SALES = "..."
 ```
 
 The calibration user should be a **Site Admin with MFA enabled**, so it can open every page. Its run is used as the reference for what each page looks like when it opens.

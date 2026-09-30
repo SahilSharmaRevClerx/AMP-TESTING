@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "tsx src/server/index.ts",
+    "start:debug": "tsx src/server/index.ts --debug",
     "check": "tsx src/cli.ts check",
     "menu": "tsx src/cli.ts menu",
     "run": "tsx src/cli.ts run",

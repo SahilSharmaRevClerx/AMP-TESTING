@@ -5,6 +5,9 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { commandRun } from '../../src/run';
+import { setLogLevel } from '../../src/util/logger';
+
+if (!process.env.LOG_LEVEL) setLogLevel('warn');
 import { received, startFakeAmp, TOKENS } from './fake-amp';
 
 const expected: Record<string, string> = {
@@ -39,9 +42,7 @@ async function main(): Promise<number> {
     }),
   );
   process.env.AMP_JWT_SITE_ADMIN = TOKENS.site_admin.jwt;
-  process.env.AMP_CSRF_SITE_ADMIN = TOKENS.site_admin.csrf;
   process.env.AMP_JWT_PARTNER_SALES = TOKENS.partner_sales.jwt;
-  process.env.AMP_CSRF_PARTNER_SALES = TOKENS.partner_sales.csrf;
 
   const failures: string[] = [];
   try {
@@ -63,7 +64,7 @@ async function main(): Promise<number> {
     if (received.some((r) => r.func === 'savelastviewed')) failures.push('SAFETY: savelastviewed reached the server');
     const audit = readFileSync(join(outputDir, runDir, 'audit.jsonl'), 'utf8');
     if (!/savelastviewed.*"decision":"blocked"/.test(audit)) failures.push('SAFETY: blocked write not recorded in audit log');
-    if (audit.includes(TOKENS.partner_sales.jwt) || audit.includes(TOKENS.site_admin.csrf)) failures.push('SAFETY: raw token found in audit log');
+    if (audit.includes(TOKENS.partner_sales.jwt) || audit.includes(TOKENS.site_admin.jwt)) failures.push('SAFETY: raw token found in audit log');
     const nonGetNonApi = received.filter((r) => r.method !== 'GET' && r.path !== '/services/api.ashx');
     if (nonGetNonApi.length) failures.push(`SAFETY: unexpected non-GET requests: ${JSON.stringify(nonGetNonApi)}`);
   } finally {

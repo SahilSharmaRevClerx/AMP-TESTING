@@ -13,6 +13,7 @@ import { writeReports } from './report/write';
 import { AuditLog } from './util/audit';
 import { slug } from './util/route';
 import { scrub } from './util/mask';
+import { createLogger, since } from './util/logger';
 import type { CheckResult, Credentials, Identity, MenuResult, PageEvidence, Rule, Rulebook, RunConfig, Verdict } from './types';
 
 export interface Progress {
@@ -60,6 +61,7 @@ export interface Plan {
 }
 
 const consoleReporter: Reporter = { log: (m) => console.log(m) };
+const log = createLogger('run');
 
 export class CancelledError extends Error {
   constructor() {
@@ -97,8 +99,11 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
   const r = input.reporter ?? consoleReporter;
   const outDir = join(cfg.outputDir, runId);
   const summary: RunOutcome['summary'] = {};
+  const runStarted = Date.now();
   const fail = (error: string, code = 1): RunOutcome => {
     r.log(`\nStopping: ${error}`);
+    if (code === 130) log.info('run cancelled', { run: runId, ms: since(runStarted) });
+    else log.warn('run stopped', { run: runId, code, reason: error, ms: since(runStarted) });
     return { code, runId, outDir, error, summary };
   };
   const checkCancel = () => {
@@ -107,7 +112,7 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
 
   try {
     const plan = planRun(cfg, rulebook, input.only, input.limit);
-    const missing = plan.allTypes.filter((ut) => !creds.get(ut)?.jwt || !creds.get(ut)?.csrf);
+    const missing = plan.allTypes.filter((ut) => !creds.get(ut)?.jwt);
     if (missing.length) return fail(`missing tokens for: ${missing.join(', ')}`);
 
     mkdirSync(outDir, { recursive: true });
@@ -119,15 +124,35 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
     r.log(`Run ${runId} on ${cfg.environment.name} (${cfg.environment.baseUrl})`);
     const ref = cfg.calibrationUserType;
     r.log(`User types: ${plan.testedTypes.join(', ')} · reference: ${ref ?? 'none (each user is its own reference)'} · ${plan.pages.length} pages · ~${plan.estimatedMinutes} min`);
+    log.info('run started', {
+      run: runId,
+      env: cfg.environment.name,
+      baseUrl: cfg.environment.baseUrl,
+      users: plan.testedTypes,
+      reference: ref ?? 'none',
+      pages: plan.pages.length,
+      pageOpens: plan.pageOpens,
+      estMin: plan.estimatedMinutes,
+      headless: cfg.headless,
+      delayMs: cfg.delayMs,
+      threshold: cfg.fingerprintThreshold,
+      out: outDir,
+    });
 
     // ① Tokens
     r.log('\n① Token check');
     const identities: Identity[] = [];
     for (const [i, ut] of plan.allTypes.entries()) {
       checkCancel();
+      const t0 = Date.now();
       const id = await validateToken(gate, ut, creds.get(ut)!);
       identities.push(id);
       r.log(`  ${ut.padEnd(24)} ${describeIdentity(id)}`);
+      if (id.valid) {
+        log.info('token ok', { user: ut, name: id.userName, persona: id.persona, siteAdmin: id.isSiteAdmin, org: id.organizationName, company: id.companyName, amp: id.ampVersion, ms: since(t0) });
+      } else {
+        log.warn('token invalid', { user: ut, reason: id.reason, ms: since(t0) });
+      }
       r.progress?.({ phase: 'tokens', done: i + 1, total: plan.allTypes.length });
     }
     const invalid = identities.filter((i) => !i.valid);
@@ -146,8 +171,16 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
     const menus = new Map<string, MenuResult>();
     for (const [i, ut] of plan.allTypes.entries()) {
       checkCancel();
+      const t0 = Date.now();
       const m = await fetchMenu(gate, ut, creds.get(ut)!, cfg.shellPath);
       r.log(`  ${ut.padEnd(24)} ${m.ok ? `${m.links.length} links` : `FAILED - ${m.reason}`}`);
+      if (m.ok) {
+        const covered = plan.pages.filter((p) => menuHasRoute(m, p.route)).length;
+        log.info('menu read', { user: ut, links: m.links.length, rulebookPagesInMenu: `${covered}/${plan.pages.length}`, ms: since(t0) });
+        log.debug('menu links', { user: ut, links: m.links.map((l) => l.link) });
+      } else {
+        log.warn('menu read failed', { user: ut, reason: m.reason, ms: since(t0) });
+      }
       if (!m.ok) return fail(`menu could not be read for ${ut}: ${m.reason}`);
       menus.set(ut, m);
       r.progress?.({ phase: 'menus', done: i + 1, total: plan.allTypes.length });
@@ -162,11 +195,15 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
         if (n > calLinks) warnings.push(`${ut} sees more menu links (${n}) than the reference user (${calLinks}).`);
       }
       r.log(`\n③ Reference run as ${ref} (${plan.pages.length} pages)`);
+      const t0 = Date.now();
       const ev = await probeAll(input, outDir, audit, ref, plan.pages, 'calibration');
       if (typeof ev === 'string') return fail(`reference browser failed: ${ev}`);
       calEvidence = ev;
       fingerprints = buildFingerprints([...calEvidence.values()]);
       const unusable = [...fingerprints.values()].filter((f) => !f.usable);
+      log.info('reference built', { user: ref, pages: calEvidence.size, usable: fingerprints.size - unusable.length, unusable: unusable.length, ms: since(t0) });
+      for (const f of unusable) log.warn('no reference for page', { route: f.route, reason: f.reason });
+      for (const f of fingerprints.values()) if (f.usable) log.debug('fingerprint', { route: f.route, elements: f.tokens.length, apis: f.apiFuncs });
       if (unusable.length) {
         warnings.push(`${unusable.length} page(s) have no usable reference; their results will be Review: ${unusable.map((f) => '#' + f.route).join(', ')}`);
       }
@@ -177,7 +214,9 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
     for (const ut of plan.testedTypes) {
       checkCancel();
       r.log(`\n④ ${ut} (${plan.pages.length} pages)`);
+      const t0 = Date.now();
       const evidence = ut === ref ? calEvidence : await probeAll(input, outDir, audit, ut, plan.pages, 'probe');
+      if (typeof evidence === 'string') log.warn('user could not be tested', { user: ut, reason: evidence });
       const menu = menus.get(ut)!;
       // Without a reference user, the user's own run tells page content apart from the shared AMP shell.
       const fps = fingerprints ?? (typeof evidence === 'string' ? new Map() : buildFingerprints([...evidence.values()]));
@@ -193,6 +232,9 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
         }
         const st = accessState(ev, fps.get(rule.route), cfg.fingerprintThreshold);
         const v = pageVerdict(expected, inMenu, st.state);
+        const fields = { user: ut, route: rule.route, expected: expected ?? '-', state: st.state, score: st.score ?? undefined, inMenu, verdict: v.verdict };
+        if (v.verdict === 'PASS' || v.verdict === 'NOT_SPECIFIED') log.debug('verdict', fields);
+        else log.info('verdict', { ...fields, why: st.reason });
         results.push({
           ...base(rule, ut, expected),
           inMenu,
@@ -203,6 +245,15 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
           evidence: ev,
         });
       }
+      const mine = results.filter((x) => x.userType === ut);
+      log.info('user done', {
+        user: ut,
+        pass: mine.filter((x) => x.verdict === 'PASS').length,
+        fail: mine.filter((x) => x.verdict.startsWith('FAIL')).length,
+        review: mine.filter((x) => x.verdict === 'REVIEW').length,
+        notSpecified: mine.filter((x) => x.verdict === 'NOT_SPECIFIED').length,
+        ms: since(t0),
+      });
     }
 
     // ⑤ Report
@@ -238,9 +289,13 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
     }
     for (const w of warnings) r.log(`  ⚠ ${w}`);
     r.log(`\nReport: ${reportFile}`);
-    return { code: results.some((x) => x.verdict.startsWith('FAIL')) ? 2 : 0, runId, outDir, reportFile, summary };
+    const code = results.some((x) => x.verdict.startsWith('FAIL')) ? 2 : 0;
+    for (const w of warnings) log.warn('report warning', { message: w });
+    log.info('run finished', { run: runId, result: code === 2 ? 'failures found' : 'all pass', checks: results.length, ms: since(runStarted), report: reportFile });
+    return { code, runId, outDir, reportFile, summary };
   } catch (e) {
     if (e instanceof CancelledError) return fail('cancelled by tester', 130);
+    log.error('run crashed', e, { run: runId });
     return fail(scrub((e as Error).message));
   }
 }
@@ -270,11 +325,28 @@ async function probeAll(
       if (out.has(page.route)) continue;
       const ev = await probe.probe(page.route);
       out.set(page.route, ev);
+      log.debug('page checked', {
+        user: userType,
+        phase,
+        route: page.route,
+        http: ev.fragmentStatus ?? undefined,
+        redirect: ev.fragmentRedirect ?? undefined,
+        noAccessMarker: ev.noAccessMarker || undefined,
+        finalUrl: ev.finalUrl,
+        elements: ev.tokens.length,
+        apis: ev.apiCalls.length,
+        apisDenied: ev.apiCalls.filter((a) => a.denied).map((a) => a.func),
+        blocked: ev.blockedRequests.length,
+        jsErrors: ev.pageErrors.length || undefined,
+        error: ev.error,
+        ms: ev.durationMs,
+      });
       const signalText = ev.noAccessMarker ? 'no-access' : ev.error ? `error: ${ev.error}` : `${ev.tokens.length} elements`;
       r.log(`  ${String(idx + 1).padStart(3)}/${pages.length} #${page.route.padEnd(42)} ${signalText}`);
       r.progress?.({ phase, userType, done: idx + 1, total: pages.length });
       if (/\/(login|sessionexpired)\b/i.test(ev.finalUrl) || (ev.fragmentRedirect && /\/(login|sessionexpired)\b/.test(ev.fragmentRedirect))) {
         r.log('  token expired mid-run — stopping this user type');
+        log.warn('token expired mid-run, stopping this user', { user: userType, route: page.route, finalUrl: ev.finalUrl });
         break;
       }
       await new Promise((res) => setTimeout(res, cfg.delayMs));
@@ -310,7 +382,7 @@ function cliCredentials(types: string[]): Map<string, Credentials> {
   for (const ut of types) {
     const c = credentialsFor(ut);
     if (c) creds.set(ut, c);
-    else missing.push(`AMP_JWT_${envKey(ut)} / AMP_CSRF_${envKey(ut)}`);
+    else missing.push(`AMP_JWT_${envKey(ut)}`);
   }
   if (missing.length) throw new Error(`Missing tokens (set in terminal or .env.local):\n  ${missing.join('\n  ')}`);
   return creds;

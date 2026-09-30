@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import type { Credentials, RunConfig } from './types';
 import { registerSecret } from './util/mask';
 
@@ -55,13 +56,23 @@ export function loadLocalEnv(file = '.env.local'): void {
   }
 }
 
-/** Reads AMP_JWT_<TYPE> / AMP_CSRF_<TYPE>. Returns null when either is missing. */
+/**
+ * Credentials for one user. Only the jwt identifies the user. AMP's CSRF check is a double-submit
+ * (the X-CSRF-Token header must equal the X-CSRF-Token cookie; the value is not tied to the session,
+ * and AMP itself issues a random GUID when the cookie is missing), so when none is given we generate one
+ * and send it as both cookie and header.
+ */
+export function makeCredentials(jwt: string, csrf?: string): Credentials {
+  const c = { jwt: jwt.trim(), csrf: csrf?.trim() || randomUUID() };
+  registerSecret(c.jwt);
+  registerSecret(c.csrf);
+  return c;
+}
+
+/** Reads AMP_JWT_<TYPE> (required) and AMP_CSRF_<TYPE> (optional). Returns null without a jwt. */
 export function credentialsFor(userType: string): Credentials | null {
   const k = envKey(userType);
   const jwt = process.env[`AMP_JWT_${k}`]?.trim();
-  const csrf = process.env[`AMP_CSRF_${k}`]?.trim();
-  if (!jwt || !csrf) return null;
-  registerSecret(jwt);
-  registerSecret(csrf);
-  return { jwt, csrf };
+  if (!jwt) return null;
+  return makeCredentials(jwt, process.env[`AMP_CSRF_${k}`]);
 }

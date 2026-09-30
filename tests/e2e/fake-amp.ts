@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { randomUUID } from 'node:crypto';
 
 /**
  * A tiny stand-in for AMP that mimics the behaviours the tool relies on:
@@ -35,12 +36,17 @@ export const PAGES: PageDef[] = [
 
 export const received: { user: User | null; method: string; path: string; func?: string }[] = [];
 
-function userOf(req: IncomingMessage): User | null {
-  const cookies = Object.fromEntries(
+function cookiesOf(req: IncomingMessage): Record<string, string> {
+  return Object.fromEntries(
     (req.headers.cookie ?? '').split(';').map((c) => c.trim().split('=')).filter((p) => p.length === 2) as [string, string][],
   );
-  if (cookies.jwt === TOKENS.site_admin.jwt && cookies['X-CSRF-Token'] === TOKENS.site_admin.csrf) return 'admin';
-  if (cookies.jwt === TOKENS.partner_sales.jwt && cookies['X-CSRF-Token'] === TOKENS.partner_sales.csrf) return 'partner';
+}
+
+/** Like AMP: the jwt alone says who the user is. */
+function userOf(req: IncomingMessage): User | null {
+  const jwt = cookiesOf(req).jwt;
+  if (jwt === TOKENS.site_admin.jwt) return 'admin';
+  if (jwt === TOKENS.partner_sales.jwt) return 'partner';
   return null;
 }
 
@@ -88,7 +94,9 @@ export function startFakeAmp(): Promise<{ server: Server; baseUrl: string }> {
 
     if (path === '/services/api.ashx') {
       if (req.method !== 'POST') return send(405, '');
-      if (req.headers['x-csrf-token'] !== TOKENS[user === 'admin' ? 'site_admin' : 'partner_sales'].csrf) {
+      // Like AMP (APIRequest.VerifyHeaderCSRF): double-submit, header must equal cookie; value is not tied to the user.
+      const csrfCookie = cookiesOf(req)['X-CSRF-Token'];
+      if (!csrfCookie || req.headers['x-csrf-token'] !== csrfCookie) {
         return send(200, JSON.stringify({ status: 3, result: { code: 'c', message: 'CSRF mismatch' } }), 'application/json');
       }
       if (func === 'getpermissiondataforuser') {
@@ -104,7 +112,11 @@ export function startFakeAmp(): Promise<{ server: Server; baseUrl: string }> {
       return send(200, JSON.stringify({ status: 0, result: { rows: [1, 2, 3] } }), 'application/json');
     }
 
-    if (path === '/') return send(200, shell(user));
+    // Like AMP (BeginRequest): issue a random CSRF cookie when the browser has none.
+    if (path === '/') {
+      const extra: Record<string, string> = cookiesOf(req)['X-CSRF-Token'] ? {} : { 'Set-Cookie': `X-CSRF-Token=${randomUUID()}; Path=/` };
+      return send(200, shell(user), 'text/html', extra);
+    }
 
     const page = PAGES.find((p) => '/' + p.route === path);
     if (!page) return send(404, 'not found');

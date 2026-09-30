@@ -1,5 +1,8 @@
 import type { AuditLog } from '../util/audit';
 import type { Credentials, Environment } from '../types';
+import { createLogger, since } from '../util/logger';
+
+const log = createLogger('gate');
 
 export class SafetyError extends Error {
   constructor(message: string) {
@@ -134,8 +137,10 @@ export class RequestGate {
     const reason = this.checkToolRequest(method, url);
     if (reason) {
       this.audit.write({ source: 'tool', userType, method, url: url.href, decision: 'blocked', reason });
+      log.warn('tool request blocked', { user: userType, method, path: url.pathname + url.search, reason });
       throw new SafetyError(`Blocked ${method} ${url.href}: ${reason}`);
     }
+    const started = Date.now();
 
     const wait = this.lastRequestAt + this.delayMs - Date.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
@@ -148,13 +153,27 @@ export class RequestGate {
     };
     if (method === 'POST') headers['Content-Type'] = 'application/json';
 
-    const res = await fetch(url, {
-      method,
-      headers,
-      body: method === 'POST' ? JSON.stringify(body ?? {}) : undefined,
-      redirect: 'manual',
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method,
+        headers,
+        body: method === 'POST' ? JSON.stringify(body ?? {}) : undefined,
+        redirect: 'manual',
+      });
+    } catch (e) {
+      log.warn('tool request failed', { user: userType, method, path: url.pathname + url.search, ms: since(started), error: (e as Error).message });
+      throw e;
+    }
     this.audit.write({ source: 'tool', userType, method, url: url.href, decision: 'allowed', status: res.status });
+    log.debug('tool request', {
+      user: userType,
+      method,
+      path: url.pathname + url.search,
+      status: res.status,
+      location: res.headers.get('location') ?? undefined,
+      ms: since(started),
+    });
     return res;
   }
 

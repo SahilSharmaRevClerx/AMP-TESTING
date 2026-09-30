@@ -3,155 +3,362 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AMP Permission Testing</title>
+<title>Permission Testing Platform</title>
 <style>
-:root{--bg:#f6f7f9;--fg:#1b1c1f;--muted:#646a73;--card:#fff;--line:#e2e4e9;--accent:#2f5bd3;--accent-fg:#fff;--ok:#1f7a4d;--ok-bg:#e3f4ea;--bad:#b42318;--bad-bg:#fde8e6;--warn:#9a5b00;--warn-bg:#fdf1dc;--input:#fff;--code:#f0f1f4}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141518;--fg:#e8e9ec;--muted:#9aa0a8;--card:#1c1e23;--line:#2c2f37;--accent:#7d9bff;--accent-fg:#0f1220;--ok:#6fd39c;--ok-bg:#173526;--bad:#ff8a80;--bad-bg:#3d1c1a;--warn:#f5c26b;--warn-bg:#3a2d12;--input:#15171b;--code:#23262d}}
+:root{
+  --bg:#f4f6fa;--fg:#161a22;--muted:#5d6472;--card:#fff;--line:#e1e5ec;--input:#fff;--code:#eef1f6;
+  --accent:#2f5bd3;--accent-2:#6a4bd8;--accent-fg:#fff;--accent-soft:#e9efff;
+  --ok:#1b7a4b;--ok-bg:#e2f5ea;--bad:#b42318;--bad-bg:#fde8e6;--warn:#94590a;--warn-bg:#fdf1dc;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 8px 24px rgba(16,24,40,.06);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12141a;--fg:#e9ebf0;--muted:#9aa1ad;--card:#1b1e25;--line:#2b2f39;--input:#14161c;--code:#232733;
+  --accent:#7d9bff;--accent-2:#a58bff;--accent-fg:#0e1120;--accent-soft:#222a4a;
+  --ok:#6fd39c;--ok-bg:#173526;--bad:#ff8a80;--bad-bg:#3d1c1a;--warn:#f5c26b;--warn-bg:#3a2d12;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+}}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
-main{max-width:1080px;margin:0 auto;padding:24px 16px 80px}
-h1{font-size:22px;margin:0}h2{font-size:16px;margin:0 0 4px}
-.sub{color:var(--muted);margin:4px 0 20px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:14px 0}
-.card.disabled{opacity:.55;pointer-events:none}
-.step{display:inline-flex;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-fg);font-size:12px;font-weight:700;align-items:center;justify-content:center;margin-right:8px}
-.hint{color:var(--muted);font-size:13px;margin:2px 0 12px}
-.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
-.field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:200px}
-.field.narrow{flex:0 0 150px;min-width:120px}
-label.lbl{font-size:12px;font-weight:600;color:var(--muted)}
-input[type=text],input[type=url],input[type=password],input[type=number],select{font:inherit;color:var(--fg);background:var(--input);border:1px solid var(--line);border-radius:6px;padding:7px 9px;width:100%}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)}
+code{font:12.5px ui-monospace,Consolas,monospace;background:var(--code);padding:1px 5px;border-radius:4px}
+
+/* top bar */
+.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top .in{max-width:1060px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;cursor:pointer;background:none;border:0;color:var(--fg);font-size:15px;padding:0}
+.logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:#fff}
+.top .sp{flex:1}
+.link{background:none;border:0;color:var(--muted);font:inherit;cursor:pointer;padding:6px 10px;border-radius:6px}
+.link:hover{background:var(--code);color:var(--fg)}
+
+main{max-width:1060px;margin:0 auto;padding:28px 16px 80px}
+
+/* buttons & inputs */
+button{font:inherit}
+.btn{border-radius:8px;padding:9px 16px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.big{padding:13px 26px;font-size:16px;border-radius:10px}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.field{display:flex;flex-direction:column;gap:5px;flex:1;min-width:200px}
+.field.narrow{flex:0 0 170px;min-width:140px}
+.lbl{font-size:13px;font-weight:600;color:var(--muted)}
+input[type=text],input[type=url],input[type=password],input[type=number],select{font:inherit;color:var(--fg);background:var(--input);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%}
 input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
-button{font:inherit;border-radius:6px;padding:7px 14px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
-button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
-button.danger{color:var(--bad);border-color:var(--bad)}
-button:disabled{opacity:.5;cursor:not-allowed}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
-.chip{font-size:12px;padding:3px 10px;border-radius:999px;border:1px solid var(--line);background:var(--bg);cursor:pointer}
-.chip .x{margin-left:6px;color:var(--muted)}
-.check{display:flex;gap:8px;align-items:center;margin-top:10px}
-.msg{border-radius:6px;padding:8px 12px;margin-top:10px;font-size:13px}
+.row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
+.check{display:flex;gap:9px;align-items:center;margin-top:12px;font-size:14px}
+.hint{color:var(--muted);font-size:13.5px}
+.msg{border-radius:8px;padding:10px 14px;margin-top:14px;font-size:14px}
 .msg.ok{background:var(--ok-bg);color:var(--ok)}.msg.bad{background:var(--bad-bg);color:var(--bad)}.msg.warn{background:var(--warn-bg);color:var(--warn)}
+
+/* ---------- welcome */
+.hero{text-align:center;padding:26px 8px 8px}
+.hero .eyebrow{display:inline-block;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);padding:4px 10px;border-radius:999px}
+.hero h1{font-size:34px;line-height:1.2;margin:14px 0 10px}
+.hero h1 span{background:linear-gradient(90deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero p{max-width:640px;margin:0 auto;color:var(--muted);font-size:16px}
+.flow{display:flex;align-items:stretch;justify-content:center;gap:0;margin:34px 0 10px;flex-wrap:nowrap}
+.fstep{flex:1;min-width:0;max-width:190px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 14px;text-align:center;box-shadow:var(--shadow)}
+.fstep .ic{width:46px;height:46px;border-radius:12px;margin:0 auto 10px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.fstep .n{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.06em}
+.fstep h3{margin:2px 0 4px;font-size:15px}
+.fstep p{margin:0;font-size:12.5px;color:var(--muted);line-height:1.4}
+.farrow{flex:0 0 34px;display:grid;place-items:center;color:var(--muted)}
+.cta{text-align:center;margin:30px 0 8px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.trust{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:22px}
+.trust span{font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:999px;padding:5px 12px;display:inline-flex;gap:6px;align-items:center}
+.trust svg{color:var(--ok)}
+@media (max-width:760px){.flow{flex-direction:column;align-items:center}.fstep{max-width:360px;width:100%}.farrow{transform:rotate(90deg);height:28px}.hero h1{font-size:27px}}
+
+/* ---------- wizard */
+.stepper{display:flex;gap:0;margin:4px 0 22px;counter-reset:s}
+.stp{flex:1;display:flex;align-items:center;gap:10px;position:relative;background:none;border:0;padding:0;text-align:left;color:var(--muted);cursor:default;min-width:0}
+.stp .dot{flex:0 0 32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px;border:2px solid var(--line);background:var(--card);color:var(--muted)}
+.stp .t{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stp:not(:last-child)::after{content:"";flex:1;height:2px;background:var(--line);margin:0 10px;min-width:12px}
+.stp.done{color:var(--fg);cursor:pointer}
+.stp.done .dot{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.stp.done:not(:last-child)::after{background:var(--accent)}
+.stp.cur{color:var(--fg)}
+.stp.cur .dot{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+@media (max-width:760px){.stp .t{display:none}.stp.cur .t{display:block}}
+
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.panel .head{padding:22px 26px 6px;display:flex;gap:14px;align-items:flex-start}
+.panel .head .ic{flex:0 0 42px;height:42px;border-radius:11px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.panel h2{margin:0;font-size:20px}
+.panel .head p{margin:3px 0 0;color:var(--muted);font-size:14.5px}
+.panel .body{padding:14px 26px 22px}
+.panel .foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 26px;border-top:1px solid var(--line);background:color-mix(in srgb,var(--bg) 55%,var(--card))}
+@media (max-width:640px){.panel .head,.panel .body,.panel .foot{padding-left:16px;padding-right:16px}}
+
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.chips .hint{margin-right:4px}
+.chip{font-size:13px;padding:4px 11px;border-radius:999px;border:1px solid var(--line);background:var(--bg);cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.chip .x{margin-left:7px;color:var(--muted)}
+
+.pick{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center}
+.pick .or{color:var(--muted);font-size:13px;font-weight:600}
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;cursor:pointer;color:var(--muted);font-size:14px;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--fg)}
+.drop b{color:var(--accent)}
+@media (max-width:640px){.pick{grid-template-columns:1fr}.pick .or{text-align:center}}
+.rbsum{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.pill{background:var(--code);border-radius:8px;padding:8px 12px;font-size:13.5px}
+.pill b{display:block;font-size:18px}
+
+details.help{margin:0 0 14px;background:var(--code);border-radius:8px;padding:8px 12px}
+details.help summary{cursor:pointer;color:var(--accent);font-size:14px;font-weight:500}
+details.help ol{margin:8px 0 2px;padding-left:20px;color:var(--muted);font-size:14px}
+
+.users{display:flex;flex-direction:column;gap:10px}
+.user{border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:28px minmax(170px,1fr) minmax(220px,2fr);gap:12px;align-items:start}
+.user.on{border-color:color-mix(in srgb,var(--accent) 55%,var(--line));background:color-mix(in srgb,var(--accent-soft) 35%,transparent)}
+.user input[type=checkbox]{width:18px;height:18px;margin-top:34px}
+.user .lbl{display:block;margin-bottom:5px}
+.user .who{grid-column:2/-1;font-size:13.5px;margin-top:-2px}
+.user .who.ok{color:var(--ok)}.user .who.bad{color:var(--bad)}
+.key{font:12px ui-monospace,Consolas,monospace;color:var(--muted);margin-top:4px}
+.tag{font:600 11px system-ui,sans-serif;padding:1px 6px;border-radius:4px;background:var(--accent-soft);color:var(--accent);margin-left:6px}
+.pw{display:flex;gap:4px}.pw .show{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:8px;padding:0 10px;cursor:pointer}
+@media (max-width:760px){.user{grid-template-columns:28px 1fr}.user .pwf{grid-column:2}}
+
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.sbox{background:var(--code);border-radius:10px;padding:12px 14px}
+.sbox .v{font-size:22px;font-weight:700}
+.sbox .l{font-size:12.5px;color:var(--muted)}
+@media (max-width:640px){.summary{grid-template-columns:repeat(2,1fr)}}
+details.adv{margin-top:18px;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+details.adv summary{cursor:pointer;font-weight:600;font-size:14px}
+details.adv .row{margin-top:12px}
+
+.live{margin-top:6px}
+.phase{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px}
+.phase b{font-weight:600}
+.bar{height:10px;background:var(--code);border-radius:999px;overflow:hidden}
+.bar>div{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .35s}
+.phases{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 4px}
+.ph{font-size:12.5px;padding:4px 10px;border-radius:999px;background:var(--code);color:var(--muted)}
+.ph.cur{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.ph.done{background:var(--ok-bg);color:var(--ok)}
+details.logbox{margin-top:14px}
+details.logbox summary{cursor:pointer;font-size:14px;color:var(--accent)}
+pre.log{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;overflow:auto;font:12px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;margin:8px 0 0}
+.spin{width:16px;height:16px;border:2px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;display:inline-block;vertical-align:-3px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+.result-hero{text-align:center;padding:10px 0 4px}
+.result-hero .big{width:64px;height:64px;border-radius:50%;margin:0 auto 10px;display:grid;place-items:center}
+.result-hero .big.ok{background:var(--ok-bg);color:var(--ok)}.result-hero .big.bad{background:var(--bad-bg);color:var(--bad)}.result-hero .big.warn{background:var(--warn-bg);color:var(--warn)}
+.result-hero h3{margin:0;font-size:20px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}
+.tile{border-radius:12px;padding:16px;text-align:center}
+.tile .v{font-size:30px;font-weight:800;line-height:1.1}
+.tile .l{font-size:13px;font-weight:600}
+.tile.fail{background:var(--bad-bg);color:var(--bad)}.tile.rev{background:var(--warn-bg);color:var(--warn)}.tile.pass{background:var(--ok-bg);color:var(--ok)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 .scroll{overflow-x:auto}
-table{border-collapse:collapse;width:100%}
-th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
-th{font-size:12px;color:var(--muted);font-weight:600}
-td input[type=text],td input[type=password]{min-width:150px}
-.key{font:12px ui-monospace,Consolas,monospace;color:var(--muted)}
-.tag{font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;background:var(--code);color:var(--muted);margin-left:6px}
-.status{font-size:13px;min-width:180px}.status.ok{color:var(--ok)}.status.bad{color:var(--bad)}
-.pw{display:flex;gap:4px}.pw button{padding:4px 8px;font-size:12px}
-details{margin-top:10px}summary{cursor:pointer;color:var(--accent);font-size:13px}
-details ol{margin:8px 0;padding-left:20px;color:var(--muted);font-size:13px}
-code{font:12px ui-monospace,Consolas,monospace;background:var(--code);padding:1px 5px;border-radius:4px}
-.bar{height:8px;background:var(--code);border-radius:999px;overflow:hidden;margin:10px 0 4px}
-.bar>div{height:100%;background:var(--accent);width:0;transition:width .3s}
-pre.log{background:var(--code);border-radius:6px;padding:10px 12px;max-height:340px;overflow:auto;font:12px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;margin:10px 0 0}
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.b{display:inline-block;border-radius:4px;padding:1px 6px;font-size:12px;font-weight:600;margin:1px}
+.b{display:inline-block;border-radius:5px;padding:1px 7px;font-size:12.5px;font-weight:600;margin:1px 2px 1px 0;white-space:nowrap}
 .b.fail{background:var(--bad-bg);color:var(--bad)}.b.pass{background:var(--ok-bg);color:var(--ok)}.b.rev{background:var(--warn-bg);color:var(--warn)}
-.empty{color:var(--muted);font-size:13px}
-@media (max-width:640px){.field.narrow{flex:1}}
+.empty{color:var(--muted);font-size:14px;text-align:center;padding:26px}
+.page-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.page-title h2{margin:0;font-size:22px}
 </style>
 </head>
 <body>
+
+<header class="top"><div class="in">
+  <button class="brand" id="go-home" title="Home">
+    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></span>
+    Permission Testing
+  </button>
+  <span class="sp"></span>
+  <button class="link" id="go-history">Past runs</button>
+  <button class="link" id="go-new">New test</button>
+</div></header>
+
 <main>
-  <h1>AMP Permission Testing</h1>
-  <p class="sub">Checks which pages each user type can see and open, against your rulebook. Read-only: pages are only opened, never changed.</p>
 
-  <!-- 1 Environment -->
-  <section class="card" id="c-env">
-    <h2><span class="step">1</span>Environment</h2>
-    <p class="hint">The AMP site to test. Use a QA or staging environment, not production.</p>
-    <div class="row">
-      <div class="field narrow"><label class="lbl" for="env-name">Name</label><input type="text" id="env-name" placeholder="AISB"></div>
-      <div class="field"><label class="lbl" for="env-url">Base URL</label><input type="url" id="env-url" placeholder="https://client.amp.vg"></div>
-    </div>
-    <div class="chips" id="env-recent"></div>
-    <label class="check"><input type="checkbox" id="env-prod"> This is a production environment</label>
-    <label class="check" id="env-allow-wrap" hidden><input type="checkbox" id="env-allow"> I have approval to run read-only checks on production</label>
-  </section>
+<!-- ============================ WELCOME ============================ -->
+<section id="screen-welcome">
+  <div class="hero">
+    <span class="eyebrow">AMP · Role-based access</span>
+    <h1>Welcome to the <span>Permission Testing Platform</span></h1>
+    <p>Check which pages each user type can open on any AMP environment — automatically, read-only, with screenshot proof for every result.</p>
+  </div>
 
-  <!-- 2 Rulebook -->
-  <section class="card" id="c-rb">
-    <h2><span class="step">2</span>Rulebook</h2>
-    <p class="hint">A sheet with a <code>page</code> column (e.g. <code>/#setup/roles</code> or the full URL) and one Yes/No column per user type, e.g. <code>site_admin</code>, <code>super_admin</code>, <code>normal_user</code>. Those columns become the user types below. See <code>rulebook/template.csv</code>.</p>
-    <div class="row">
-      <div class="field"><label class="lbl" for="rb-select">Saved rulebook</label><select id="rb-select"><option value="">— choose —</option></select></div>
-      <div class="field"><label class="lbl" for="rb-file">or upload .xlsx / .csv</label><input type="file" id="rb-file" accept=".xlsx,.csv"></div>
-    </div>
-    <div id="rb-msg"></div>
-  </section>
+  <div class="flow" aria-label="How it works">
+    <div class="fstep"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg></div>
+      <div class="n">STEP 1</div><h3>Environment</h3><p>Which client site to test</p></div>
+    <div class="farrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    <div class="fstep"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div>
+      <div class="n">STEP 2</div><h3>Rulebook</h3><p>Pages and who should see them</p></div>
+    <div class="farrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    <div class="fstep"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></svg></div>
+      <div class="n">STEP 3</div><h3>Users &amp; tokens</h3><p>The jwt cookie for each user type</p></div>
+    <div class="farrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    <div class="fstep"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 001.5.86l10.5-6.5a1 1 0 000-1.72L9.5 4.64A1 1 0 008 5.5z"/></svg></div>
+      <div class="n">STEP 4</div><h3>Run</h3><p>Every page opened as every user</p></div>
+    <div class="farrow"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    <div class="fstep"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></div>
+      <div class="n">STEP 5</div><h3>Report</h3><p>Pass / fail with screenshots</p></div>
+  </div>
 
-  <!-- 3 Users & tokens -->
-  <section class="card disabled" id="c-users">
-    <h2><span class="step">3</span>Users &amp; tokens</h2>
-    <p class="hint">Paste the <code>jwt</code> and <code>X-CSRF-Token</code> cookies only for the user types you want to test; rows with tokens are ticked automatically, empty rows are skipped. Tokens are kept in memory for this run only and never saved.</p>
-    <details>
-      <summary>How to copy the tokens</summary>
-      <ol>
-        <li>Open an incognito/private window (one per user, so logins don't mix).</li>
-        <li>Log in to the environment as that user.</li>
-        <li>Press <b>F12</b> → <b>Application</b> → <b>Cookies</b> → select the site.</li>
-        <li>Copy the <b>Value</b> of <code>jwt</code> and of <code>X-CSRF-Token</code> into that user's row.</li>
-        <li>The <b>reference</b> row is optional but recommended: a <b>Site Admin with MFA enabled</b> opens every page first, so the tool knows what each page looks like when it really opens. Without it, results are slightly less precise.</li>
-      </ol>
-    </details>
-    <div class="scroll"><table>
-      <thead><tr><th>Test</th><th>User type</th><th>jwt</th><th>X-CSRF-Token</th><th>Who is it?</th></tr></thead>
-      <tbody id="users"></tbody>
-    </table></div>
-    <div class="actions"><button id="btn-check">Check tokens</button></div>
-    <div id="users-msg"></div>
-  </section>
+  <div class="cta">
+    <button class="btn primary big" id="btn-start">Start new test
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    <button class="btn big" id="btn-welcome-history">View past runs</button>
+  </div>
 
-  <!-- 4 Run -->
-  <section class="card disabled" id="c-run">
-    <h2><span class="step">4</span>Run</h2>
-    <p class="hint">Start with a smoke test on a few pages, then run everything.</p>
-    <div class="row">
-      <div class="field narrow"><label class="lbl" for="opt-limit">Only first N pages</label><input type="number" id="opt-limit" min="1" placeholder="all"></div>
-      <div class="field narrow"><label class="lbl" for="opt-delay">Delay between pages (ms)</label><input type="number" id="opt-delay" min="200" max="5000" value="500"></div>
-      <div class="field narrow"><label class="lbl" for="opt-th">Match threshold (%)</label><input type="number" id="opt-th" min="20" max="100" value="60"></div>
-    </div>
-    <label class="check"><input type="checkbox" id="opt-headed"> Show the browser window while testing</label>
-    <div class="actions">
-      <button id="btn-plan">Preview plan</button>
-      <button class="primary" id="btn-run">Start run</button>
-      <button class="danger" id="btn-cancel" hidden>Cancel run</button>
-    </div>
-    <div id="run-msg"></div>
-    <div id="run-live" hidden>
-      <div class="bar"><div id="bar"></div></div>
-      <div class="hint" id="phase"></div>
-      <pre class="log" id="log"></pre>
-    </div>
-  </section>
+  <div class="trust">
+    <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>Read-only — pages are opened, never changed</span>
+    <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>Tokens never saved</span>
+    <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>Runs on your machine</span>
+  </div>
+</section>
 
-  <!-- History -->
-  <section class="card">
-    <h2>Past runs</h2>
-    <div class="scroll"><table>
-      <thead><tr><th>Started</th><th>Environment</th><th>Result</th><th></th></tr></thead>
-      <tbody id="history"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
-    </table></div>
-  </section>
+<!-- ============================ WIZARD ============================ -->
+<section id="screen-wizard" hidden>
+  <nav class="stepper" id="stepper" aria-label="Progress">
+    <button class="stp" data-step="1"><span class="dot">1</span><span class="t">Environment</span></button>
+    <button class="stp" data-step="2"><span class="dot">2</span><span class="t">Rulebook</span></button>
+    <button class="stp" data-step="3"><span class="dot">3</span><span class="t">Users &amp; tokens</span></button>
+    <button class="stp" data-step="4"><span class="dot">4</span><span class="t">Run</span></button>
+    <button class="stp" data-step="5"><span class="dot">5</span><span class="t">Results</span></button>
+  </nav>
+
+  <!-- step 1 -->
+  <div class="panel" id="step-1" hidden>
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg></div>
+      <div><h2>Which environment?</h2><p>The AMP site to test. Use a QA or staging site, not production.</p></div></div>
+    <div class="body">
+      <div class="row">
+        <div class="field narrow"><label class="lbl" for="env-name">Name</label><input type="text" id="env-name" placeholder="e.g. ITBD"></div>
+        <div class="field"><label class="lbl" for="env-url">Base URL</label><input type="url" id="env-url" placeholder="https://client.sb.amp.vg"></div>
+      </div>
+      <div class="chips" id="env-recent"></div>
+      <label class="check"><input type="checkbox" id="env-prod"> This is a production environment</label>
+      <label class="check" id="env-allow-wrap" hidden><input type="checkbox" id="env-allow"> I have approval to run read-only checks on production</label>
+      <div id="env-msg"></div>
+    </div>
+    <div class="foot"><button class="btn" data-back>Back</button><button class="btn primary" id="next-1">Next: Rulebook →</button></div>
+  </div>
+
+  <!-- step 2 -->
+  <div class="panel" id="step-2" hidden>
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div>
+      <div><h2>Choose the rulebook</h2><p>A sheet with a <code>page</code> column and one Yes/No column per user type (e.g. <code>site_admin</code>, <code>super_admin</code>, <code>normal_user</code>).</p></div></div>
+    <div class="body">
+      <div class="pick">
+        <div class="field"><label class="lbl" for="rb-select">Saved rulebook</label><select id="rb-select"><option value="">— choose —</option></select></div>
+        <div class="or">OR</div>
+        <label class="drop" id="rb-drop"><input type="file" id="rb-file" accept=".xlsx,.csv" hidden><b>Upload .xlsx / .csv</b><br><span id="rb-drop-t">click or drop a file here</span></label>
+      </div>
+      <div id="rb-msg"></div>
+      <div class="rbsum" id="rb-sum"></div>
+    </div>
+    <div class="foot"><button class="btn" data-back>← Back</button><button class="btn primary" id="next-2">Next: Users &amp; tokens →</button></div>
+  </div>
+
+  <!-- step 3 -->
+  <div class="panel" id="step-3" hidden>
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></svg></div>
+      <div><h2>Who should we test as?</h2><p>Paste the <code>jwt</code> cookie only for the users you want to test. A row is ticked automatically when a jwt is pasted. It stays in memory for this run only.</p></div></div>
+    <div class="body">
+      <details class="help">
+        <summary>How do I get the jwt?</summary>
+        <ol>
+          <li>Open an incognito window (one per user, so logins don't mix) and log in to the environment as that user.</li>
+          <li>Press <b>F12</b> → <b>Application</b> → <b>Cookies</b> → select the site.</li>
+          <li>Copy the <b>Value</b> of the <code>jwt</code> cookie into that user's row. That's the only thing needed.</li>
+          <li><b>Site Admin</b> is optional but recommended (with MFA enabled): it opens every page first, so the tool knows what each page looks like when it really opens.</li>
+        </ol>
+      </details>
+      <div class="users" id="users"></div>
+      <div class="chips"><button class="btn" id="btn-check">Check tokens</button><span class="hint">or just press Next — they are checked automatically</span></div>
+      <div id="users-msg"></div>
+    </div>
+    <div class="foot"><button class="btn" data-back>← Back</button><button class="btn primary" id="next-3">Next: Review &amp; run →</button></div>
+  </div>
+
+  <!-- step 4 -->
+  <div class="panel" id="step-4" hidden>
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 001.5.86l10.5-6.5a1 1 0 000-1.72L9.5 4.64A1 1 0 008 5.5z"/></svg></div>
+      <div><h2 id="run-title">Ready to run</h2><p id="run-sub">Check the plan, then start. The browser only opens pages — it never clicks or changes anything.</p></div></div>
+    <div class="body">
+      <div id="plan-box">
+        <div class="summary" id="plan-sum"></div>
+        <div id="plan-msg"></div>
+        <details class="adv" id="adv">
+          <summary>Advanced options</summary>
+          <div class="row">
+            <div class="field narrow"><label class="lbl" for="opt-limit">Only first N pages</label><input type="number" id="opt-limit" min="1" placeholder="all"></div>
+            <div class="field narrow"><label class="lbl" for="opt-delay">Delay between pages (ms)</label><input type="number" id="opt-delay" min="200" max="5000" value="500"></div>
+            <div class="field narrow"><label class="lbl" for="opt-th">Match threshold (%)</label><input type="number" id="opt-th" min="20" max="100" value="60"></div>
+          </div>
+          <label class="check"><input type="checkbox" id="opt-headed"> Show the browser window while testing</label>
+        </details>
+      </div>
+      <div id="run-live" class="live" hidden>
+        <div class="phase"><b id="phase"><span class="spin"></span>Starting…</b><span id="phase-n" class="hint"></span></div>
+        <div class="bar"><div id="bar"></div></div>
+        <div class="phases" id="phases"></div>
+        <p class="hint">You can leave this page open; closing or refreshing it does not stop the run.</p>
+        <details class="logbox"><summary>Show live log</summary><pre class="log" id="log"></pre></details>
+      </div>
+      <div id="run-err"></div>
+    </div>
+    <div class="foot">
+      <button class="btn" data-back id="back-4">← Back</button>
+      <span>
+        <button class="btn danger" id="btn-cancel" hidden>Cancel run</button>
+        <button class="btn primary" id="btn-run">Start run</button>
+      </span>
+    </div>
+  </div>
+
+  <!-- step 5 -->
+  <div class="panel" id="step-5" hidden>
+    <div class="body" style="padding-top:26px">
+      <div id="run-msg"></div>
+    </div>
+    <div class="foot">
+      <button class="btn" id="btn-home">Home</button>
+      <span><button class="btn" id="btn-again">Test again</button> <a id="btn-report" target="_blank" hidden><button class="btn primary">Open full report ↗</button></a></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ HISTORY ============================ -->
+<section id="screen-history" hidden>
+  <div class="page-title"><h2>Past runs</h2><button class="btn primary" id="btn-history-new">Start new test</button></div>
+  <div class="panel"><div class="scroll"><table>
+    <thead><tr><th>Started</th><th>Environment</th><th>Result</th><th></th></tr></thead>
+    <tbody id="history"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+  </table></div></div>
+</section>
+
 </main>
 
 <script>
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
-  var state = { rulebook: null, identities: {}, runId: null, es: null };
+  var state = { rulebook: null, identities: {}, runId: null, es: null, step: 1, maxStep: 1, running: false };
   var REF_KEY = 'site_admin';
-  var REF_HINT = '<span class="hint">Optional, recommended: Site Admin with MFA</span>';
 
   // ---------- storage (non-secret preferences only; never tokens)
   function load(key, fallback) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
   function save(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
 
-  // ---------- api
+  // ---------- helpers
   function api(method, path, body) {
     return fetch(path, {
       method: method,
@@ -168,20 +375,50 @@ pre.log{background:var(--code);border-radius:6px;padding:10px 12px;max-height:34
   function msg(el, kind, text) { $(el).innerHTML = text ? '<div class="msg ' + kind + '">' + text + '</div>' : ''; }
   function pretty(key) { return key.split('_').map(function (w) { return w ? w[0].toUpperCase() + w.slice(1) : w; }).join(' '); }
 
+  // ---------- screens & steps
+  function show(screen) {
+    ['welcome', 'wizard', 'history'].forEach(function (s) { $('screen-' + s).hidden = s !== screen; });
+    if (screen === 'history') loadHistory();
+    window.scrollTo(0, 0);
+  }
+  function goStep(n) {
+    state.step = n; state.maxStep = Math.max(state.maxStep, n);
+    for (var i = 1; i <= 5; i++) $('step-' + i).hidden = i !== n;
+    document.querySelectorAll('.stp').forEach(function (b) {
+      var s = +b.getAttribute('data-step');
+      b.classList.toggle('cur', s === n);
+      b.classList.toggle('done', s < n);
+    });
+    show('wizard');
+    if (n === 4 && !state.running) loadPlan();
+    var first = $('step-' + n).querySelector('input:not([type=hidden]):not([type=checkbox]),select');
+    if (first && n < 4) setTimeout(function () { first.focus(); }, 30);
+  }
+  $('stepper').addEventListener('click', function (e) {
+    var b = e.target.closest('.stp'); if (!b || state.running) return;
+    var s = +b.getAttribute('data-step');
+    if (s < state.step || (s <= state.maxStep && s < 5)) goStep(s);
+  });
+  document.querySelectorAll('[data-back]').forEach(function (b) {
+    b.addEventListener('click', function () { if (state.step <= 1) show('welcome'); else goStep(state.step - 1); });
+  });
+  $('btn-start').addEventListener('click', function () { goStep(1); });
+  $('go-new').addEventListener('click', function () { if (state.running) goStep(4); else goStep(1); });
+  $('btn-history-new').addEventListener('click', function () { goStep(1); });
+  $('go-home').addEventListener('click', function () { if (state.running) goStep(4); else show('welcome'); });
+  $('btn-home').addEventListener('click', function () { show('welcome'); });
+  $('go-history').addEventListener('click', function () { show('history'); });
+  $('btn-welcome-history').addEventListener('click', function () { show('history'); });
+
   // ---------- 1 environment
   function environment() {
-    return {
-      name: $('env-name').value.trim(),
-      baseUrl: $('env-url').value.trim(),
-      isProduction: $('env-prod').checked,
-      allowProduction: $('env-allow').checked
-    };
+    return { name: $('env-name').value.trim(), baseUrl: $('env-url').value.trim(), isProduction: $('env-prod').checked, allowProduction: $('env-allow').checked };
   }
   function renderRecent() {
     var list = load('amp-envs', []);
-    $('env-recent').innerHTML = list.map(function (e, i) {
-      return '<span class="chip" data-i="' + i + '">' + esc(e.name || e.baseUrl) + '<span class="x" data-del="' + i + '" title="Forget">×</span></span>';
-    }).join('');
+    $('env-recent').innerHTML = list.length ? '<span class="hint">Recent:</span>' + list.map(function (e, i) {
+      return '<span class="chip" data-i="' + i + '" title="' + esc(e.baseUrl) + '">' + esc(e.name || e.baseUrl) + '<span class="x" data-del="' + i + '" title="Forget">×</span></span>';
+    }).join('') : '';
   }
   function rememberEnv() {
     var e = environment(); if (!e.baseUrl) return;
@@ -193,14 +430,22 @@ pre.log{background:var(--code);border-radius:6px;padding:10px 12px;max-height:34
     var del = ev.target.getAttribute('data-del');
     var list = load('amp-envs', []);
     if (del !== null) { list.splice(+del, 1); save('amp-envs', list); renderRecent(); return; }
-    var i = ev.target.closest('.chip') && ev.target.closest('.chip').getAttribute('data-i');
-    if (i === null || i === undefined) return;
-    var e = list[+i]; $('env-name').value = e.name || ''; $('env-url').value = e.baseUrl; $('env-prod').checked = !!e.isProduction; toggleProd();
-    clearIdentities();
+    var chip = ev.target.closest('.chip'); if (!chip) return;
+    var e = list[+chip.getAttribute('data-i')]; $('env-name').value = e.name || ''; $('env-url').value = e.baseUrl; $('env-prod').checked = !!e.isProduction; toggleProd();
+    clearIdentities(); msg('env-msg', '', '');
   });
   function toggleProd() { $('env-allow-wrap').hidden = !$('env-prod').checked; if (!$('env-prod').checked) $('env-allow').checked = false; }
   $('env-prod').addEventListener('change', toggleProd);
   ['env-url', 'env-name'].forEach(function (id) { $(id).addEventListener('change', clearIdentities); });
+  $('next-1').addEventListener('click', function () {
+    var e = environment(), u;
+    try { u = new URL(e.baseUrl); } catch (x) { msg('env-msg', 'bad', 'Enter the site address, e.g. <code>https://client.sb.amp.vg</code>'); $('env-url').focus(); return; }
+    if (!/^https?:$/.test(u.protocol)) { msg('env-msg', 'bad', 'The address must start with https://'); return; }
+    if (e.isProduction && !e.allowProduction) { msg('env-msg', 'bad', 'Production needs the approval box ticked.'); return; }
+    $('env-url').value = u.origin;
+    if (!e.name) $('env-name').value = u.host;
+    msg('env-msg', '', ''); rememberEnv(); goStep(2);
+  });
 
   // ---------- 2 rulebook
   api('GET', '/api/rulebooks').then(function (r) {
@@ -209,32 +454,38 @@ pre.log{background:var(--code);border-radius:6px;padding:10px 12px;max-height:34
     if (last && r.files.indexOf(last) >= 0) { $('rb-select').value = last; parseRulebook({ file: last }); }
   });
   $('rb-select').addEventListener('change', function () {
-    if (!this.value) return; $('rb-file').value = ''; save('amp-rulebook', this.value); parseRulebook({ file: this.value });
+    if (!this.value) return; $('rb-file').value = ''; $('rb-drop-t').textContent = 'click or drop a file here';
+    save('amp-rulebook', this.value); parseRulebook({ file: this.value });
   });
-  $('rb-file').addEventListener('change', function () {
-    var f = this.files && this.files[0]; if (!f) return;
-    $('rb-select').value = '';
+  function readFile(f) {
+    if (!f) return;
+    $('rb-select').value = ''; $('rb-drop-t').textContent = f.name;
     var reader = new FileReader();
     reader.onload = function () { parseRulebook({ name: f.name, contentBase64: String(reader.result).split(',')[1] }); };
     reader.readAsDataURL(f);
-  });
+  }
+  $('rb-file').addEventListener('change', function () { readFile(this.files && this.files[0]); });
+  var drop = $('rb-drop');
+  ['dragenter', 'dragover'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (t) { drop.addEventListener(t, function () { drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (e) { e.preventDefault(); readFile(e.dataTransfer.files && e.dataTransfer.files[0]); });
+
   function parseRulebook(body) {
-    msg('rb-msg', 'warn', 'Reading rulebook…');
+    msg('rb-msg', 'warn', '<span class="spin"></span>Reading rulebook…'); $('rb-sum').innerHTML = '';
     api('POST', '/api/rulebooks/parse', body).then(function (r) {
       state.rulebook = r;
       var s = r.summary;
-      var missing = s.userTypes.filter(function (u) { return s.missingExpectations[u] > 0; })
-        .map(function (u) { return pretty(u) + ': ' + s.missingExpectations[u]; });
-      msg('rb-msg', 'ok', '<b>' + esc(r.name) + '</b> — ' + s.pages + ' pages. User types: <b>' +
-        s.userTypes.map(function (u) { return esc(pretty(u)); }).join(', ') + '</b>.' +
-        (missing.length ? '<br>Rows without a Yes/No (reported as "Not specified"): ' + esc(missing.join(', ')) : ''));
+      var missing = s.userTypes.filter(function (u) { return s.missingExpectations[u] > 0; }).map(function (u) { return pretty(u) + ': ' + s.missingExpectations[u]; });
+      msg('rb-msg', 'ok', '✓ <b>' + esc(r.name) + '</b> loaded.' + (missing.length ? ' Cells without Yes/No (reported as "Not specified"): ' + esc(missing.join(', ')) : ''));
+      $('rb-sum').innerHTML = '<div class="pill"><b>' + s.pages + '</b>pages to test</div><div class="pill"><b>' + s.userTypes.length + '</b>user types: ' +
+        s.userTypes.map(function (u) { return esc(pretty(u)); }).join(', ') + '</div>';
       renderUsers();
-      $('c-users').classList.remove('disabled'); $('c-run').classList.remove('disabled');
-    }).catch(function (e) {
-      state.rulebook = null; msg('rb-msg', 'bad', esc(e.message));
-      $('c-users').classList.add('disabled'); $('c-run').classList.add('disabled');
-    });
+    }).catch(function (e) { state.rulebook = null; msg('rb-msg', 'bad', esc(e.message)); });
   }
+  $('next-2').addEventListener('click', function () {
+    if (!state.rulebook) { msg('rb-msg', 'bad', 'Choose a saved rulebook or upload one first.'); return; }
+    goStep(3);
+  });
 
   // ---------- 3 users
   function userKeys() {
@@ -249,69 +500,85 @@ pre.log{background:var(--code);border-radius:6px;padding:10px 12px;max-height:34
       var isRef = key === REF_KEY, inRb = cols.indexOf(key) >= 0;
       var p = prev[key] || {};
       var label = labels[key] || (isRef ? 'Site Admin' : pretty(key));
-      var ticked = p.test !== undefined ? p.test : !!(p.jwt && p.csrf);
-      return '<tr data-key="' + esc(key) + '">' +
-        '<td><input type="checkbox" class="u-test" ' + (ticked ? 'checked' : '') + ' aria-label="Test this user type"' +
-          (isRef && !inRb ? ' title="Rulebook has no Site Admin column: Site Admin is expected to see every page"' : '') + '></td>' +
-        '<td><input type="text" class="u-label" value="' + esc(label) + '" aria-label="Label"><div class="key">' + esc(key) +
-          (isRef ? '<span class="tag">reference</span>' : '') + '</div></td>' +
-        '<td><div class="pw"><input type="password" class="u-jwt" autocomplete="off" spellcheck="false" value="' + esc(p.jwt || '') + '" aria-label="jwt"><button type="button" class="show" title="Show/hide">👁</button></div></td>' +
-        '<td><div class="pw"><input type="password" class="u-csrf" autocomplete="off" spellcheck="false" value="' + esc(p.csrf || '') + '" aria-label="X-CSRF-Token"><button type="button" class="show" title="Show/hide">👁</button></div></td>' +
-        '<td class="status" id="st-' + esc(key) + '">' + (isRef ? REF_HINT : '') + '</td></tr>';
+      var ticked = p.test !== undefined ? p.test : !!p.jwt;
+      return '<div class="user' + (ticked ? ' on' : '') + '" data-key="' + esc(key) + '">' +
+        '<input type="checkbox" class="u-test" ' + (ticked ? 'checked' : '') + ' aria-label="Test this user type"' +
+          (isRef && !inRb ? ' title="Rulebook has no Site Admin column: Site Admin is expected to open every page"' : '') + '>' +
+        '<div><label class="lbl">User type</label><input type="text" class="u-label" value="' + esc(label) + '" aria-label="Label"><div class="key">' + esc(key) +
+          (isRef ? '<span class="tag">reference · recommended</span>' : '') + '</div></div>' +
+        '<div class="pwf"><label class="lbl">jwt</label><div class="pw"><input type="password" class="u-jwt" autocomplete="off" spellcheck="false" placeholder="paste the jwt cookie value" value="' + esc(p.jwt || '') + '"><button type="button" class="show" title="Show/hide">👁</button></div></div>' +
+        '<div class="who" id="st-' + esc(key) + '"></div></div>';
     }).join('');
     Object.keys(state.identities).forEach(function (k) { showIdentity(k, state.identities[k]); });
   }
+  function rowOf(el) { return el.closest('.user'); }
   $('users').addEventListener('click', function (e) {
     if (!e.target.classList.contains('show')) return;
     var input = e.target.previousElementSibling; input.type = input.type === 'password' ? 'text' : 'password';
   });
-  // Pasting both tokens ticks the row; clearing a token unticks it. The tester can still untick manually.
   $('users').addEventListener('input', function (e) {
-    if (!e.target.classList.contains('u-jwt') && !e.target.classList.contains('u-csrf')) return;
-    var tr = e.target.closest('tr'), box = tr.querySelector('.u-test');
-    if (box) box.checked = !!(tr.querySelector('.u-jwt').value.trim() && tr.querySelector('.u-csrf').value.trim());
+    if (!e.target.classList.contains('u-jwt')) return;
+    var row = rowOf(e.target), box = row.querySelector('.u-test');
+    box.checked = !!row.querySelector('.u-jwt').value.trim();
+    row.classList.toggle('on', box.checked);
   });
   $('users').addEventListener('change', function (e) {
-    if (e.target.classList.contains('u-label')) {
-      var labels = load('amp-labels', {}); labels[e.target.closest('tr').getAttribute('data-key')] = e.target.value.trim(); save('amp-labels', labels);
-    }
-    if (e.target.classList.contains('u-jwt') || e.target.classList.contains('u-csrf')) {
-      var k = e.target.closest('tr').getAttribute('data-key'); delete state.identities[k]; showIdentity(k, null);
-    }
+    var row = rowOf(e.target); if (!row) return;
+    if (e.target.classList.contains('u-test')) row.classList.toggle('on', e.target.checked);
+    if (e.target.classList.contains('u-label')) { var labels = load('amp-labels', {}); labels[row.getAttribute('data-key')] = e.target.value.trim(); save('amp-labels', labels); }
+    if (e.target.classList.contains('u-jwt')) { var k = row.getAttribute('data-key'); delete state.identities[k]; showIdentity(k, null); }
   });
   function collectUsers() {
     var out = {};
-    document.querySelectorAll('#users tr').forEach(function (tr) {
-      var t = tr.querySelector('.u-test');
-      out[tr.getAttribute('data-key')] = {
-        key: tr.getAttribute('data-key'),
-        label: tr.querySelector('.u-label').value.trim(),
-        jwt: tr.querySelector('.u-jwt').value.trim(),
-        csrf: tr.querySelector('.u-csrf').value.trim(),
-        test: t ? t.checked : undefined
+    document.querySelectorAll('#users .user').forEach(function (row) {
+      out[row.getAttribute('data-key')] = {
+        key: row.getAttribute('data-key'),
+        label: row.querySelector('.u-label').value.trim(),
+        jwt: row.querySelector('.u-jwt').value.trim(),
+        test: row.querySelector('.u-test').checked
       };
     });
     return out;
   }
   function usersList() { var u = collectUsers(); return Object.keys(u).map(function (k) { return u[k]; }); }
-  function clearIdentities() { state.identities = {}; document.querySelectorAll('#users tr').forEach(function (tr) { showIdentity(tr.getAttribute('data-key'), null); }); }
+  function clearIdentities() { state.identities = {}; document.querySelectorAll('#users .user').forEach(function (row) { showIdentity(row.getAttribute('data-key'), null); }); }
   function showIdentity(key, id) {
     var el = $('st-' + key); if (!el) return;
-    if (!id) { el.className = 'status'; el.innerHTML = key === REF_KEY ? REF_HINT : ''; return; }
-    if (!id.valid) { el.className = 'status bad'; el.textContent = '✗ ' + (id.reason || 'invalid'); return; }
+    if (!id) { el.className = 'who'; el.innerHTML = ''; return; }
+    if (!id.valid) { el.className = 'who bad'; el.textContent = '✗ ' + (id.reason || 'invalid token'); return; }
     var where = id.organizationName ? 'org ' + id.organizationName : (id.companyName ? id.companyName : 'company level');
-    var warn = key === REF_KEY && !id.isSiteAdmin ? ' ⚠ not a Site Admin (or no MFA)' : '';
-    el.className = 'status ' + (warn ? 'bad' : 'ok');
-    el.innerHTML = '✓ <b>' + esc(id.userName || '?') + '</b><br>' + esc((id.persona || 'no persona') + ' · ' + where) + (id.isSiteAdmin ? ' · Site Admin' : '') + esc(warn);
+    var warn = key === REF_KEY && !id.isSiteAdmin ? ' — ⚠ not a Site Admin (or no MFA)' : '';
+    el.className = 'who ' + (warn ? 'bad' : 'ok');
+    el.innerHTML = '✓ Logged in as <b>' + esc(id.userName || '?') + '</b> · ' + esc((id.persona || 'no persona') + ' · ' + where) + (id.isSiteAdmin ? ' · Site Admin' : '') + esc(warn);
   }
-  $('btn-check').addEventListener('click', function () {
-    var btn = this; btn.disabled = true; msg('users-msg', 'warn', 'Checking tokens…');
-    api('POST', '/api/tokens/check', { environment: environment(), users: usersList() }).then(function (r) {
+  /** Returns an error message, or '' when the users are ready. */
+  function validateUsers(users) {
+    var tested = users.filter(function (u) { return u.test; });
+    if (!tested.length) return 'Paste a jwt for at least one user (its row is ticked automatically).';
+    var incomplete = users.filter(function (u) { return u.test && !u.jwt; });
+    if (incomplete.length) return 'A jwt is needed for: ' + esc(incomplete.map(function (u) { return u.label || u.key; }).join(', '));
+    return '';
+  }
+  function checkTokens() {
+    var users = usersList().filter(function (u) { return u.jwt; });
+    if (!users.length) return Promise.reject(new Error('Paste a jwt for at least one user first.'));
+    msg('users-msg', 'warn', '<span class="spin"></span>Checking tokens with ' + esc(environment().baseUrl) + '…');
+    return api('POST', '/api/tokens/check', { environment: environment(), users: users }).then(function (r) {
       var bad = 0;
       r.results.forEach(function (x) { state.identities[x.key] = x.identity; showIdentity(x.key, x.identity); if (!x.identity.valid) bad++; });
-      rememberEnv();
-      msg('users-msg', bad ? 'bad' : 'ok', bad ? bad + ' token(s) need attention.' : 'All tokens are valid. Check each row shows the user you expect.');
-    }).catch(function (e) { msg('users-msg', 'bad', esc(e.message)); }).then(function () { btn.disabled = false; });
+      msg('users-msg', bad ? 'bad' : 'ok', bad ? bad + ' jwt(s) need attention — log in again on this site and copy a fresh jwt.' : '✓ All valid. Check each row shows the user you expect.');
+      return bad;
+    });
+  }
+  $('btn-check').addEventListener('click', function () {
+    var btn = this; btn.disabled = true;
+    checkTokens().catch(function (e) { msg('users-msg', 'bad', esc(e.message)); }).then(function () { btn.disabled = false; });
+  });
+  $('next-3').addEventListener('click', function () {
+    var problem = validateUsers(usersList()); if (problem) { msg('users-msg', 'bad', problem); return; }
+    var btn = this; btn.disabled = true;
+    checkTokens().then(function (bad) { if (!bad) goStep(4); })
+      .catch(function (e) { msg('users-msg', 'bad', esc(e.message)); }).then(function () { btn.disabled = false; });
   });
 
   // ---------- 4 run
@@ -330,43 +597,45 @@ pre.log{background:var(--code);border-radius:6px;padding:10px 12px;max-height:34
       }
     };
   }
-  $('btn-plan').addEventListener('click', function () {
-    var problem = validateRun(runBody()); if (problem) { msg('run-msg', 'bad', problem); return; }
+  function loadPlan() {
+    $('run-title').textContent = 'Ready to run'; $('plan-box').hidden = false; $('run-live').hidden = true; msg('run-err', '', '');
+    $('btn-run').hidden = false; $('btn-run').disabled = false; $('btn-cancel').hidden = true; $('back-4').hidden = false;
     api('POST', '/api/plan', runBody()).then(function (p) {
       var labels = collectUsers();
       var tested = p.tested.map(function (k) { return (labels[k] && labels[k].label) || pretty(k); });
-      msg('run-msg', p.reference ? 'ok' : 'warn', 'Will test <b>' + esc(tested.join(', ')) + '</b> on <b>' + esc(p.environment.name) + '</b> (' + esc(p.environment.baseUrl) + '), <b>' +
-        p.pages.length + ' pages</b> → ' + p.pageOpens + ' page opens, about <b>' + p.estimatedMinutes + ' min</b>. Only GET requests and read-only API calls are allowed.' +
-        (p.reference ? '' : '<br>No reference Site Admin: each user is compared with its own run (slightly less precise).') +
-        (p.notes || []).map(function (n) { return '<br>' + esc(n); }).join(''));
-    }).catch(function (e) { msg('run-msg', 'bad', esc(e.message)); });
-  });
-  /** Returns an error message, or '' when the run can start. */
-  function validateRun(body) {
-    var tested = body.users.filter(function (u) { return u.test; });
-    if (!tested.length) return 'Paste tokens for at least one user type (its row gets ticked automatically).';
-    var incomplete = body.users.filter(function (u) { return (u.test || u.key === REF_KEY) && (!!u.jwt !== !!u.csrf || (u.test && !u.jwt)); });
-    if (incomplete.length) return 'Both jwt and X-CSRF-Token are needed for: ' + esc(incomplete.map(function (u) { return u.label || u.key; }).join(', '));
-    return '';
+      $('plan-sum').innerHTML =
+        '<div class="sbox"><div class="v">' + esc(p.environment.name) + '</div><div class="l">' + esc(p.environment.baseUrl) + '</div></div>' +
+        '<div class="sbox"><div class="v">' + tested.length + '</div><div class="l">' + esc(tested.join(', ')) + '</div></div>' +
+        '<div class="sbox"><div class="v">' + p.pages.length + '</div><div class="l">pages (' + p.pageOpens + ' page opens)</div></div>' +
+        '<div class="sbox"><div class="v">~' + p.estimatedMinutes + ' min</div><div class="l">estimated time</div></div>';
+      var notes = (p.reference ? '' : 'No reference Site Admin: each user is compared with its own run (slightly less precise).') +
+        (p.notes || []).map(function (n) { return (p.reference ? '' : '<br>') + esc(n); }).join('');
+      msg('plan-msg', notes ? 'warn' : 'ok', notes || '✓ Site Admin is the reference, so results are as precise as possible.');
+    }).catch(function (e) { msg('plan-msg', 'bad', esc(e.message)); });
   }
+  ['opt-limit'].forEach(function (id) { $(id).addEventListener('change', function () { if (state.step === 4 && !state.running) loadPlan(); }); });
   $('btn-run').addEventListener('click', function () {
     var body = runBody();
-    var problem = validateRun(body); if (problem) { msg('run-msg', 'bad', problem); return; }
-    this.disabled = true; msg('run-msg', 'warn', 'Starting…');
-    rememberEnv();
-    api('POST', '/api/runs', body).then(function (r) { attach(r.run); }).catch(function (e) { msg('run-msg', 'bad', esc(e.message)); $('btn-run').disabled = false; });
+    var problem = validateUsers(body.users); if (problem) { msg('run-err', 'bad', problem); return; }
+    this.disabled = true; msg('run-err', '', '');
+    api('POST', '/api/runs', body).then(function (r) { attach(r.run); })
+      .catch(function (e) { msg('run-err', 'bad', esc(e.message)); $('btn-run').disabled = false; });
   });
   $('btn-cancel').addEventListener('click', function () {
-    if (!state.runId || !confirm('Cancel this run? Pages already tested will not produce a report.')) return;
-    api('POST', '/api/runs/' + state.runId + '/cancel', {}).catch(function (e) { msg('run-msg', 'bad', esc(e.message)); });
+    if (!state.runId || !confirm('Cancel this run? No report is written for a cancelled run.')) return;
+    api('POST', '/api/runs/' + state.runId + '/cancel', {}).catch(function (e) { msg('run-err', 'bad', esc(e.message)); });
   });
 
-  var PHASE = { tokens: 'Checking tokens', menus: 'Reading menus', calibration: 'Reference run', probe: 'Testing', report: 'Writing report' };
+  var PHASES = [['tokens', 'Checking tokens'], ['menus', 'Reading menus'], ['calibration', 'Reference run'], ['probe', 'Testing users'], ['report', 'Writing report']];
   function attach(run) {
-    state.runId = run.id;
-    $('run-live').hidden = false; $('btn-run').disabled = true; $('btn-cancel').hidden = false;
-    $('log').textContent = '';
-    msg('run-msg', 'warn', 'Running on <b>' + esc(run.environment.name) + '</b>… You can leave this page open; closing it does not stop the run.');
+    state.runId = run.id; state.running = true;
+    goStep(4);
+    $('run-title').textContent = 'Running on ' + run.environment.name;
+    $('run-sub').textContent = run.environment.baseUrl + ' — each page is opened as each user, one at a time.';
+    $('plan-box').hidden = true; $('run-live').hidden = false;
+    $('btn-run').hidden = true; $('btn-cancel').hidden = false; $('back-4').hidden = true;
+    $('log').textContent = ''; $('bar').style.width = '0%';
+    renderPhases(null);
     if (state.es) state.es.close();
     var es = new EventSource('/api/runs/' + run.id + '/events'); state.es = es;
     es.addEventListener('init', function (e) { var d = JSON.parse(e.data); $('log').textContent = d.lines.join('\n') + '\n'; scrollLog(); if (d.state.progress) progress(d.state.progress); if (d.state.status !== 'running') finish(d.state); });
@@ -374,40 +643,74 @@ pre.log{background:var(--code);border-radius:6px;padding:10px 12px;max-height:34
     es.addEventListener('progress', function (e) { progress(JSON.parse(e.data)); });
     es.addEventListener('done', function (e) { finish(JSON.parse(e.data)); });
   }
+  function renderPhases(cur) {
+    var idx = PHASES.map(function (p) { return p[0]; }).indexOf(cur);
+    $('phases').innerHTML = PHASES.map(function (p, i) { return '<span class="ph ' + (i < idx ? 'done' : i === idx ? 'cur' : '') + '">' + (i < idx ? '✓ ' : '') + p[1] + '</span>'; }).join('');
+  }
   function scrollLog() { var l = $('log'); l.scrollTop = l.scrollHeight; }
   function progress(p) {
     var pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
     $('bar').style.width = pct + '%';
-    $('phase').textContent = (PHASE[p.phase] || p.phase) + (p.userType ? ' — ' + p.userType : '') + ' · ' + p.done + '/' + p.total;
+    var name = (PHASES.filter(function (x) { return x[0] === p.phase; })[0] || [0, p.phase])[1];
+    $('phase').innerHTML = '<span class="spin"></span>' + esc(name) + (p.userType ? ' — ' + esc(pretty(p.userType)) : '');
+    $('phase-n').textContent = p.done + ' / ' + p.total;
+    renderPhases(p.phase);
   }
   function finish(s) {
     if (state.es) { state.es.close(); state.es = null; }
-    $('btn-run').disabled = false; $('btn-cancel').hidden = true;
+    state.running = false;
     var o = s.outcome || {};
-    if (s.status === 'cancelled') msg('run-msg', 'warn', 'Run cancelled.');
-    else if (s.status === 'failed') msg('run-msg', 'bad', 'Run stopped: ' + esc(o.error || 'unknown error'));
-    else msg('run-msg', o.code === 2 ? 'bad' : 'ok', (o.code === 2 ? 'Finished — failures found. ' : 'Finished — everything matches the rulebook. ') + summaryBadges(o.summary) +
-      (o.reportUrl ? '<div class="actions"><a href="' + esc(o.reportUrl) + '" target="_blank"><button class="primary">Open report</button></a></div>' : ''));
-    loadHistory();
+    $('btn-report').hidden = !o.reportUrl;
+    if (o.reportUrl) $('btn-report').href = o.reportUrl;
+    var html;
+    if (s.status === 'cancelled') html = hero('warn', '!', 'Run cancelled', 'No report was written.');
+    else if (s.status === 'failed') html = hero('bad', '✗', 'Run stopped', esc(o.error || 'unknown error'));
+    else {
+      var t = totals(o.summary);
+      html = hero(o.code === 2 ? 'bad' : 'ok', o.code === 2 ? '!' : '✓', o.code === 2 ? 'Finished — failures found' : 'Finished — everything matches the rulebook',
+        esc(s.environment.name) + ' · ' + esc(s.environment.baseUrl)) +
+        '<div class="tiles"><div class="tile fail"><div class="v">' + t.fail + '</div><div class="l">failed</div></div>' +
+        '<div class="tile rev"><div class="v">' + t.rev + '</div><div class="l">need review</div></div>' +
+        '<div class="tile pass"><div class="v">' + t.pass + '</div><div class="l">passed</div></div></div>' +
+        '<span hidden>' + summaryBadges(o.summary) + '</span>' + perUser(o.summary) +
+        (o.reportUrl ? '<p class="hint" style="text-align:center;margin-top:14px">The full report has every page with screenshots and Confirm / False-alarm review. <a href="' + esc(o.reportUrl) + '" target="_blank">Open report ↗</a></p>' : '');
+    }
+    $('run-msg').innerHTML = html;
+    goStep(5);
+  }
+  function hero(kind, icon, title, sub) {
+    return '<div class="result-hero"><div class="big ' + kind + '"><span style="font-size:28px;font-weight:800">' + icon + '</span></div><h3>' + title + '</h3><p class="hint">' + sub + '</p></div>';
+  }
+  function totals(summary) {
+    var t = { fail: 0, pass: 0, rev: 0 };
+    Object.keys(summary || {}).forEach(function (ut) { var c = summary[ut];
+      Object.keys(c).forEach(function (v) { if (/^FAIL/.test(v)) t.fail += c[v]; else if (v === 'PASS') t.pass += c[v]; else if (v === 'REVIEW') t.rev += c[v]; }); });
+    return t;
   }
   function summaryBadges(summary) {
     if (!summary) return '';
-    var fail = 0, pass = 0, rev = 0;
-    Object.keys(summary).forEach(function (ut) { var c = summary[ut];
-      Object.keys(c).forEach(function (v) { if (/^FAIL/.test(v)) fail += c[v]; else if (v === 'PASS') pass += c[v]; else if (v === 'REVIEW') rev += c[v]; }); });
-    return '<span class="b fail">' + fail + ' failed</span>' +
-      '<span class="b rev">' + rev + ' review</span><span class="b pass">' + pass + ' passed</span>';
+    var t = totals(summary);
+    return '<span class="b fail">' + t.fail + ' failed</span><span class="b rev">' + t.rev + ' review</span><span class="b pass">' + t.pass + ' passed</span>';
   }
+  function perUser(summary) {
+    var labels = collectUsers();
+    var rows = Object.keys(summary || {}).map(function (ut) {
+      var one = {}; one[ut] = summary[ut];
+      return '<tr><td><b>' + esc((labels[ut] && labels[ut].label) || pretty(ut)) + '</b></td><td>' + summaryBadges(one) + '</td></tr>';
+    }).join('');
+    return rows ? '<div class="scroll"><table><thead><tr><th>User type</th><th>Result</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '';
+  }
+  $('btn-again').addEventListener('click', function () { goStep(3); });
 
   // ---------- history
   function loadHistory() {
     api('GET', '/api/runs').then(function (r) {
-      if (!r.runs.length) { $('history').innerHTML = '<tr><td colspan="4" class="empty">No runs yet.</td></tr>'; return; }
+      if (!r.runs.length) { $('history').innerHTML = '<tr><td colspan="4" class="empty">No runs yet. Start a new test to see it here.</td></tr>'; return; }
       $('history').innerHTML = r.runs.map(function (x) {
         var when = x.startedAt ? new Date(x.startedAt).toLocaleString() : '';
-        var env = x.environment ? esc(x.environment.name) + '<div class="key">' + esc(x.environment.baseUrl) + '</div>' : esc(x.runId);
+        var env = x.environment ? '<b>' + esc(x.environment.name) + '</b><div class="key">' + esc(x.environment.baseUrl) + '</div>' : esc(x.runId);
         var result = x.status === 'cancelled' ? '<span class="b rev">cancelled</span>' : x.status === 'failed' ? '<span class="b fail">stopped</span> <span class="hint">' + esc(x.error || '') + '</span>' : summaryBadges(x.summary);
-        return '<tr><td>' + esc(when) + '</td><td>' + env + '</td><td>' + result + '</td><td>' + (x.reportUrl ? '<a href="' + esc(x.reportUrl) + '" target="_blank">Open report</a>' : '') + '</td></tr>';
+        return '<tr><td>' + esc(when) + '</td><td>' + env + '</td><td>' + result + '</td><td>' + (x.reportUrl ? '<a href="' + esc(x.reportUrl) + '" target="_blank">Open report ↗</a>' : '') + '</td></tr>';
       }).join('');
     }).catch(function () { $('history').innerHTML = '<tr><td colspan="4" class="empty">Could not load history.</td></tr>'; });
   }
@@ -416,7 +719,6 @@ pre.log{background:var(--code);border-radius:6px;padding:10px 12px;max-height:34
   renderRecent();
   var envs = load('amp-envs', []);
   if (envs[0]) { $('env-name').value = envs[0].name || ''; $('env-url').value = envs[0].baseUrl; $('env-prod').checked = !!envs[0].isProduction; toggleProd(); }
-  loadHistory();
   api('GET', '/api/runs/current').then(function (r) { if (r.run && r.run.status === 'running') attach(r.run); });
 })();
 </script>

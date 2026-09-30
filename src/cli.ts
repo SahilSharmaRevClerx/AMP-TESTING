@@ -1,6 +1,7 @@
 import { commandCheck, commandMenu, commandRun, type CliOptions as RunOptions } from './run';
 import { SafetyError } from './safety/gate';
 import { scrub } from './util/mask';
+import { setLogLevel } from './util/logger';
 
 const USAGE = `AMP permission testing
 
@@ -15,6 +16,7 @@ Options:
   --limit <n>         Only the first n pages of the rulebook (smoke test)
   --dry-run           Show the plan without making any request (run only)
   --headed            Show the browser window
+  --debug             Detailed developer logs (every page, request and blocked call)
 `;
 
 function parseArgs(argv: string[]): { command: string; opts: RunOptions } {
@@ -32,12 +34,15 @@ function parseArgs(argv: string[]): { command: string; opts: RunOptions } {
     else if (a === '--limit') opts.limit = Number(next());
     else if (a === '--dry-run') opts.dryRun = true;
     else if (a === '--headed') opts.headed = true;
+    else if (a === '--debug' || a === '--verbose') setLogLevel('debug');
     else throw new Error(`Unknown option ${a}`);
   }
   return { command, opts };
 }
 
 async function main(): Promise<number> {
+  // The CLI prints its own readable progress; developer logs only show warnings unless asked for.
+  if (!process.env.LOG_LEVEL) setLogLevel('warn');
   const { command, opts } = parseArgs(process.argv.slice(2));
   switch (command) {
     case 'check':

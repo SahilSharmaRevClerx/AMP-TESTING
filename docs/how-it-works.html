@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -149,8 +149,8 @@ svg .zone{fill:none;stroke:var(--line);stroke-dasharray:5 4}
   <text x="368" y="200" class="sm">drives</text>
   <path class="edge" d="M462 90 H718" marker-end="url(#a)"/>
   <text x="590" y="82" text-anchor="middle" class="sm">token check + menu read (direct HTTP)</text>
-  <path class="edge" d="M462 255 C600 255 620 230 718 225" marker-end="url(#a)"/>
-  <text x="600" y="206" text-anchor="middle" class="sm">open pages as the user</text>
+  <path class="edge" d="M462 232 C560 196 650 196 718 212" marker-end="url(#a)"/>
+  <text x="590" y="192" text-anchor="middle" class="sm">open pages as the user</text>
   <path class="edge" d="M462 290 H498" marker-end="url(#a)"/>
 </svg>
 <div class="legend"><span class="l-ui">Tester UI</span><span class="l-srv">Local server</span><span class="l-pw">Browser automation</span><span class="l-amp">AMP</span><span class="l-file">Files</span></div>
@@ -169,7 +169,7 @@ svg .zone{fill:none;stroke:var(--line);stroke-dasharray:5 4}
     <div class="where">ui.html step 1 → server <code>environmentFrom()</code> → safety/gate.ts <code>assertSafeEnvironment()</code></div></li>
   <li><b>Rulebook.</b> Tester picks a saved file or uploads one. The server parses it into rules; its user-type columns become the token rows.
     <div class="where">POST /api/rulebooks/parse → rulebook/parse.ts <code>parseRulebook()</code> → <code>rulebookFromRows()</code></div></li>
-  <li><b>Tokens.</b> Tester pastes <code>jwt</code> + <code>X-CSRF-Token</code> for the users to test (rows auto-tick) and clicks <b>Check tokens</b>.
+  <li><b>Tokens.</b> Tester pastes the <code>jwt</code> cookie for the users to test (rows auto-tick) and clicks <b>Check tokens</b>.
     <div class="where">POST /api/tokens/check → sessions/validate.ts <code>validateToken()</code></div></li>
   <li><b>Plan.</b> Which pages × which users. Users without tokens are skipped. Site Admin, if given, becomes the <i>reference</i>.
     <div class="where">run.ts <code>planRun()</code> · server <code>setupFrom()</code></div></li>
@@ -213,7 +213,7 @@ https://itbydesign.sb.amp.vg/#intel/account,Account,Yes,Yes,No</pre>
 </div>
 </div>
 
-<svg viewBox="0 0 1000 210" role="img" aria-label="Route goes to Playwright; Yes/No waits for comparison">
+<svg viewBox="0 0 1000 245" role="img" aria-label="Route goes to Playwright; Yes/No waits for comparison">
   <defs><marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
   <rect class="file" x="10" y="70" width="170" height="70" rx="8"/>
   <text x="95" y="100" text-anchor="middle" class="t">Rulebook row</text>
@@ -245,8 +245,8 @@ https://itbydesign.sb.amp.vg/#intel/account,Account,Yes,Yes,No</pre>
   <path class="edge" d="M590 80 V128" marker-end="url(#b)"/>
   <text x="598" y="108" class="sm">evidence</text>
   <path class="edge" d="M710 160 C740 160 740 120 768 115" marker-end="url(#b)"/>
-  <path class="edge" d="M420 172 C560 205 740 205 790 147" marker-end="url(#b)"/>
-  <text x="600" y="206" text-anchor="middle" class="sm">Yes/No waits here until the page result is known</text>
+  <path class="edge" d="M325 190 C325 232 820 232 850 147" marker-end="url(#b)"/>
+  <text x="590" y="240" text-anchor="middle" class="sm">Yes/No waits here until the page result is known</text>
 </svg>
 <p>The browser only ever receives the <b>route</b>. The Yes/No values are never sent anywhere; they are used only at the end to compare with what actually happened.</p>
 </section>
@@ -257,9 +257,9 @@ https://itbydesign.sb.amp.vg/#intel/account,Account,Yes,Yes,No</pre>
 <table>
 <thead><tr><th>Where</th><th>How the token is sent</th><th>Why</th><th>Code</th></tr></thead>
 <tbody>
-<tr><td>Token check</td><td>Cookie <code>jwt</code> + cookie and header <code>X-CSRF-Token</code>, POST <code>/services/api.ashx?func=getpermissiondataforuser</code></td><td>Confirm the token is live and see who it belongs to (name, persona, company/org, Site Admin?)</td><td>sessions/validate.ts</td></tr>
+<tr><td>Token check</td><td>Cookie <code>jwt</code>, plus a tool-generated value sent as both cookie and header <code>X-CSRF-Token</code>, POST <code>/services/api.ashx?func=getpermissiondataforuser</code></td><td>Confirm the token is live and see who it belongs to (name, persona, company/org, Site Admin?)</td><td>sessions/validate.ts</td></tr>
 <tr><td>Menu read</td><td>Same cookies, GET <code>/</code></td><td>AMP builds this user's menu into the main page</td><td>probe/menu.ts</td></tr>
-<tr><td>Page checks</td><td><code>context.addCookies()</code> puts <code>jwt</code> and <code>X-CSRF-Token</code> into a fresh Chromium; AMP's own page JavaScript then sends them on every request</td><td>The browser <i>is</i> that user for AMP; AMP decides page access from the jwt's user and roles</td><td>probe/browser.ts <code>open()</code></td></tr>
+<tr><td>Page checks</td><td><code>context.addCookies()</code> puts the <code>jwt</code> (and a generated <code>X-CSRF-Token</code>) into a fresh Chromium; AMP's own page JavaScript then sends them on every request</td><td>The browser <i>is</i> that user for AMP; AMP decides page access from the jwt's user and roles</td><td>probe/browser.ts <code>open()</code></td></tr>
 </tbody>
 </table>
 <div class="note">Same page, same browser code, different jwt → possibly different result. That difference is exactly what is being tested.</div>
@@ -431,7 +431,7 @@ https://itbydesign.sb.amp.vg/#intel/account,Account,Yes,Yes,No</pre>
 <div class="scroll"><table>
 <thead><tr><th>AMP behaviour</th><th>Where in AMP</th><th>Used by</th></tr></thead>
 <tbody>
-<tr><td>Session = cookie <code>jwt</code>; CSRF = cookie + header <code>X-CSRF-Token</code> (must match)</td><td>Bridge/Pipeline/APIRequest.cs, BeginRequest.cs</td><td>validate.ts, menu.ts, browser.ts</td></tr>
+<tr><td>Session = cookie <code>jwt</code> (the only thing the tester provides). CSRF = double-submit: header <code>X-CSRF-Token</code> must equal the cookie; the value is not tied to the user, so the tool generates it</td><td>Bridge/Pipeline/APIRequest.cs, BeginRequest.cs</td><td>validate.ts, menu.ts, browser.ts</td></tr>
 <tr><td><code>getpermissiondataforuser</code> returns userName, isSiteAdmin, personna, organization/company</td><td>Bridge/LegacyAPI/user/GetPermissionDataForUser.cs</td><td>validate.ts</td></tr>
 <tr><td>Main page embeds the user's menu as <code>var navigation = [...]</code> with <code>link</code> per item</td><td>Pages/navin/default.cshtml, default.navigation.cs</td><td>menu.ts</td></tr>
 <tr><td>Hash routes load server pages; denied pages redirect to <code>/noaccess</code></td><td>Routing/web-navin-routing.xml, Pages/ModuleAwareRazorModel.cs</td><td>browser.ts, state.ts</td></tr>

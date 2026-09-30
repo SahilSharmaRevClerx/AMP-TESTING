@@ -6,7 +6,9 @@ import type { AuditLog } from '../util/audit';
 import type { ApiCall, Credentials, PageEvidence, RunConfig } from '../types';
 import { isLoginPath, normalizeRoute, slug, urlPath } from '../util/route';
 import { scrub } from '../util/mask';
+import { createLogger, since } from '../util/logger';
 
+const log = createLogger('browser');
 const STATIC_EXT = /\.(js|css|map|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|eot|otf|mp4|webm)$/i;
 
 interface Collector {
@@ -41,7 +43,9 @@ export class BrowserProbe {
 
   /** Starts the browser, sets the user's cookies and loads the AMP shell. Returns an error string on failure. */
   async open(creds: Credentials): Promise<string | null> {
+    const started = Date.now();
     this.browser = await chromium.launch({ headless: this.cfg.headless });
+    log.debug('chromium launched', { user: this.userType, headless: this.cfg.headless, version: this.browser.version(), ms: since(started) });
     this.context = await this.browser.newContext({ viewport: { width: 1440, height: 900 }, ignoreHTTPSErrors: false });
     await this.context.addCookies([
       { name: 'jwt', value: creds.jwt, url: this.baseOrigin },
@@ -56,6 +60,7 @@ export class BrowserProbe {
       if (!d.allowed) {
         this.audit.write({ source: 'browser', userType: this.userType, method: req.method(), url: req.url(), decision: 'blocked', reason: d.reason });
         this.collector?.blocked.push(`${req.method()} ${shortUrl(req.url())} (${d.reason})`);
+        log.debug('browser request blocked', { user: this.userType, method: req.method(), url: shortUrl(req.url()), host: isOwnHost ? undefined : safeHost(req.url()), reason: d.reason });
         await route.abort('blockedbyclient');
         return;
       }
@@ -68,21 +73,35 @@ export class BrowserProbe {
     this.page = await this.context.newPage();
     this.page.on('response', (res) => this.onResponse(res));
     this.page.on('request', (req) => this.onRequest(req));
-    this.page.on('pageerror', (err) => this.collector?.pageErrors.push(scrub(err.message).slice(0, 300)));
+    this.page.on('pageerror', (err) => {
+      this.collector?.pageErrors.push(scrub(err.message).slice(0, 300));
+      log.debug('AMP page script error', { user: this.userType, error: err.message.slice(0, 200) });
+    });
+    this.page.on('console', (msg) => {
+      if (msg.type() === 'error') log.debug('AMP console error', { user: this.userType, text: msg.text().slice(0, 200) });
+    });
 
     return this.loadShell();
   }
 
   private async loadShell(): Promise<string | null> {
     const page = this.page!;
+    const started = Date.now();
+    const target = this.baseOrigin + this.cfg.shellPath;
     try {
-      await page.goto(this.baseOrigin + this.cfg.shellPath, { waitUntil: 'domcontentloaded', timeout: this.cfg.pageTimeoutMs });
+      await page.goto(target, { waitUntil: 'domcontentloaded', timeout: this.cfg.pageTimeoutMs });
       await page.waitForLoadState('networkidle', { timeout: this.cfg.pageTimeoutMs }).catch(() => undefined);
     } catch (e) {
-      return `could not load AMP main page: ${scrub((e as Error).message).split('\n')[0]}`;
+      const reason = `could not load AMP main page: ${scrub((e as Error).message).split('\n')[0]}`;
+      log.warn('main page load failed', { user: this.userType, url: target, ms: since(started), reason });
+      return reason;
     }
     const path = urlPath(page.url());
-    if (isLoginPath(path)) return `redirected to ${path} - token expired or wrong`;
+    if (isLoginPath(path)) {
+      log.warn('main page sent user to login - token expired or wrong', { user: this.userType, landed: path, ms: since(started) });
+      return `redirected to ${path} - token expired or wrong`;
+    }
+    log.debug('main page loaded', { user: this.userType, landed: page.url(), ms: since(started) });
     return null;
   }
 
