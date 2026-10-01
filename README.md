@@ -155,6 +155,26 @@ Delete old run folders when you no longer need them. Like `output/`, they contai
 - Pages are opened one at a time per user, with `delayMs` between them (AMP rate-limits and alerts on bursts). Users run in parallel, each in its own session.
 - Opening pages still writes AMP's normal usage-tracking rows; use test users on QA/staging.
 
+## Permission Setter (changes AMP)
+
+A second module on the home screen (`/setter`). It sets the role sliders in AMP to match a rulebook, logged in as the **Super Admin** (jwt only, same as the page tests).
+
+- **Why roles:** AMP has no per-user sliders. Sliders live on a role (Setup → Roles → role → Permissions), and a user gets the highest level of every role linked to them (their own, user groups, organization, company-wide). So for each rulebook column you name the AMP role that column's user has. Use a role only that user has.
+- **Steps:** site URL → rulebook → Super Admin jwt (**Check jwt** confirms it is a Super Admin) → a role name per column → **Show plan** → **Preview in AMP (no save)** → **Apply to AMP**.
+- **What it moves:** each page is mapped to its AMP module (from the company's Navigation Layout list), then to the role sliders that open it (the `Module.HasModuleAccess` rules in AMP, table in `src/setter/sliders.ts`).
+  - **Yes** raises the slider(s) to at least View (and ticks *Setup menu* where the module needs it).
+  - **No** sets the module's slider to NA.
+  - Sliders are never lowered for a Yes, and features are never turned off.
+- **Can't be set with sliders** (reported, never guessed):
+  - Dashboard: always visible.
+  - Contacts/Accounts/Lists: AMP forces Contacts to full on every role.
+  - Roles and other Site/Super-Admin-only pages.
+  - Pages not in the module list.
+  - A No page whose slider a Yes page also needs (a conflict).
+- **How:** a real browser opens Setup → Roles, opens the role, moves the sliders on screen, takes before/after screenshots and clicks Save. It checks that AMP answered the `SaveRole` call. Preview does everything except Save.
+- **Safety:** the browser may only make read-only calls, plus `SaveRole` when applying. Every other write (role assignment, delete, …) is blocked and logged. Production is refused unless approved. The jwt stays in memory only.
+- **Output:** `output/_setter/<run>/report.html` (before → after per slider, per-page actions, screenshots), `results.json`, `audit.jsonl`. Users may need to log in again to see the change. Re-run the page tests to verify.
+
 ## Keeping jwts safe
 
 A jwt is a live AMP session: whoever holds it is logged in as that user until it expires or the user logs out.
@@ -222,6 +242,7 @@ Config options include `parallelUsers` (default 3), `delayMs`, `pageTimeoutMs`, 
 | `src/safety/gate.ts` | Environment guard, tool request gate, browser request gate |
 | `src/util/` | Logger, token masking, audit log, route helpers, `runLimited` (parallel users) |
 | `src/config.ts`, `src/cli.ts` | Settings/defaults, credentials, command line |
+| `src/setter/`, `src/server/setter.html` | Permission Setter: page → module → slider table and plan (`sliders.ts`), Super Admin check (`session.ts`), role editor driver (`editor.ts`), run + report (`run.ts`) |
 | `tests/` | Unit tests; `tests/e2e/fake-amp.ts` simulates AMP for the end-to-end tests |
 
 ## Development
