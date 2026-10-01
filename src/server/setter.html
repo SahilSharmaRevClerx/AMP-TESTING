@@ -94,7 +94,7 @@ pre{background:var(--code);border-radius:8px;padding:10px;max-height:320px;overf
 
   <section class="card">
     <h2><span class="n">5</span>Run</h2>
-    <label class="check"><input type="checkbox" id="opt-headed"> Show the browser while it works</label>
+    <label class="check"><input type="checkbox" id="opt-headed"> Show the browser while it works (also used below)</label>
     <div class="btns">
       <button class="btn" id="btn-plan">Show plan</button>
       <button class="btn primary" id="btn-preview">Preview in AMP (no save)</button>
@@ -102,7 +102,26 @@ pre{background:var(--code);border-radius:8px;padding:10px;max-height:320px;overf
     </div>
     <div id="run-msg"></div>
     <div id="plan" class="wrap"></div>
-    <pre id="log" hidden></pre>
+  </section>
+
+  <section class="card">
+    <h2>Or: set every slider of one role</h2>
+    <p class="hint">No rulebook needed (steps 1 and 3 still are). Moves every slider on the Marketing Functions and Operations tabs to exactly this level, up or down. Advanced checkboxes and rows AMP hides (e.g. Contacts) are left alone.</p>
+    <div class="row">
+      <div><label for="bulk-role">AMP role</label><input type="text" id="bulk-role" placeholder="e.g. Users.INC" autocomplete="off"></div>
+      <div><label for="bulk-level">Level</label><select id="bulk-level"><option value="0">NA</option><option value="1" selected>View</option><option value="2">Edit</option><option value="3">Create</option><option value="4">Delete</option></select></div>
+    </div>
+    <div class="btns">
+      <button class="btn primary" id="btn-bulk-preview">Preview in AMP (no save)</button>
+      <button class="btn danger" id="btn-bulk-apply">Apply to AMP</button>
+    </div>
+    <div id="bulk-msg"></div>
+  </section>
+
+  <section class="card" id="progress" hidden>
+    <h2>Progress</h2>
+    <div id="prog-msg"></div>
+    <pre id="log"></pre>
     <div id="result"></div>
   </section>
 </main>
@@ -232,19 +251,31 @@ pre{background:var(--code);border-radius:8px;padding:10px;max-height:320px;overf
   });
 
   // ---- run
+  function run(b, apply, where) {
+    if (apply && !confirm('This saves the sliders of the named role(s) in ' + b.environment.baseUrl + ' and affects every user who has those roles. Continue?')) return;
+    remember();
+    msg(where);
+    $('result').innerHTML = ''; $('log').textContent = ''; state.from = 0;
+    $('progress').hidden = false; msg('prog-msg', 'warn', apply ? 'Applying…' : 'Previewing…');
+    busy(true);
+    api('POST', '/api/setter/runs', b).then(poll).catch(function (e) { busy(false); $('progress').hidden = true; msg(where, 'bad', esc(e.message)); });
+  }
   function start(apply) {
     var b;
     try { b = body({ apply: apply, headed: $('opt-headed').checked }); } catch (e) { return msg('run-msg', 'bad', esc(e.message)); }
-    if (apply && !confirm('This saves the sliders of the named role(s) in ' + b.environment.baseUrl + ' and affects every user who has those roles. Continue?')) return;
-    remember();
-    msg('run-msg', 'warn', apply ? 'Applying…' : 'Previewing…');
-    $('result').innerHTML = ''; $('log').textContent = ''; $('log').hidden = false; state.from = 0;
-    busy(true);
-    api('POST', '/api/setter/runs', b).then(poll).catch(function (e) { busy(false); $('log').hidden = true; msg('run-msg', 'bad', esc(e.message)); });
+    run(b, apply, 'run-msg');
+  }
+  function startBulk(apply) {
+    if (!$('env-url').value.trim()) return msg('bulk-msg', 'bad', 'Enter the AMP site URL in step 1');
+    if (!jwt()) return msg('bulk-msg', 'bad', "Paste the Super Admin's jwt in step 3");
+    if (!$('bulk-role').value.trim()) return msg('bulk-msg', 'bad', 'Enter the AMP role name');
+    run({ environment: environment(), jwt: jwt(), bulk: { roleName: $('bulk-role').value.trim(), step: Number($('bulk-level').value) }, apply: apply, headed: $('opt-headed').checked }, apply, 'bulk-msg');
   }
   $('btn-preview').addEventListener('click', function () { start(false); });
   $('btn-apply').addEventListener('click', function () { start(true); });
-  function busy(on) { ['btn-plan', 'btn-preview', 'btn-apply', 'btn-check'].forEach(function (id) { $(id).disabled = on; }); }
+  $('btn-bulk-preview').addEventListener('click', function () { startBulk(false); });
+  $('btn-bulk-apply').addEventListener('click', function () { startBulk(true); });
+  function busy(on) { ['btn-plan', 'btn-preview', 'btn-apply', 'btn-check', 'btn-bulk-preview', 'btn-bulk-apply'].forEach(function (id) { $(id).disabled = on; }); }
 
   function poll() {
     api('GET', '/api/setter/runs/current?from=' + state.from).then(function (r) {
@@ -255,7 +286,7 @@ pre{background:var(--code);border-radius:8px;padding:10px;max-height:320px;overf
       if (run.status === 'running') { setTimeout(poll, 1000); return; }
       busy(false);
       var o = run.outcome || {};
-      msg('run-msg', run.status === 'done' ? 'ok' : 'bad', run.status === 'done' ? (run.apply ? '✓ Done: roles saved.' : '✓ Preview done: nothing was saved.') : esc(o.error || 'Some roles failed; see below'));
+      msg('prog-msg', run.status === 'done' ? 'ok' : 'bad', run.status === 'done' ? (run.apply ? '✓ Done: roles saved.' : '✓ Preview done: nothing was saved.') : esc(o.error || 'Some roles failed; see below'));
       var names = { saved: 'Saved', previewed: 'Preview (not saved)', no_changes: 'Already matches', failed: 'Failed' };
       $('result').innerHTML = (o.roles || []).length ? '<table style="margin-top:12px"><tr><th>Column</th><th>Role</th><th>Result</th><th>Changes</th></tr>' + o.roles.map(function (x) {
         return '<tr><td>' + esc(x.label) + '</td><td>' + esc(x.roleName) + '</td><td><span class="tag ' + x.status + '">' + names[x.status] + '</span>' + (x.error ? '<div class="hint">' + esc(x.error) + '</div>' : '') + '</td><td>' + x.changed + '</td></tr>';
@@ -265,7 +296,7 @@ pre{background:var(--code);border-radius:8px;padding:10px;max-height:320px;overf
     }).catch(function () { setTimeout(poll, 2000); });
   }
   // Reconnect to a run that is still going (e.g. after a refresh).
-  api('GET', '/api/setter/runs/current').then(function (r) { if (r.run && r.run.status === 'running') { $('log').hidden = false; busy(true); poll(); } }).catch(function () {});
+  api('GET', '/api/setter/runs/current').then(function (r) { if (r.run && r.run.status === 'running') { $('progress').hidden = false; busy(true); poll(); } }).catch(function () {});
 })();
 </script>
 </body>

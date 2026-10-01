@@ -116,3 +116,12 @@ describe('permission setter: persona dashboards', () => {
     expect(p.reason).toMatch(/always visible/);
   });
 });
+
+describe('permission setter: set every slider', () => {
+  const w = { key: 'media:32', kind: 'slider' as const, id: 32, label: 'Email', raiseTo: null, lower: false, exact: 1 as const, yesPages: [], noPages: [] };
+  it('moves to exactly the chosen level, up or down', () => {
+    expect(targetFor(w, 0)).toBe(1);
+    expect(targetFor(w, 4)).toBe(1);
+    expect(targetFor(w, 1)).toBeNull();
+  });
+});
