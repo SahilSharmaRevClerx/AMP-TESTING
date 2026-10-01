@@ -9,6 +9,8 @@ export interface VerdictResult {
 export interface PeerContext {
   /** Other user types who got the page's content. */
   othersWithContent: string[];
+  /** The page was still loading when the wait ran out. */
+  stillLoading?: boolean;
 }
 
 /**
@@ -37,6 +39,15 @@ export function pageVerdict(expected: Expected, inMenu: boolean, state: AccessSt
     NOT_FOUND: 'route not found',
   };
   if (expected === null) return { verdict: 'NOT_SPECIFIED', reason: `rulebook has no Yes/No; ${usable ? 'page opens' : what[state]}; ${menu}` };
+  // Not usable yet but still loading: it may have opened a moment later, so don't guess either way.
+  if (!usable && state !== 'BLOCKED' && peers.stillLoading) {
+    return { verdict: 'REVIEW', reason: `page was still loading when the wait ran out (slow server?); ${menu}` };
+  }
+  // A link that exists for nobody was never really tested (typo, or the page isn't on this site):
+  // never a Pass, even when the rulebook says No.
+  if (state === 'NOT_FOUND' && !peers.othersWithContent.length) {
+    return { verdict: 'REVIEW', reason: `this link doesn't exist on this site for any tested user: check the link in the rulebook; ${menu}` };
+  }
 
   if (expected === 'Yes') {
     if (state === 'OPENED') return { verdict: 'PASS', reason: `page opens; ${menu}` };
@@ -49,11 +60,11 @@ export function pageVerdict(expected: Expected, inMenu: boolean, state: AccessSt
     return { verdict: 'REVIEW', reason: `${what[state]} and no tested user got this page (broken page or wrong route?); ${menu}` };
   }
 
-  // expected === 'No'
+  // expected === 'No' (a NOT_FOUND here means other users get the page: for this user it is as good as blocked)
   if (!usable) return { verdict: 'PASS', reason: `${what[state]} (nothing usable); ${menu}` };
   const how = state === 'OPENED' ? 'page opens' : 'page opens (its data is denied)';
   return inMenu
-    ? { verdict: 'FAIL_EXTRA_ACCESS', reason: `${how}; shown in menu` }
+    ? { verdict: 'FAIL_EXTRA_ACCESS', reason: `${how}; ${menu}` }
     : { verdict: 'FAIL_SECURITY_GAP', reason: `${how} by URL although hidden from the menu` };
 }
 

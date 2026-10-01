@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectMenuLinks, extractNavigation, menuHasRoute } from '../src/probe/menu';
+import { collectMenuLinks, extractNavigation, menuHasRoute, menuMatch } from '../src/probe/menu';
 import { normalizeRoute, routeMatches } from '../src/util/route';
 
 describe('normalizeRoute', () => {
@@ -48,5 +48,13 @@ describe('extractNavigation', () => {
     const menu = { userType: 'x', ok: true, links: collectMenuLinks(extractNavigation(html)) };
     expect(menuHasRoute(menu, 'dashboard')).toBe(true);
     expect(menuHasRoute(menu, 'setup/groups')).toBe(false);
+  });
+
+  it('menuMatch tells the route itself apart from only a sub-page of it', () => {
+    const links = ['collateral/internal-playbook/marketing/overview', 'dashboard/sales'].map((link) => ({ name: link, link, key: link }));
+    const menu = { userType: 'user', ok: true, links };
+    expect(menuMatch(menu, 'dashboard/sales')).toEqual({ kind: 'exact' });
+    expect(menuMatch(menu, '#collateral/internal-playbook')).toEqual({ kind: 'sub', link: 'collateral/internal-playbook/marketing/overview' });
+    expect(menuMatch(menu, 'connections/contacts')).toBeNull();
   });
 });

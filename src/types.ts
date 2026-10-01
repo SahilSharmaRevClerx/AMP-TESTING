@@ -54,6 +54,10 @@ export interface RunConfig {
   parallelUsers: number;
   headless: boolean;
   outputDir: string;
+  /** Save step-by-step screenshots and a written decision per page (debug/<run>/<user>/...). */
+  debugShots?: boolean;
+  /** Where debug runs go (git-ignored). */
+  debugDir?: string;
 }
 
 export interface Credentials {
@@ -121,6 +125,16 @@ export interface PageEvidence {
   denialText?: string;
   /** A short visible failure message such as "Something went wrong", if any. */
   errorText?: string;
+  /** The page's own "nothing here yet" message, e.g. "No Data Found" (the page rendered, it just has no rows). */
+  emptyText?: string;
+  /** Text of AMP's "page not found" screen, e.g. "Looks like you're lost" / "ERROR CODE: 404". */
+  notFoundText?: string;
+  /** The wait ran out while AMP requests were still running or a loading spinner was visible. */
+  stillLoading?: boolean;
+  /** How the wait for the page went, one line per sample (for debugging). */
+  waitLog?: string[];
+  /** Folder with this page's step-by-step debug screenshots, if saved. */
+  debugDir?: string | null;
   apiCalls: ApiCall[];
   blockedRequests: string[];
   pageErrors: string[];
@@ -160,6 +174,7 @@ export interface CheckResult {
   type: RuleType;
   userType: string;
   expected: Expected;
+  /** The page itself is a link in the user's menu (a page under it doesn't count). */
   inMenu: boolean;
   state: AccessState | null;
   fingerprintScore: number | null;

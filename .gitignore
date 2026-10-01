@@ -4,6 +4,9 @@ node_modules/
 # Run output (screenshots, reports, audit logs)
 output/
 
+# Step-by-step debug screenshots per run / user / page (created automatically)
+debug/
+
 # Local run config and tokens: never commit
 run.config.json
 .env

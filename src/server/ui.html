@@ -106,6 +106,57 @@ body:not(.welcome-on) .scene-dots{display:none}
 @media (max-width:480px){.top .in{gap:4px;padding:10px 12px}.brand{font-size:14px}.link{padding:6px 8px}}
 @media (prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}.hero-mark,.mouse::after,.bg-deco .blob{animation:none}}
 
+/* ---------- home: catalog of testing modules */
+main.wide,body.hub-on .top .in{max-width:1240px}
+.cat-tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);margin:6px 0 30px}
+.cat-tabs button{border:0;background:none;color:var(--muted);font:600 14px system-ui,-apple-system,"Segoe UI",sans-serif;padding:8px 16px;border-radius:9px;cursor:pointer}
+.cat-tabs button.on{background:var(--accent);color:var(--accent-fg)}
+.cat-head h1{margin:0;font-size:clamp(28px,3.4vw,38px);letter-spacing:-.02em;line-height:1.15}
+.cat-head p{margin:6px 0 0;color:var(--muted);font-size:15.5px}
+.cat-tools{display:flex;gap:10px;margin:24px 0 14px;align-items:stretch}
+.cat-search{flex:1;position:relative;min-width:0}
+.cat-search svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.cat-search input{width:100%;font:inherit;color:var(--fg);background:var(--input);border:1px solid var(--line);border-radius:10px;padding:11px 14px 11px 42px}
+.cat-search input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.view-tog{display:inline-flex;border:1px solid var(--line);border-radius:10px;background:var(--card);padding:3px;gap:2px}
+.view-tog button{border:0;background:none;color:var(--muted);padding:0 10px;border-radius:7px;cursor:pointer;display:grid;place-items:center}
+.view-tog button.on{background:var(--accent-soft);color:var(--accent)}
+.cat-count{color:var(--muted);font-size:14px;margin:0 0 14px}
+.mods{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:20px}
+.mod{display:flex;flex-direction:column;gap:9px;text-align:left;padding:20px;border-radius:14px;border:1px solid var(--line);background:var(--card);box-shadow:var(--shadow);transition:box-shadow .2s ease,border-color .2s ease,transform .2s ease}
+.mod:not(.soon):hover{border-color:color-mix(in srgb,var(--accent) 40%,var(--line));box-shadow:0 14px 34px -18px color-mix(in srgb,var(--accent) 55%,transparent);transform:translateY(-2px)}
+.mod .mtop{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+.mod .mic{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.mod .st{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:6px}
+.mod .st.ready{background:var(--ok-bg);color:var(--ok)}
+.mod .st.soon{background:var(--code);color:var(--muted)}
+.mod .mcat{font-size:12.5px;font-weight:600;color:var(--accent)}
+.mod h3{margin:0;font-size:18px;letter-spacing:-.01em}
+.mod p{margin:0;color:var(--muted);font-size:14.5px;line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.mod .mtags{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+.mod .mtags span{font-size:12px;color:var(--muted);background:var(--code);border-radius:6px;padding:3px 9px}
+.mod .mlast{font-size:12.5px;color:var(--muted);display:flex;gap:4px;align-items:center;flex-wrap:wrap;min-height:22px}
+.mod .mlast .b{font-size:11.5px}
+.mod .launch{margin-top:auto;width:100%;justify-content:center;padding:12px 16px;border-radius:10px;font-size:15.5px;font-weight:600;border:0;background:var(--accent);color:var(--accent-fg);cursor:pointer;display:flex;align-items:center;gap:8px}
+.mod .launch:hover{filter:brightness(1.08)}
+.mod .launch:disabled{background:var(--code);color:var(--muted);cursor:not-allowed;filter:none}
+.mod.soon{border-style:dashed;box-shadow:none}
+.mod.soon .mic{background:var(--code);color:var(--muted)}
+.mods.list{grid-template-columns:1fr;gap:12px}
+.mods.list .mod{display:grid;grid-template-columns:48px minmax(0,1fr) 190px;grid-template-areas:"ic body act";column-gap:18px;align-items:center}
+.mods.list .mod .mtop{grid-area:ic;margin:0;flex-direction:column;gap:8px}
+.mods.list .mod .mtop .st{display:none}
+.mods.list .mod .mbody{grid-area:body}
+.mods.list .mod .mact{grid-area:act;display:flex;flex-direction:column;gap:6px}
+.mods.list .mod p{-webkit-line-clamp:2}
+.mbody{display:flex;flex-direction:column;gap:7px}
+.mact{margin-top:auto;display:flex;flex-direction:column;gap:10px}
+.cat-empty{color:var(--muted);text-align:center;padding:40px 10px;border:1px dashed var(--line);border-radius:14px}
+.back-mods{position:absolute;top:18px;left:20px;background:none;border:0;color:var(--muted);font:500 14px system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer;padding:6px 10px;border-radius:8px;display:inline-flex;gap:6px;align-items:center}
+.back-mods:hover{color:var(--fg);background:color-mix(in srgb,var(--code) 80%,transparent)}
+@media (max-width:760px){.mods.list .mod{grid-template-columns:48px minmax(0,1fr);grid-template-areas:"ic body" "act act";row-gap:12px}}
+@media (max-width:640px){.mods{grid-template-columns:1fr}.cat-tabs{margin-bottom:22px}}
+
 /* ---------- wizard */
 .stepper{display:flex;gap:0;margin:4px 0 22px;counter-reset:s}
 .stp{flex:1;display:flex;align-items:center;gap:10px;position:relative;background:none;border:0;padding:0;text-align:left;color:var(--muted);cursor:default;min-width:0}
@@ -229,6 +280,25 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
 
 <main>
 
+<!-- ============================ HOME: testing modules ============================ -->
+<section id="screen-hub" hidden>
+  <div class="cat-tabs" role="tablist"><button class="on" role="tab" aria-selected="true">All modules</button></div>
+  <div class="cat-head">
+    <h1>Testing catalog</h1>
+    <p>Search and launch the AMP testing modules. Every module runs on your machine and only reads from the AMP site.</p>
+  </div>
+  <div class="cat-tools">
+    <label class="cat-search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+      <input type="text" id="mod-search" placeholder="Search modules by name, category or tag…" aria-label="Search modules" autocomplete="off"></label>
+    <div class="view-tog" role="group" aria-label="View">
+      <button id="view-grid" class="on" title="Grid view" aria-label="Grid view"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></button>
+      <button id="view-list" title="List view" aria-label="List view"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg></button>
+    </div>
+  </div>
+  <div class="cat-count" id="mod-count"></div>
+  <div class="mods" id="mods"></div>
+</section>
+
 <!-- ============================ WELCOME ============================ -->
 <section id="screen-welcome">
   <nav class="scene-dots" aria-label="Sections">
@@ -239,6 +309,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
 
   <!-- Scene 1: welcome -->
   <div class="scene" id="scene-1">
+    <button class="back-mods" id="btn-mods"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>All testing modules</button>
     <div class="scene-in">
       <div class="reveal"><div class="hero-mark"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></div></div>
       <span class="eyebrow reveal" style="--d:.12s">AMP · Role-based access</span>
@@ -369,8 +440,10 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
             <div class="field narrow"><label class="lbl" for="opt-delay">Delay between pages (ms)</label><input type="number" id="opt-delay" min="200" max="5000" value="500"></div>
             <div class="field narrow"><label class="lbl" for="opt-th">Match threshold (%)</label><input type="number" id="opt-th" min="20" max="100" value="60"></div>
             <div class="field narrow"><label class="lbl" for="opt-par">Users tested at the same time</label><input type="number" id="opt-par" min="1" max="5" value="3"></div>
+            <div class="field narrow"><label class="lbl" for="opt-wait">Longest wait per page (s)</label><input type="number" id="opt-wait" min="10" max="120" value="30" title="Raise this for slow servers. Fast pages still finish in 1–2 s."></div>
           </div>
           <label class="check"><input type="checkbox" id="opt-headed"> Show the browser window while testing</label>
+          <label class="check"><input type="checkbox" id="opt-debug" checked> Save step-by-step screenshots of every page (in the <code>debug</code> folder)</label>
         </details>
       </div>
       <div id="run-live" class="live" hidden>
@@ -443,15 +516,78 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
 
   // ---------- screens & steps
   function show(screen) {
-    ['welcome', 'wizard', 'history'].forEach(function (s) { $('screen-' + s).hidden = s !== screen; });
+    ['hub', 'welcome', 'wizard', 'history'].forEach(function (s) { $('screen-' + s).hidden = s !== screen; });
     var welcome = screen === 'welcome';
-    // Full-screen scenes with snap scrolling only on the welcome page.
+    // Full-screen scenes with snap scrolling only on the welcome page; the soft background on home + welcome.
     document.documentElement.classList.toggle('snap', welcome);
     document.body.classList.toggle('welcome-on', welcome);
     document.querySelector('main').classList.toggle('welcome', welcome);
+    document.querySelector('main').classList.toggle('wide', screen === 'hub');
+    document.body.classList.toggle('hub-on', screen === 'hub');
+    // "Past runs" / "New test" belong to the Pages module: not shown on the module picker.
+    $('go-history').hidden = $('go-new').hidden = screen === 'hub';
     if (screen === 'history') loadHistory();
+    if (screen === 'hub') loadHubStats();
     window.scrollTo(0, 0);
   }
+
+  // ---------- home: testing modules. Add a module = add one entry here.
+  var ICONS = {
+    pages: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9.5 14.5l1.8 1.8 3.5-3.6"/></svg>',
+    more: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
+  };
+  var MODULES = [
+    { id: 'pages', title: 'AMP Pages Testing', category: 'Access control', status: 'ready', icon: ICONS.pages,
+      desc: 'Checks which pages each user type can open on an AMP site, against your rulebook, with screenshot proof for every result.',
+      tags: ['Rulebook', 'jwt per user', 'Screenshots'], open: function () { show('welcome'); } },
+    { id: 'more', title: 'More testing modules', category: 'Platform', status: 'soon', icon: ICONS.more,
+      desc: 'New kinds of AMP tests will appear here as cards when they are added.', tags: ['Roadmap'] }
+  ];
+  var lastRunHtml = {};
+  function renderModules() {
+    var arrow = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+    var q = ($('mod-search').value || '').trim().toLowerCase();
+    var list = MODULES.filter(function (m) {
+      return !q || [m.title, m.category, m.desc].concat(m.tags || []).join(' ').toLowerCase().indexOf(q) >= 0;
+    });
+    var ready = list.filter(function (m) { return m.status === 'ready'; }).length;
+    $('mod-count').textContent = list.length + ' module' + (list.length === 1 ? '' : 's') + (list.length !== ready ? ' · ' + ready + ' available' : '');
+    $('mods').innerHTML = list.length ? list.map(function (m) {
+      var on = m.status === 'ready';
+      return '<div class="mod' + (on ? '' : ' soon') + '"' + (on ? '' : ' aria-disabled="true"') + '>' +
+        '<div class="mtop"><span class="mic">' + m.icon + '</span><span class="st ' + (on ? 'ready">Available' : 'soon">Coming soon') + '</span></div>' +
+        '<div class="mbody"><span class="mcat">' + esc(m.category) + '</span><h3>' + esc(m.title) + '</h3><p>' + esc(m.desc) + '</p>' +
+        (m.tags ? '<div class="mtags">' + m.tags.map(function (t) { return '<span>' + esc(t) + '</span>'; }).join('') + '</div>' : '') + '</div>' +
+        '<div class="mact">' + (on ? '<div class="mlast" id="mod-' + m.id + '-last">' + (lastRunHtml[m.id] || '&nbsp;') + '</div>' : '') +
+        (on ? '<button class="launch" id="mod-' + m.id + '" data-mod="' + m.id + '">Launch' + arrow + '</button>'
+            : '<button class="launch" disabled>Coming soon</button>') + '</div></div>';
+    }).join('') : '<div class="cat-empty">No modules match “' + esc(q) + '”.</div>';
+  }
+  $('mods').addEventListener('click', function (e) {
+    var btn = e.target.closest('[data-mod]'); if (!btn) return;
+    var m = MODULES.filter(function (x) { return x.id === btn.getAttribute('data-mod'); })[0];
+    if (m && m.open) m.open();
+  });
+  $('mod-search').addEventListener('input', renderModules);
+  function setView(v) {
+    $('mods').classList.toggle('list', v === 'list');
+    $('view-grid').classList.toggle('on', v !== 'list');
+    $('view-list').classList.toggle('on', v === 'list');
+    save('amp-mod-view', v);
+  }
+  $('view-grid').addEventListener('click', function () { setView('grid'); });
+  $('view-list').addEventListener('click', function () { setView('list'); });
+  /** Last run of the Pages module, shown on its card. */
+  function loadHubStats() {
+    api('GET', '/api/runs').then(function (r) {
+      var x = (r.runs || [])[0];
+      var when = x && x.startedAt ? new Date(x.startedAt).toLocaleDateString() : '';
+      lastRunHtml.pages = x ? 'Last run ' + esc(when) + (x.summary ? ' ' + summaryBadges(x.summary) : '') : 'No runs yet';
+      var el = $('mod-pages-last'); if (el) el.innerHTML = lastRunHtml.pages;
+    }).catch(function () {});
+  }
+  renderModules();
+  setView(load('amp-mod-view', 'grid'));
 
   // ---------- welcome scenes: reveal on scroll, scroll cues, dot navigation
   (function () {
@@ -501,8 +637,9 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   $('btn-start').addEventListener('click', function () { clearJwts(); goStep(1); });
   $('go-new').addEventListener('click', function () { if (state.running) goStep(4); else { clearJwts(); goStep(1); } });
   $('btn-history-new').addEventListener('click', function () { clearJwts(); goStep(1); });
-  $('go-home').addEventListener('click', function () { if (state.running) goStep(4); else show('welcome'); });
-  $('btn-home').addEventListener('click', function () { show('welcome'); });
+  $('go-home').addEventListener('click', function () { if (state.running) goStep(4); else show('hub'); });
+  $('btn-home').addEventListener('click', function () { show('hub'); });
+  $('btn-mods').addEventListener('click', function () { show('hub'); });
   $('go-history').addEventListener('click', function () { show('history'); });
   $('btn-welcome-history').addEventListener('click', function () { show('history'); });
 
@@ -735,6 +872,8 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
         delayMs: parseInt($('opt-delay').value, 10) || 500,
         fingerprintThreshold: (parseInt($('opt-th').value, 10) || 60) / 100,
         headed: $('opt-headed').checked,
+        debugShots: $('opt-debug').checked,
+        pageWaitSec: parseInt($('opt-wait').value, 10) || 30,
         parallelUsers: parseInt($('opt-par').value, 10) || 3
       }
     };
@@ -856,7 +995,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   }
 
   // ---------- init
-  show('welcome');
+  show('hub');
   renderRecent();
   var envs = load('amp-envs', []);
   if (envs[0]) { $('env-name').value = envs[0].name || ''; $('env-url').value = envs[0].baseUrl; $('env-prod').checked = !!envs[0].isProduction; toggleProd(); }

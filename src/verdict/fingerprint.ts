@@ -47,7 +47,7 @@ export function pickReference(route: string, byUser: EvidenceByUser, expected: R
   let best: { user: string; ev: PageEvidence; tokens: string[]; yes: boolean } | null = null;
   for (const [user, pages] of byUser) {
     const ev = pages.get(route);
-    if (!ev || accessStateFromSignals(ev) !== null) continue;
+    if (!ev || accessStateFromSignals(ev, frame) !== null) continue;
     const c = pageContent(ev, frame);
     if (!c.has) continue;
     const yes = expected[user] === 'Yes';

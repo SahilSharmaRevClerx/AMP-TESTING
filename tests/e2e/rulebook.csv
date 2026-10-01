@@ -14,3 +14,6 @@ Page,Name,Site Admin,Partner Sales,Owner,Reviewed
 /#setup/errorbox,Error Box,Yes,No,Rahul,Yes
 /#manage/nonono,No No No,No,No,Rahul,Yes
 /#setup/broken,Broken,Yes,Yes,Rahul,Yes
+/#connections/slowlist,Slow List,Yes,Yes,Rahul,Yes
+/#insights/widgets,Widgets,Yes,Yes,Rahul,Yes
+/#setup/rolez,Typo Link,No,No,Rahul,Yes

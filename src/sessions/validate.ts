@@ -61,6 +61,24 @@ function str(v: unknown): string | undefined {
   return typeof v === 'string' && v.length > 0 ? v : undefined;
 }
 
+/**
+ * User types whose jwt belongs to the same person as an earlier one (same name in the same
+ * organization/company), e.g. both rows pasted from the Super Admin's session. Testing the same
+ * person twice makes every comparison meaningless. Returns duplicate → the user type it repeats.
+ */
+export function duplicateIdentities(ids: Identity[]): Map<string, string> {
+  const seen = new Map<string, string>();
+  const dups = new Map<string, string>();
+  for (const id of ids) {
+    if (!id.valid || !id.userName) continue;
+    const key = `${id.userName.trim().toLowerCase()}|${id.organizationId ?? id.companyName ?? ''}`;
+    const first = seen.get(key);
+    if (first) dups.set(id.userType, first);
+    else seen.set(key, id.userType);
+  }
+  return dups;
+}
+
 export function describeIdentity(id: Identity): string {
   if (!id.valid) return `INVALID - ${id.reason}`;
   const where = id.organizationName ? `org "${id.organizationName}"` : id.companyName ? `company "${id.companyName}"` : 'company-level';

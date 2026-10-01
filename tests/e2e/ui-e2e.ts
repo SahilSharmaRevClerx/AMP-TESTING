@@ -5,7 +5,7 @@
 import { spawn } from 'node:child_process';
 import { request as httpRequest } from 'node:http';
 import { scanForSecrets } from './leak-scan';
-import { readdirSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { received, startFakeAmp, TOKENS } from './fake-amp';
@@ -75,8 +75,26 @@ async function main(): Promise<number> {
       throw new Error(`could not type the jwt into the ${key} row`);
     };
 
-    // Welcome → Start
+    // Home (module cards) → AMP Pages Testing → welcome → Start
     await page.goto(UI);
+    await page.waitForSelector('#screen-hub:not([hidden]) #mod-pages');
+    await shot('0-home');
+    if (await page.isVisible('#go-history')) failures.push('home: "Past runs" link should be hidden on the module picker');
+    if (!(await page.isVisible('#mods .mod.soon'))) failures.push('home: "More testing modules" placeholder card missing');
+    // Search filters the catalog; list view switches layout.
+    await page.fill('#mod-search', 'no-such-module');
+    if (!(await page.isVisible('#mods .cat-empty'))) failures.push('home: search for an unknown module should show "No modules match"');
+    await page.fill('#mod-search', 'rulebook');
+    if ((await page.locator('#mods .mod').count()) !== 1) failures.push('home: search "rulebook" should leave only AMP Pages Testing');
+    await page.fill('#mod-search', '');
+    await page.click('#view-list');
+    if (!(await page.locator('#mods.list').count())) failures.push('home: list view did not switch');
+    await page.click('#view-grid');
+    await page.click('#mod-pages');
+    await page.waitForSelector('#screen-welcome:not([hidden]) #btn-mods');
+    await page.click('#btn-mods'); // back to the module picker, then in again
+    await page.waitForSelector('#screen-hub:not([hidden])');
+    await page.click('#mod-pages');
     await page.waitForSelector('#btn-start');
     await shot('1-welcome');
     await page.click('#btn-start');
@@ -101,7 +119,16 @@ async function main(): Promise<number> {
     await shot('3-rulebook');
     await page.click('#next-2');
 
-    // Step 3: tokens; Next checks them automatically
+    // Step 3: tokens; Next checks them automatically.
+    // The same person's jwt on two rows is refused (both rows would test the same user).
+    await fillUser('site_admin', TOKENS.site_admin.jwt);
+    await fillUser('partner_sales', TOKENS.site_admin.jwt);
+    await page.click('#next-3');
+    await page.waitForSelector('#users-msg .msg.bad', { timeout: 10000 });
+    const dupText = (await page.textContent('#st-partner_sales')) ?? '';
+    if (!dupText.includes('same person as Site Admin')) failures.push(`same jwt on two rows was not refused: ${dupText}`);
+    if (await page.isVisible('#step-4')) failures.push('Next continued although two rows are the same person');
+
     for (const [key, t] of Object.entries(TOKENS)) await fillUser(key, t.jwt);
     await page.click('#btn-check');
     await page.waitForSelector('#users-msg .msg.ok', { timeout: 10000 });
@@ -148,7 +175,8 @@ async function main(): Promise<number> {
     await page.click('#next-3');
     await page.waitForFunction(() => /Only one user type/.test(document.getElementById('plan-msg')?.textContent ?? ''), null, { timeout: 10000 });
     const adminOnly = await runAndWait();
-    if (!adminOnly.includes('no failures, 1 to review') || !adminOnly.includes('0 failed')) failures.push(`site-admin-only run: ${adminOnly}`);
+    // 2 to review: the page broken for everyone, and the mistyped link (#setup/rolez, AMP's 404 screen).
+    if (!adminOnly.includes('no failures, 2 to review') || !adminOnly.includes('0 failed')) failures.push(`site-admin-only run: ${adminOnly}`);
 
     // Pasting a whole cookie pair is cleaned to the bare jwt; "Clear jwts" empties every box.
     await page.click('#btn-again');
@@ -175,9 +203,13 @@ async function main(): Promise<number> {
 
     // No raw jwt anywhere in what the tool wrote or printed.
     const runDirs = readdirSync('output').filter((d) => d.startsWith('fake-')).map((d) => join('output', d));
-    const hits = scanForSecrets([...runDirs, join('output', '_ui')], [TOKENS.site_admin.jwt, TOKENS.partner_sales.jwt], { 'server terminal output': uiOut });
+    // Debug runs of this test (fake AMP on 127.0.0.1): scanned too, then removed so they don't mix with real runs.
+    const debugDirs = existsSync('debug') ? readdirSync('debug').filter((d) => /_127-0-0-1-\d+(_\d+)?$/.test(d)).map((d) => join('debug', d)) : [];
+    if (debugDirs.length === 0) failures.push('no debug folders were written for the UI runs');
+    const hits = scanForSecrets([...runDirs, ...debugDirs, join('output', '_ui')], [TOKENS.site_admin.jwt, TOKENS.partner_sales.jwt], { 'server terminal output': uiOut });
     if (runDirs.length === 0) failures.push('leak scan found no run folders to scan');
     failures.push(...hits.map((h) => `SAFETY LEAK: ${h}`));
+    for (const d of debugDirs) rmSync(d, { recursive: true, force: true });
   } catch (e) {
     failures.push(String(e).split('\n')[0]!);
     const p = browser.contexts()[0]?.pages()[0];

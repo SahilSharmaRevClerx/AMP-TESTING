@@ -1,13 +1,13 @@
-﻿import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+﻿import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, join, resolve } from 'node:path';
 import { credentialsFor, envKey, loadConfig, loadLocalEnv } from './config';
 import { loadRulebook, selectUserTypes } from './rulebook/parse';
 import { RequestGate } from './safety/gate';
-import { describeIdentity, validateToken } from './sessions/validate';
-import { fetchMenu, menuHasRoute } from './probe/menu';
+import { describeIdentity, duplicateIdentities, validateToken } from './sessions/validate';
+import { fetchMenu, menuHasRoute, menuMatch } from './probe/menu';
 import { BrowserProbe } from './probe/browser';
 import { buildFrame, pickReference, type EvidenceByUser, type PageReference } from './verdict/fingerprint';
-import { accessState, type StateResult } from './verdict/state';
+import { accessState, pageContent, type Frame, type StateResult } from './verdict/state';
 import { pageVerdict, VERDICT_ORDER } from './verdict/compare';
 import { writeReports } from './report/write';
 import { AuditLog } from './util/audit';
@@ -97,6 +97,19 @@ export function newRunId(envName: string): string {
   return `${slug(envName)}-${stamp}`;
 }
 
+/**
+ * Debug folder for one run, named by the local start time and site, e.g. debug/2026-10-01_09-14_main-dvl-amp-vg
+ * (a second run in the same minute gets "_2"). Each user gets a sub-folder, each page one inside that.
+ */
+export function newDebugRunDir(cfg: RunConfig, now = new Date()): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}_${p(now.getHours())}-${p(now.getMinutes())}`;
+  const base = join(cfg.debugDir ?? 'debug', `${stamp}_${slug(new URL(cfg.environment.baseUrl).host)}`);
+  let dir = base;
+  for (let i = 2; existsSync(dir); i++) dir = `${base}_${i}`;
+  return dir;
+}
+
 /** Full run: tokens → menus → open pages as each user → per-page reference → verdicts → report. Used by CLI and web UI. */
 export async function executeRun(input: RunInput, runId = newRunId(input.cfg.environment.name)): Promise<RunOutcome> {
   const { cfg, rulebook, creds, signal } = input;
@@ -124,6 +137,8 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
     const audit = new AuditLog(join(outDir, 'audit.jsonl'));
     const gate = new RequestGate(cfg.environment, cfg.delayMs, audit);
     const startedAt = new Date().toISOString();
+    const debugRun = cfg.debugShots ? newDebugRunDir(cfg) : null;
+    if (debugRun) mkdirSync(debugRun, { recursive: true });
     const warnings: string[] = [...(input.notes ?? [])];
     r.log(`Run ${runId} on ${cfg.environment.name} (${cfg.environment.baseUrl})`);
     r.log(`User types: ${plan.testedTypes.join(', ')} · ${plan.pages.length} pages · ~${plan.estimatedMinutes} min`);
@@ -139,6 +154,7 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
       delayMs: cfg.delayMs,
       threshold: cfg.fingerprintThreshold,
       out: outDir,
+      debug: debugRun ?? 'off',
     });
 
     // ① Tokens
@@ -159,6 +175,12 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
     }
     const invalid = identities.filter((i) => !i.valid);
     if (invalid.length) return fail(`${invalid.map((i) => i.userType).join(', ')} token(s) invalid. Log in again and paste fresh tokens.`);
+    const dups = duplicateIdentities(identities);
+    if (dups.size) {
+      const label = (ut: string) => cfg.userTypes[ut]?.label ?? ut;
+      const which = [...dups].map(([d, first]) => `${label(d)} is the same person as ${label(first)} (${identities.find((i) => i.userType === d)?.userName})`).join('; ');
+      return fail(`${which}. Each user type needs a jwt from its own user's session.`);
+    }
     if (plan.testedTypes.length === 1) {
       warnings.push('Only one user type was tested, so each page was compared with that user\'s own view. AMP\'s no-access screen, "no access" messages, redirects and missing pages are still detected; test a higher-access user type too (e.g. a Super Admin) to also catch pages that open with unexpected content.');
     }
@@ -200,7 +222,7 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
       const t0 = Date.now();
       log.info('user started', { user: ut, pages: plan.pages.length });
       try {
-        const outcome = await probeAll(input, outDir, audit, ut, plan.pages, 'probe', () => onPage(ut));
+        const outcome = await probeAll(input, outDir, audit, ut, plan.pages, 'probe', () => onPage(ut), debugRun && join(debugRun, slug(ut)));
         if (typeof outcome !== 'string') {
           log.info('user pages opened', { user: ut, pages: outcome.pages.size, frameBaseline: !!outcome.baseline, ms: since(t0) });
         }
@@ -246,9 +268,16 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
       states.set(rule.route, perUser);
       log.debug('page decided', { route: rule.route, reference: ref.referenceUser ?? 'none', states: Object.fromEntries([...perUser].map(([u, s]) => [u, s.state])) });
     }
+    const notFoundForAll = plan.pages.filter((p) => {
+      const s = [...(states.get(p.route)?.values() ?? [])];
+      return s.length > 0 && s.every((x) => x.state === 'NOT_FOUND');
+    });
+    if (notFoundForAll.length) {
+      warnings.push(`${notFoundForAll.length} rulebook link(s) don't exist on this site (AMP's "page not found" for every tested user), so they were not really tested — marked Review. Check these links in the rulebook: ${notFoundForAll.map((p) => '#' + p.route).join(', ')}`);
+    }
     const brokenForAll = plan.pages.filter((p) => {
       const s = [...(states.get(p.route)?.values() ?? [])];
-      return s.length > 0 && s.every((x) => x.state === 'BLANK' || x.state === 'ERROR' || x.state === 'NOT_FOUND') && plan.testedTypes.some((ut) => p.expected[ut] === 'Yes');
+      return !notFoundForAll.includes(p) && s.length > 0 && s.every((x) => x.state === 'BLANK' || x.state === 'ERROR' || x.state === 'NOT_FOUND') && plan.testedTypes.some((ut) => p.expected[ut] === 'Yes');
     });
     if (brokenForAll.length) {
       warnings.push(`${brokenForAll.length} page(s) rendered for none of the tested users although some should see them (broken page or wrong route?) — marked Review: ${brokenForAll.map((p) => '#' + p.route).join(', ')}`);
@@ -260,7 +289,8 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
       const evidence = byUser.get(ut);
       for (const rule of plan.pages) {
         const expected = rule.expected[ut] ?? null;
-        const inMenu = menuHasRoute(menu, rule.route);
+        // In menu = the page itself is a menu link (a page under it, e.g. ".../marketing/overview", doesn't count).
+        const inMenu = menuMatch(menu, rule.route)?.kind === 'exact';
         const ev = evidence?.get(rule.route);
         const st = states.get(rule.route)?.get(ut);
         if (!ev || !st) {
@@ -271,12 +301,12 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
         const othersWithContent = [...(states.get(rule.route) ?? [])]
           .filter(([u, s]) => u !== ut && (s.state === 'OPENED' || s.state === 'OPENED_EMPTY'))
           .map(([u]) => u);
-        const v = pageVerdict(expected, inMenu, st.state, { othersWithContent });
+        const v = pageVerdict(expected, inMenu, st.state, { othersWithContent, stillLoading: ev.stillLoading });
         const ref = references.get(rule.route);
         const fields = { user: ut, route: rule.route, expected: expected ?? '-', state: st.state, score: st.score ?? undefined, reference: ref?.referenceUser ?? undefined, inMenu, verdict: v.verdict };
         if (v.verdict === 'PASS' || v.verdict === 'NOT_SPECIFIED') log.debug('verdict', fields);
         else log.info('verdict', { ...fields, why: st.reason });
-        results.push({
+        const result: CheckResult = {
           ...base(rule, ut, expected),
           inMenu,
           state: st.state,
@@ -284,7 +314,9 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
           verdict: v.verdict,
           reason: `${v.reason} — ${st.reason}`,
           evidence: ev,
-        });
+        };
+        results.push(result);
+        if (ev.debugDir) writeDecision(ev.debugDir, result, frame, cfg, identities.find((i) => i.userType === ut));
       }
       const mine = results.filter((x) => x.userType === ut);
       log.info('user done', {
@@ -331,6 +363,27 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
     }
     for (const w of warnings) r.log(`  ⚠ ${w}`);
     r.log(`\nReport: ${reportFile}`);
+    if (debugRun) {
+      writeFileSync(
+        join(debugRun, 'run.txt'),
+        scrub(
+          [
+            `Run ${runId}`,
+            `Site: ${cfg.environment.baseUrl}`,
+            `Started: ${startedAt}`,
+            `Report: ${resolve(reportFile)}`,
+            '',
+            'One folder per user type, one folder per page inside it:',
+            '  NN-at-<seconds>s.png            what the browser showed while the page was loading (every ~2 s)',
+            '  final-decided-on-this-<s>s.png  the screen the decision is based on',
+            '  decision.txt                    what the tool saw, how long it waited, and the verdict',
+            '',
+            ...plan.testedTypes.map((ut) => `${ut}: ${VERDICT_ORDER.filter((v) => summary[ut]?.[v]).map((v) => `${v}=${summary[ut]![v]}`).join('  ')}`),
+          ].join('\n') + '\n',
+        ),
+      );
+      r.log(`Debug screenshots: ${resolve(debugRun)}`);
+    }
     const code = results.some((x) => x.verdict.startsWith('FAIL')) ? 2 : 0;
     for (const w of warnings) log.warn('report warning', { message: w });
     log.info('run finished', { run: runId, result: code === 2 ? 'failures found' : 'all pass', checks: results.length, ms: since(runStarted), report: reportFile });
@@ -355,10 +408,11 @@ async function probeAll(
   pages: Rule[],
   phase: 'probe',
   onPage: () => void = () => undefined,
+  debugDir: string | null = null,
 ): Promise<{ pages: Map<string, PageEvidence>; baseline: PageEvidence | null } | string> {
   const { cfg, signal } = input;
   const r = input.reporter ?? consoleReporter;
-  const probe = new BrowserProbe(cfg, audit, userType, join(outDir, 'shots', slug(userType)));
+  const probe = new BrowserProbe(cfg, audit, userType, join(outDir, 'shots', slug(userType)), debugDir);
   const out = new Map<string, PageEvidence>();
   try {
     const err = await probe.open(input.creds.get(userType)!);
@@ -366,7 +420,7 @@ async function probeAll(
     for (const [idx, page] of pages.entries()) {
       if (signal?.aborted) throw new CancelledError();
       if (out.has(page.route)) continue;
-      const ev = await probe.probe(page.route);
+      const ev = await probe.probe(page.route, { debugName: `${String(idx + 1).padStart(2, '0')}-${slug(page.route)}` });
       out.set(page.route, ev);
       log.debug('page checked', {
         user: userType,
@@ -385,6 +439,9 @@ async function probeAll(
         blocked: ev.blockedRequests.length,
         jsErrors: ev.pageErrors.length || undefined,
         error: ev.error,
+        empty: ev.emptyText,
+        stillLoading: ev.stillLoading,
+        wait: ev.waitLog?.at(-1),
         ms: ev.durationMs,
       });
       const signalText = ev.noAccessMarker
@@ -393,9 +450,10 @@ async function probeAll(
           ? `says "${ev.denialText.slice(0, 40)}"`
           : ev.error
             ? `error: ${ev.error}`
-            : `${ev.tokens.length} elements${ev.apiCalls.some((a) => a.hasData) ? ', data loaded' : ''}`;
+            : `${ev.tokens.length} elements${ev.apiCalls.some((a) => a.hasData) ? ', data loaded' : ev.emptyText ? ', empty list' : ''}`;
+      const took = `${(ev.durationMs / 1000).toFixed(1)}s${ev.stillLoading ? ', still loading' : ''}`;
       // Users run in parallel, so every line names its user.
-      r.log(`  [${userType}] ${String(idx + 1).padStart(3)}/${pages.length} #${page.route.padEnd(40)} ${signalText}`);
+      r.log(`  [${userType}] ${String(idx + 1).padStart(3)}/${pages.length} #${page.route.padEnd(40)} ${signalText} (${took})`);
       onPage();
       if (/\/(login|sessionexpired)\b/i.test(ev.finalUrl) || (ev.fragmentRedirect && /\/(login|sessionexpired)\b/.test(ev.fragmentRedirect))) {
         r.log(`  [${userType}] token expired mid-run — stopping this user type`);
@@ -407,6 +465,43 @@ async function probeAll(
     return { pages: out, baseline: probe.baseline };
   } finally {
     await probe.close();
+  }
+}
+
+/** Writes decision.txt next to a page's debug screenshots: what the tool saw, how it waited, and why it decided. */
+function writeDecision(dir: string, res: CheckResult, frame: Frame, cfg: RunConfig, id: Identity | undefined): void {
+  const ev = res.evidence!;
+  const content = pageContent(ev, frame);
+  const menu = res.inMenu ? 'yes' : 'no';
+  const lines = [
+    `Page:        #${res.route}  (${res.label})`,
+    `User type:   ${cfg.userTypes[res.userType]?.label ?? res.userType}${id?.userName ? `  (logged in as ${id.userName})` : ''}`,
+    `Rulebook:    ${res.expected ?? 'not specified'}`,
+    `In menu:     ${menu}`,
+    `Page state:  ${res.state ?? '-'}`,
+    `VERDICT:     ${res.verdict}`,
+    `Why:         ${res.reason}`,
+    '',
+    `Final URL:   ${ev.finalUrl}`,
+    `Page request: ${ev.fragmentStatus ?? 'none seen'}${ev.fragmentRedirect ? ` -> ${ev.fragmentRedirect}` : ''}`,
+    `AMP no-access screen: ${ev.noAccessMarker ? 'yes' : 'no'}`,
+    `"No permission" text: ${ev.denialText ?? '-'}`,
+    `Error text:  ${ev.errorText ?? '-'}`,
+    `Empty-list text: ${ev.emptyText ?? '-'}`,
+    `"Page not found" text: ${ev.notFoundText ?? '-'}`,
+    `Data calls:  ${ev.apiCalls.map((a) => `${a.func} ${a.httpStatus}${a.denied ? ' DENIED' : a.hasData ? ' data' : ' no rows'}${frame.apis.has(a.func) ? ' (frame)' : ''}`).join(', ') || '-'}`,
+    `Page elements beyond the AMP frame (${content.tokens.length}): ${content.tokens.join(' | ') || '-'}`,
+    `Blocked by safety gate: ${ev.blockedRequests.join(', ') || '-'}`,
+    `Page script errors: ${ev.pageErrors.join(' ; ') || '-'}`,
+    `Took:        ${(ev.durationMs / 1000).toFixed(1)}s${ev.stillLoading ? ' (STILL LOADING when the time limit was reached)' : ''}${ev.error ? `  error: ${ev.error}` : ''}`,
+    '',
+    'How the page loaded (one sample every ~0.4 s; loaded = no change, no AMP request running, no spinner):',
+    ...(ev.waitLog ?? []).map((l) => `  ${l}`),
+  ];
+  try {
+    writeFileSync(join(dir, 'decision.txt'), scrub(lines.join('\n')) + '\n');
+  } catch (e) {
+    log.warn('could not write debug decision', { dir, error: (e as Error).message });
   }
 }
 

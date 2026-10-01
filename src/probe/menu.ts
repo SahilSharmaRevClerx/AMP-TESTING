@@ -113,3 +113,15 @@ export async function fetchMenu(
 export function menuHasRoute(menu: MenuResult, route: string): boolean {
   return menu.links.some((l) => routeMatches(l.link, route));
 }
+
+/**
+ * How the route is in the menu: the route itself ("exact"), only a sub-page of it ("sub", e.g. the
+ * menu links "collateral/internal-playbook/marketing/overview" but not "collateral/internal-playbook"),
+ * or not at all (null).
+ */
+export function menuMatch(menu: MenuResult, route: string): { kind: 'exact' } | { kind: 'sub'; link: string } | null {
+  const r = normalizeRoute(route);
+  if (menu.links.some((l) => normalizeRoute(l.link) === r)) return { kind: 'exact' };
+  const sub = menu.links.find((l) => routeMatches(l.link, route));
+  return sub ? { kind: 'sub', link: normalizeRoute(sub.link) } : null;
+}

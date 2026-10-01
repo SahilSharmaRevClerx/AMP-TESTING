@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { buildConfig, makeCredentials } from '../config';
 import { parseRulebook, rulebookSummary, selectUserTypes } from '../rulebook/parse';
 import { assertSafeEnvironment, RequestGate, SafetyError } from '../safety/gate';
-import { validateToken } from '../sessions/validate';
+import { duplicateIdentities, validateToken } from '../sessions/validate';
 import { executeRun, newRunId, planRun, type Progress, type RunOutcome } from '../run';
 import { AuditLog } from '../util/audit';
 import { forgetSecrets, scrub } from '../util/mask';
@@ -22,6 +22,7 @@ const HOST = '127.0.0.1';
 const ROOT = process.cwd();
 const RULEBOOK_DIR = join(ROOT, 'rulebook');
 const OUTPUT_DIR = join(ROOT, 'output');
+const DEBUG_DIR = join(ROOT, 'debug');
 const UI_FILE = fileURLToPath(new URL('./ui.html', import.meta.url));
 const MAX_BODY = 8 * 1024 * 1024;
 const ALLOWED_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
@@ -64,7 +65,7 @@ interface RunRequest {
   /** User-type columns the tester confirmed on the rulebook step (default: all detected). */
   selectedUserTypes?: string[];
   users: UserInput[];
-  options?: { limit?: number; delayMs?: number; fingerprintThreshold?: number; headed?: boolean; parallelUsers?: number };
+  options?: { limit?: number; delayMs?: number; fingerprintThreshold?: number; headed?: boolean; parallelUsers?: number; debugShots?: boolean; pageWaitSec?: number };
 }
 
 // ---------------------------------------------------------------- helpers
@@ -162,10 +163,13 @@ function configFrom(body: RunRequest, rb: Rulebook): RunConfig {
       calibrationUserType: null,
       userTypes,
       outputDir: OUTPUT_DIR,
+      debugDir: DEBUG_DIR,
+      debugShots: o.debugShots !== false,
       headless: o.headed !== true,
       ...(o.delayMs !== undefined ? { delayMs: clamp(o.delayMs, 200, 5000) } : {}),
       ...(o.fingerprintThreshold !== undefined ? { fingerprintThreshold: clamp(o.fingerprintThreshold, 0.2, 1) } : {}),
       ...(o.parallelUsers !== undefined ? { parallelUsers: o.parallelUsers } : {}),
+      ...(o.pageWaitSec !== undefined ? { pageTimeoutMs: clamp(o.pageWaitSec, 10, 120) * 1000 } : {}),
     },
     'request',
   );
@@ -324,6 +328,14 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       results.push({ key: u.key, identity });
       if (identity.valid) log.info('token check ok', { env: env.name, user: u.key, name: identity.userName, persona: identity.persona, siteAdmin: identity.isSiteAdmin, company: identity.companyName, org: identity.organizationName });
       else log.warn('token check failed', { env: env.name, user: u.key, reason: identity.reason });
+    }
+    // Two rows logged in as the same person: the later row is not usable.
+    const labelOf = (key: string) => users.find((x) => x.key === key)?.label || key;
+    for (const [dup, first] of duplicateIdentities(results.map((x) => x.identity))) {
+      const row = results.find((x) => x.key === dup)!;
+      const reason = `same person as ${labelOf(first)} (${row.identity.userName}): paste a jwt from a ${labelOf(dup)} user's own session`;
+      row.identity = { ...row.identity, valid: false, reason };
+      log.warn('token check: same user on two rows', { env: env.name, user: dup, sameAs: first });
     }
     return send(res, 200, { results });
   }

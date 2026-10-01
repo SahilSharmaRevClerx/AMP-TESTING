@@ -87,6 +87,33 @@ function renderUncovered(meta: RunMeta, results: CheckResult[], label: (ut: stri
   return `<h2>Menu items not covered by the rulebook</h2><p class="meta">These are in the user's menu on this environment but have no rulebook row, so they were not tested. Add rows for them to cover this client's menu.</p>${sections.join('')}`;
 }
 
+function menuText(r: CheckResult): string {
+  return r.inMenu ? 'yes' : 'no';
+}
+
+/** What the user actually got, in plain words (the verdict alone says only whether it matched the rulebook). */
+function gotText(r: CheckResult): string {
+  const ev = r.evidence;
+  switch (r.state) {
+    case 'OPENED':
+      return /sections without permission|one section says/.test(r.reason) ? 'page opened (some sections locked)' : 'page opened';
+    case 'OPENED_EMPTY':
+      return 'page opened, data denied';
+    case 'BLOCKED':
+      return ev?.noAccessMarker || /noaccess/.test(ev?.fragmentRedirect ?? ev?.finalUrl ?? '') ? 'no access page' : ev?.denialText ? 'no-permission message' : 'blocked (data denied)';
+    case 'BLANK':
+      return ev?.stillLoading ? 'still loading' : 'blank page';
+    case 'ERROR':
+      return 'error page';
+    case 'NOT_FOUND':
+      return 'page not found (404)';
+    case 'BAD_TOKEN':
+      return 'logged out';
+    default:
+      return 'not tested';
+  }
+}
+
 function badge(v: Verdict): string {
   return `<span class="b b-${v}">${esc(LABEL[v])}</span>`;
 }
@@ -125,10 +152,11 @@ function renderHtml(cfg: RunConfig, meta: RunMeta, results: CheckResult[], rel: 
         .map((ut) => {
           const r = byKey.get(`${id}|${ut}`);
           if (!r) return '<td></td>';
-          const tip = `${r.reason}${r.state ? ` | state: ${r.state}` : ''} | expected: ${r.expected ?? '-'} | menu: ${r.inMenu ? 'yes' : 'no'}`;
+          const tip = `${r.reason}${r.state ? ` | state: ${r.state}` : ''} | expected: ${r.expected ?? '-'} | menu: ${menuText(r)}`;
           const link = r.verdict !== 'PASS' ? `<a href="#i-${esc(id)}-${esc(ut)}">` : '<span>';
+          const got = `<div class="got">expected <b>${esc(r.expected ?? '–')}</b> · got: ${esc(gotText(r))}</div>`;
           const menuHint = `<div class="route">${r.inMenu ? 'in menu' : 'not in menu'}</div>`;
-          return `<td title="${esc(tip)}" data-v="${r.verdict}">${link}${badge(r.verdict)}${r.verdict !== 'PASS' ? '</a>' : '</span>'}${menuHint}</td>`;
+          return `<td title="${esc(tip)}" data-v="${r.verdict}">${link}${badge(r.verdict)}${r.verdict !== 'PASS' ? '</a>' : '</span>'}${got}${menuHint}</td>`;
         })
         .join('');
       return `<tr data-row><th>${esc(first.label)}<div class="route">${esc(first.route ? '#' + first.route : '')}</div></th>${cells}</tr>`;
@@ -146,13 +174,15 @@ function renderHtml(cfg: RunConfig, meta: RunMeta, results: CheckResult[], rel: 
       const details: string[] = [];
       if (ev) {
         details.push(`<li>Final URL: <code>${esc(ev.finalUrl)}</code></li>`);
-        if (ev.fragmentStatus !== null) details.push(`<li>Page request: HTTP ${ev.fragmentStatus}${ev.fragmentRedirect ? ` â†’ <code>${esc(ev.fragmentRedirect)}</code>` : ''}</li>`);
+        if (ev.fragmentStatus !== null) details.push(`<li>Page request: HTTP ${ev.fragmentStatus}${ev.fragmentRedirect ? ` → <code>${esc(ev.fragmentRedirect)}</code>` : ''}</li>`);
         if (r.fingerprintScore !== null) details.push(`<li>Fingerprint match: ${Math.round(r.fingerprintScore * 100)}%</li>`);
         const denied = ev.apiCalls.filter((a) => a.denied);
         if (denied.length) details.push(`<li>Denied API calls: ${denied.map((a) => `<code>${esc(a.func)}</code>`).join(', ')}</li>`);
         if (ev.blockedRequests.length) details.push(`<li>Blocked by safety gate: ${ev.blockedRequests.slice(0, 5).map((b) => `<code>${esc(b)}</code>`).join(', ')}</li>`);
         if (ev.pageErrors.length) details.push(`<li>Page errors: ${ev.pageErrors.slice(0, 3).map((e) => `<code>${esc(e)}</code>`).join(', ')}</li>`);
         if (ev.error) details.push(`<li>Probe error: <code>${esc(ev.error)}</code></li>`);
+        if (ev.stillLoading) details.push(`<li>Still loading when the time limit was reached: <code>${esc(ev.waitLog?.at(-1) ?? '')}</code></li>`);
+        if (ev.debugDir) details.push(`<li>Step-by-step screenshots and decision: <code>${esc(ev.debugDir)}</code></li>`);
       }
       const key = `${r.ruleId}|${r.userType}`;
       const shots =
@@ -160,9 +190,9 @@ function renderHtml(cfg: RunConfig, meta: RunMeta, results: CheckResult[], rel: 
           ? `<div class="shots">${calShot ? `<figure><a href="${esc(calShot)}" target="_blank"><img loading="lazy" src="${esc(calShot)}"></a><figcaption>${esc(label(refInfo?.user ?? ''))} — reference (saw the most of this page)</figcaption></figure>` : ''}${userShot ? `<figure><a href="${esc(userShot)}" target="_blank"><img loading="lazy" src="${esc(userShot)}"></a><figcaption>${esc(label(r.userType))}</figcaption></figure>` : ''}</div>`
           : '';
       return `<section class="issue" id="i-${esc(r.ruleId)}-${esc(r.userType)}" data-v="${r.verdict}">
-  <header>${badge(r.verdict)} <strong>${esc(r.label)}</strong> <span class="route">${esc(r.route ? '#' + r.route : '(group)')}</span> â€” ${esc(label(r.userType))}</header>
+  <header>${badge(r.verdict)} <strong>${esc(r.label)}</strong> <span class="route">${esc(r.route ? '#' + r.route : '(group)')}</span> — ${esc(label(r.userType))}</header>
   <p>${esc(r.reason)}</p>
-  <p class="facts">Expected: <b>${esc(r.expected ?? 'not specified')}</b> Â· In menu: <b>${r.inMenu ? 'yes' : 'no'}</b>${r.state ? ` Â· Page state: <b>${esc(r.state)}</b>` : ''}</p>
+  <p class="facts">Expected: <b>${esc(r.expected ?? 'not specified')}</b> · In menu: <b>${esc(menuText(r))}</b>${r.state ? ` · Page state: <b>${esc(r.state)}</b>` : ''}</p>
   ${details.length ? `<ul>${details.join('')}</ul>` : ''}
   ${shots}
   <div class="review" data-key="${esc(key)}">
@@ -186,7 +216,7 @@ function renderHtml(cfg: RunConfig, meta: RunMeta, results: CheckResult[], rel: 
 main{max-width:1280px;margin:0 auto;padding:24px 16px 64px}h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:32px 0 10px}
 .meta{color:var(--muted)}table{border-collapse:collapse;width:100%;background:var(--card);border:1px solid var(--line)}
 th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}thead th{position:sticky;top:0;background:var(--card);z-index:1}
-td.hot{color:var(--fail);font-weight:600}.child{padding-left:24px}.route{color:var(--muted);font:12px ui-monospace,Consolas,monospace}.kind{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+td.hot{color:var(--fail);font-weight:600}.child{padding-left:24px}.route{color:var(--muted);font:12px ui-monospace,Consolas,monospace}.got{font-size:12px;margin-top:3px}.hint{color:var(--muted);font-size:14px;margin:0 0 10px}.kind{font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px}
 .scroll{overflow-x:auto}.b{display:inline-block;border-radius:4px;padding:1px 6px;font-size:12px;font-weight:600;white-space:nowrap}
 .b-PASS{background:var(--pass-bg);color:var(--pass)}.b-FAIL_SECURITY_GAP,.b-FAIL_EXTRA_ACCESS,.b-FAIL_MISSING_ACCESS,.b-FAIL_OPENS_EMPTY{background:var(--fail-bg);color:var(--fail)}
 .b-REVIEW{background:var(--warn-bg);color:var(--warn)}.b-NOT_SPECIFIED{background:var(--info-bg);color:var(--info)}
@@ -197,8 +227,8 @@ code{font:12px ui-monospace,Consolas,monospace;background:var(--mute-bg);padding
 .review{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}.review .note{flex:1;min-width:200px;padding:4px 8px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--fg)}
 .warn{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:8px 14px;margin:16px 0}.btn{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:6px;padding:6px 12px;cursor:pointer}
 </style></head><body><main>
-<h1>AMP Permission Report â€” ${esc(cfg.environment.name)}</h1>
-<div class="meta">${esc(cfg.environment.baseUrl)} Â· run ${esc(meta.runId)} Â· ${esc(meta.startedAt)} â†’ ${esc(meta.finishedAt)}${meta.ampVersion ? ` Â· AMP build ${esc(meta.ampVersion)}` : ''} Â· rulebook ${esc(meta.rulebookFile)} Â· fingerprint threshold ${Math.round(cfg.fingerprintThreshold * 100)}%</div>
+<h1>AMP Permission Report — ${esc(cfg.environment.name)}</h1>
+<div class="meta">${esc(cfg.environment.baseUrl)} · run ${esc(meta.runId)} · ${esc(meta.startedAt)} → ${esc(meta.finishedAt)}${meta.ampVersion ? ` · AMP build ${esc(meta.ampVersion)}` : ''} · rulebook ${esc(meta.rulebookFile)} · fingerprint threshold ${Math.round(cfg.fingerprintThreshold * 100)}%</div>
 ${warnings}
 <h2>Test users</h2>
 <table><thead><tr><th>User type</th><th>Logged-in identity</th><th>Menu</th></tr></thead><tbody>${identityRows}</tbody></table>
@@ -206,6 +236,7 @@ ${renderUncovered(meta, results, label)}
 <h2>Summary</h2>
 <div class="scroll"><table><thead><tr><th>User type</th>${VERDICT_ORDER.map((v) => `<th>${badge(v)}</th>`).join('')}</tr></thead><tbody>${summaryRows}</tbody></table></div>
 <h2>Matrix</h2>
+<p class="hint"><b>Pass</b> means the user got what the rulebook expects, not that the page opened: a page the rulebook says <b>No</b> to that shows AMP's "No Access" page is a Pass. Each cell shows what was expected and what the user actually got.</p>
 <div class="filters" id="f"><button class="on" data-f="all">All</button><button data-f="fail">Failures only</button><button data-f="attn">Needs attention</button></div>
 <div class="scroll"><table id="m"><thead><tr><th>Page</th>${userTypes.map((ut) => `<th>${esc(label(ut))}</th>`).join('')}</tr></thead><tbody>${matrixRows}</tbody></table></div>
 <h2>Issues (${results.filter((r) => r.verdict !== 'PASS').length})</h2>
