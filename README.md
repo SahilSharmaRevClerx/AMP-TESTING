@@ -66,7 +66,7 @@ Per user (each in a **fresh, separate browser and session**):
 
 1. Put the user's jwt into the browser as an HttpOnly cookie for the client's host only.
 2. Load AMP's main page, then take a "frame only" snapshot (a route that doesn't exist, so only the menu, header and notifications render).
-3. For each rulebook page, in the **same tab**: change the `#route` (like clicking a menu item), wait until the page stops changing, record the evidence and a screenshot, pause `delayMs`, then go to the next page.
+3. For each rulebook page, in the **same tab**: change the `#route` (like clicking a menu item), wait until the page has **finished loading**, record the evidence and a screenshot, pause `delayMs`, then go to the next page. Finished loading means: nothing on screen changed for ~0.8 s, **no AMP request started for this page is still running**, and **no loading spinner** / "Loading..." text is visible outside the menu. Fast pages take ~1–2 s; slow dev servers can take 25 s, so the limit is 30 s per page (`pageTimeoutMs`). A page still loading at the limit is marked **Review**, not guessed.
 4. Close the browser.
 
 **User types run in parallel** (default 3 at a time, 1–5, always 1 on production). Pages within a user stay one at a time to keep load on AMP low.
@@ -87,9 +87,9 @@ The question for each page and user is **"did this user get a usable page?"**, n
 
 | Page state | Meaning |
 |---|---|
-| OPENED | Page content beyond the AMP frame (page-specific elements, or elements plus loaded data) |
+| OPENED | Page content beyond the AMP frame (page-specific elements, or elements plus loaded data). **An empty list counts**: a heading plus the page's own "No Data Found" message, or a data call AMP answered without a denial (just no rows) |
 | OPENED_EMPTY | Page content, but its own data calls were denied |
-| BLOCKED | AMP no-access screen, redirect to `/noaccess`, an on-screen "no permission / access denied / not authorized" message, or nothing shown and its data calls denied |
+| BLOCKED | AMP no-access screen, redirect to `/noaccess`, an on-screen "no permission / access denied / not authorized" message, or nothing shown and its data calls denied. A "no permission" message inside **one widget** of an otherwise rendered page (≥ 4 other page elements, e.g. a dashboard tile saying "Permission Needed") does not block the page; the reason notes "one section says …" |
 | BLANK | Only the AMP frame rendered |
 | ERROR | "Something went wrong"-type message with nothing else, script crash with nothing rendered, or HTTP 5xx |
 | NOT_FOUND | Route doesn't exist on this build |
@@ -102,7 +102,7 @@ The question for each page and user is **"did this user get a usable page?"**, n
 | **Yes** | Pass (Opens empty if data denied) | **Missing access**, or **Review** when *no* tested user got the page (broken page / wrong route, not a permission result) |
 | **No** | **Extra access**, or **Security gap** if hidden from the menu | Pass |
 
-"No No No" rows need no reference: if nobody gets usable content, everyone passes. The user's menu is read too, but only as information: it never decides pass/fail, it only upgrades "extra access" to "security gap". For information, each page also records a **reference view** (the tested user expected to have access who saw the most of it) and how much of it each user saw.
+"No No No" rows need no reference: if nobody gets usable content, everyone passes. The user's menu is read too, but only as information: it never decides pass/fail, it only upgrades "extra access" to "security gap". **In menu** means the page itself is a menu link; a page under it (e.g. `#collateral/internal-playbook/marketing/overview` for `#collateral/internal-playbook`) doesn't count. For information, each page also records a **reference view** (the tested user expected to have access who saw the most of it) and how much of it each user saw.
 
 | Verdict | When |
 |---|---|
@@ -126,6 +126,24 @@ Written to `output/<env>-<timestamp>/` and opened from the Results step or **Pas
 | `shots/<user type>/*.png` | One screenshot per page per user |
 | `audit.jsonl` | Every request made or allowed, and every request blocked (tokens masked) |
 | `rulebook-<name>` | Copy of the rulebook used |
+
+### Debug screenshots (`debug/`, git-ignored)
+
+On by default (Advanced options → *Save step-by-step screenshots*; CLI: `"debugShots": false` to turn off). Each run gets a folder named by its local start time and site, then one per user type and one per page:
+
+```
+debug/2026-10-01_09-14_main-dvl-amp-vg/      (a 2nd run in the same minute gets _2)
+  run.txt                                     run id, report path, per-user totals
+  super-admin/
+    00-frame-only/                            what the AMP frame looks like with no page
+    01-collateral-internal-playbook/
+      01-at-0.5s.png  02-at-2.5s.png ...      what the browser showed while loading (every ~2 s)
+      final-decided-on-this-3.9s.png          the screen the decision is based on
+      decision.txt                            evidence, the wait sample by sample, state, verdict and why
+  user/ ...
+```
+
+Delete old run folders when you no longer need them. Like `output/`, they contain screenshots of client pages (never jwts).
 
 ## Safety
 

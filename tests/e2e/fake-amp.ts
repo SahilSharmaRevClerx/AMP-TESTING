@@ -20,10 +20,10 @@ interface PageDef {
   route: string;
   title: string;
   apis: string[];
-  partner: 'open' | 'redirect' | 'inline-noaccess' | 'open-api-denied' | 'custom-deny' | 'blank' | 'error-box' | 'dashboard';
+  partner: 'open' | 'redirect' | 'inline-noaccess' | 'open-api-denied' | 'custom-deny' | 'blank' | 'error-box' | 'dashboard' | 'slow-empty' | 'widget-deny';
   partnerMenu: boolean;
   /** How the page behaves for the admin (default: opens). */
-  admin?: 'open' | 'redirect' | 'blank' | 'dashboard';
+  admin?: 'open' | 'redirect' | 'blank' | 'dashboard' | 'slow-empty' | 'widget-deny';
 }
 
 export const PAGES: PageDef[] = [
@@ -41,7 +41,15 @@ export const PAGES: PageDef[] = [
   { route: 'manage/nonono', title: 'No No No', apis: ['getnonono'], partner: 'redirect', admin: 'redirect', partnerMenu: false }, // PASS for everyone
   { route: 'setup/broken', title: 'Broken', apis: ['getbroken'], partner: 'blank', admin: 'blank', partnerMenu: true }, // REVIEW: renders for nobody
   { route: 'manage/mdf/funds', title: 'Request MDF', apis: ['getfunds', 'savelastviewed'], partner: 'open', partnerMenu: true }, // PASS, write api must be blocked
+  // Slow server: the page arrives after 1.2 s with a spinner, its list call answers after 1.5 s with no rows → "No Data Found". PASS for both.
+  { route: 'connections/slowlist', title: 'Slow List', apis: ['getslowlist'], partner: 'slow-empty', admin: 'slow-empty', partnerMenu: true },
+  // A dashboard where one widget says "no permission": the page itself opened. PASS for both.
+  // Its Journey widget's data call is denied while the other two load (like AMP's sales dashboard for a normal user).
+  { route: 'insights/widgets', title: 'Widgets', apis: ['getwidgetevents', 'getwidgetvideos', 'getwidgetjourney'], partner: 'widget-deny', admin: 'widget-deny', partnerMenu: true },
 ];
+
+/** In the partner's menu only as a sub-page (like AMP's ".../marketing/overview" under Internal Playbook). */
+export const PARTNER_SUB_LINK = 'setup/roles/overview';
 
 export const received: { user: User | null; method: string; path: string; func?: string; at: number }[] = [];
 
@@ -61,6 +69,7 @@ function userOf(req: IncomingMessage): User | null {
 
 function shell(user: User): string {
   const links = PAGES.filter((p) => user === 'admin' || p.partnerMenu).map((p) => ({ name: p.title, link: '#' + p.route, key: p.title }));
+  if (user === 'partner') links.push({ name: 'Roles overview', link: '#' + PARTNER_SUB_LINK, key: 'Roles overview' });
   const nav = [{ name: 'Main', link: '', items: links }, { name: 'Dashboard', link: '#dashboard/' + (user === 'admin' ? 'admin' : 'sales') }];
   return `<!doctype html><html><head><title>AMP</title></head><body>
 <div id="nav">menu</div><div id="header"><h1>AMP</h1></div><div id="content"></div>
@@ -73,8 +82,11 @@ function load(){
   fetch('/' + h).then(function(r){ return r.text(); }).then(function(t){
     var c = document.getElementById('content'); c.innerHTML = t;
     var el = c.querySelector('[data-apis]');
-    if (el) el.getAttribute('data-apis').split(',').forEach(function(f){ api(f).then(function(res){
-      if (res && res.status === 0) { var p = document.createElement('p'); p.textContent = 'rows loaded'; el.appendChild(p); }
+    if (el) el.getAttribute('data-apis').split(',').filter(Boolean).forEach(function(f){ api(f).then(function(res){
+      // List pages: drop the spinner, then show rows or the page's own empty message.
+      el.querySelectorAll('.loading-spinner').forEach(function(s){ s.remove(); });
+      var empty = res && Array.isArray(res.result) && res.result.length === 0;
+      if (res && res.status === 0) { var p = document.createElement('p'); p.textContent = empty ? 'No Data Found' : 'rows loaded'; el.appendChild(p); }
     }); });
   });
 }
@@ -121,6 +133,11 @@ export function startFakeAmp(): Promise<{ server: Server; baseUrl: string }> {
       if (user === 'partner' && func === 'getassetreport') {
         return send(200, JSON.stringify({ status: 3, result: { code: 'x1', message: 'You do not have access to this report' } }), 'application/json');
       }
+      if (func === 'getwidgetjourney') return send(200, JSON.stringify({ status: 3, result: 'Not authorized.' }), 'application/json');
+      if (func === 'getslowlist') {
+        setTimeout(() => send(200, JSON.stringify({ status: 0, result: [] }), 'application/json'), 1500);
+        return;
+      }
       return send(200, JSON.stringify({ status: 0, result: { rows: [1, 2, 3] } }), 'application/json');
     }
 
@@ -131,11 +148,23 @@ export function startFakeAmp(): Promise<{ server: Server; baseUrl: string }> {
     }
 
     const page = PAGES.find((p) => '/' + p.route === path);
-    if (!page) return send(404, 'not found');
+    // Like AMP: an unknown route renders its "Looks like you're lost / ERROR CODE: 404" screen.
+    if (!page) return send(200, '<div class="error-404"><h2>Looks like you’re lost</h2><p>ERROR CODE: 404</p><p>It might have been moved or deleted.</p></div>');
     const content = `<div id="${page.route.replace(/\//g, '-')}-grid" data-apis="${page.apis.join(',')}"><h2>${page.title}</h2><table id="${page.route.replace(/\//g, '-')}-table"><tr><td>data</td></tr></table></div>`;
     const dashboard = (who: User) => who === 'admin'
       ? '<div id="dash"><h2>Company overview</h2><div id="widget-revenue">Revenue</div><div id="widget-pipeline">Pipeline</div></div>'
       : '<div id="dash-partner"><div id="widget-my-deals">My deals</div><div id="widget-training">Training</div></div>';
+    const kind = user === 'admin' ? (page.admin ?? 'open') : page.partner;
+    if (kind === 'slow-empty') {
+      // Only a heading (no ids) plus a spinner: usable only once the list call answered and "No Data Found" shows.
+      const html = `<div data-apis="${page.apis.join(',')}"><h2>${page.title}</h2><div class="loading-spinner" style="width:30px;height:30px">…</div></div>`;
+      setTimeout(() => send(200, html), 1200);
+      return;
+    }
+    if (kind === 'widget-deny') {
+      return send(200, `<div id="wgrid" data-apis="${page.apis.join(',')}"><h2>Overview</h2><div id="w-events"><h3>Events</h3></div><div id="w-videos"><h3>Videos</h3></div>` +
+        '<div id="w-journey"><h3>Journey</h3><h4>Permission Needed</h4><p>You do not have the permission. Please go to the "Help" menu above to contact support.</p></div></div>');
+    }
     if (user === 'admin') {
       switch (page.admin ?? 'open') {
         case 'redirect':

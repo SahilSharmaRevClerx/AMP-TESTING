@@ -7,12 +7,15 @@ const DEFAULTS: Omit<RunConfig, 'environment' | 'userTypes' | 'calibrationUserTy
   rulebook: 'rulebook/internal-user-personas.csv',
   shellPath: '/',
   delayMs: 500,
-  pageTimeoutMs: 20000,
+  // Longest wait for one page to finish loading (slow dev servers took 25 s); fast pages finish in ~1-2 s.
+  pageTimeoutMs: 30000,
   settleMs: 1000,
   fingerprintThreshold: 0.6,
   parallelUsers: 3,
   headless: true,
   outputDir: 'output',
+  debugShots: true,
+  debugDir: 'debug',
 };
 
 /** Applies defaults and validates a config, whether it came from a file (CLI) or the web UI. */

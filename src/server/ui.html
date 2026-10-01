@@ -369,8 +369,10 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
             <div class="field narrow"><label class="lbl" for="opt-delay">Delay between pages (ms)</label><input type="number" id="opt-delay" min="200" max="5000" value="500"></div>
             <div class="field narrow"><label class="lbl" for="opt-th">Match threshold (%)</label><input type="number" id="opt-th" min="20" max="100" value="60"></div>
             <div class="field narrow"><label class="lbl" for="opt-par">Users tested at the same time</label><input type="number" id="opt-par" min="1" max="5" value="3"></div>
+            <div class="field narrow"><label class="lbl" for="opt-wait">Longest wait per page (s)</label><input type="number" id="opt-wait" min="10" max="120" value="30" title="Raise this for slow servers. Fast pages still finish in 1–2 s."></div>
           </div>
           <label class="check"><input type="checkbox" id="opt-headed"> Show the browser window while testing</label>
+          <label class="check"><input type="checkbox" id="opt-debug" checked> Save step-by-step screenshots of every page (in the <code>debug</code> folder)</label>
         </details>
       </div>
       <div id="run-live" class="live" hidden>
@@ -735,6 +737,8 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
         delayMs: parseInt($('opt-delay').value, 10) || 500,
         fingerprintThreshold: (parseInt($('opt-th').value, 10) || 60) / 100,
         headed: $('opt-headed').checked,
+        debugShots: $('opt-debug').checked,
+        pageWaitSec: parseInt($('opt-wait').value, 10) || 30,
         parallelUsers: parseInt($('opt-par').value, 10) || 3
       }
     };

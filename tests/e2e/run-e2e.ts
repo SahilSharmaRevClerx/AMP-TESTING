@@ -8,7 +8,7 @@ import { commandRun } from '../../src/run';
 import { setLogLevel } from '../../src/util/logger';
 
 if (!process.env.LOG_LEVEL) setLogLevel('warn');
-import { received, startFakeAmp, TOKENS } from './fake-amp';
+import { PARTNER_SUB_LINK, received, startFakeAmp, TOKENS } from './fake-amp';
 import { scanForSecrets } from './leak-scan';
 
 const expected: Record<string, string> = {
@@ -26,6 +26,9 @@ const expected: Record<string, string> = {
   'setup/errorbox': 'PASS', // error box + rulebook No
   'manage/nonono': 'PASS', // No No No
   'setup/broken': 'REVIEW', // renders for nobody
+  'connections/slowlist': 'PASS', // slow page + spinner + empty list ("No Data Found") = usable
+  'insights/widgets': 'PASS', // one widget says "no permission", the page itself opened
+  'setup/rolez': 'REVIEW', // mistyped link (No/No): AMP's 404 screen for everyone → never a Pass
 };
 
 async function main(): Promise<number> {
@@ -48,6 +51,8 @@ async function main(): Promise<number> {
       parallelUsers: Number(process.env.PARALLEL ?? 3),
       headless: true,
       outputDir,
+      debugShots: true,
+      debugDir: join(outputDir, 'debug'),
     }),
   );
   process.env.AMP_JWT_SITE_ADMIN = TOKENS.site_admin.jwt;
@@ -58,14 +63,15 @@ async function main(): Promise<number> {
     const code = await commandRun({ configFile });
     if (code !== 2) failures.push(`exit code ${code}, expected 2 (failures present)`);
 
-    const runDir = readdirSync(outputDir, { withFileTypes: true }).find((d) => d.isDirectory())!.name;
+    const runDir = readdirSync(outputDir, { withFileTypes: true }).find((d) => d.isDirectory() && d.name !== 'debug')!.name;
     const data = JSON.parse(readFileSync(join(outputDir, runDir, 'results.json'), 'utf8')) as {
-      results: { route: string; label: string; type: string; userType: string; verdict: string; reason: string }[];
+      meta: { warnings: string[] };
+      results: { route: string; label: string; type: string; userType: string; verdict: string; reason: string; inMenu: boolean }[];
     };
     const byRoute = new Map(data.results.filter((r) => r.userType === 'partner_sales').map((r) => [r.route, r]));
-    // The admin should get every page except the one that is broken for everyone.
+    // The admin should get every page except the one that is broken for everyone and the mistyped link.
     for (const r of data.results.filter((x) => x.userType === 'site_admin')) {
-      const want = r.route === 'setup/broken' ? 'REVIEW' : 'PASS';
+      const want = r.route === 'setup/broken' || r.route === 'setup/rolez' ? 'REVIEW' : 'PASS';
       if (r.verdict !== want) failures.push(`admin #${r.route}: expected ${want}, got ${r.verdict} (${r.reason})`);
     }
     for (const [route, v] of Object.entries(expected)) {
@@ -73,6 +79,28 @@ async function main(): Promise<number> {
       if (got?.verdict !== v) failures.push(`#${route}: expected ${v}, got ${got?.verdict} (${got?.reason})`);
     }
     if (data.results.length !== Object.keys(expected).length * 2) failures.push(`expected ${Object.keys(expected).length * 2} results, got ${data.results.length}`);
+
+    if (!data.meta.warnings.some((w) => /don't exist on this site/.test(w) && w.includes('#setup/rolez'))) failures.push(`no "link doesn't exist" warning for #setup/rolez: ${data.meta.warnings.join(' | ')}`);
+
+    // Menu: only a page under #setup/roles (PARTNER_SUB_LINK) is in the partner's menu → "not in menu".
+    if (byRoute.get('setup/roles')?.inMenu !== false) failures.push(`#setup/roles: only ${PARTNER_SUB_LINK} is in the partner's menu, must be "not in menu"`);
+    if (data.results.find((r) => r.userType === 'site_admin' && r.route === 'setup/roles')?.inMenu !== true) failures.push('admin #setup/roles: the page itself is in the menu');
+
+    // Debug folder: debug/<date_time_site>/<user>/<NN-page>/ with step shots, the final shot and decision.txt.
+    const debugRoot = join(outputDir, 'debug');
+    const debugRuns = readdirSync(debugRoot);
+    if (debugRuns.length !== 1 || !/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}_127-0-0-1-\d+$/.test(debugRuns[0] ?? '')) failures.push(`debug run folder name: ${debugRuns.join(', ')}`);
+    const debugRun = join(debugRoot, debugRuns[0] ?? '');
+    for (const u of ['site-admin', 'partner-sales']) {
+      const pageDirs = readdirSync(join(debugRun, u)).filter((d) => /^\d{2}-/.test(d));
+      if (pageDirs.length !== Object.keys(expected).length + 1) failures.push(`debug ${u}: expected ${Object.keys(expected).length} pages + frame-only, got ${pageDirs.length}`);
+      for (const d of pageDirs.filter((x) => x !== '00-frame-only')) {
+        const files = readdirSync(join(debugRun, u, d));
+        if (!files.includes('decision.txt') || !files.some((f) => f.startsWith('final-')) || !files.some((f) => /^01-at-/.test(f))) failures.push(`debug ${u}/${d}: missing files (${files.join(', ')})`);
+      }
+    }
+    const slow = readFileSync(join(debugRun, 'partner-sales', readdirSync(join(debugRun, 'partner-sales')).find((d) => d.endsWith('connections-slowlist'))!, 'decision.txt'), 'utf8');
+    if (!/VERDICT:\s+PASS/.test(slow) || !/No Data Found/.test(slow) || !/loaded after/.test(slow)) failures.push(`slow list decision.txt not as expected:\n${slow}`);
 
     // Safety: the page's write API must never reach the server, and must be in the audit log as blocked.
     if (received.some((r) => r.func === 'savelastviewed')) failures.push('SAFETY: savelastviewed reached the server');
