@@ -30,7 +30,9 @@ npm start              # or: npm run start:debug  (detailed logs)
 
 This opens `http://127.0.0.1:4545`. After any code update, restart (`Ctrl+C`, `npm start`) and hard-refresh the page (`Ctrl+Shift+R`).
 
-**Welcome page:** three full-screen scenes you scroll through: a welcome, a "How it works" flow (Environment → Rulebook → Users & tokens → Run → Report), then **Start new test** / **View past runs**.
+**Home (Testing catalog):** the first screen lists the testing modules as cards (icon, Available / Coming soon, category, description, tags, **Launch**), with a search box and a grid/list toggle (remembered in the browser). **AMP Pages Testing** (this tool) shows its last run and **Launch** opens the welcome page; a "More testing modules" placeholder marks where new modules go (add one entry to `MODULES` in `src/server/ui.html`). The logo, the results page's **Home** button and **All testing modules** on the welcome page lead back here.
+
+**Welcome page (AMP Pages Testing):** three full-screen scenes you scroll through: a welcome, a "How it works" flow (Environment → Rulebook → Users & tokens → Run → Report), then **Start new test** / **View past runs**.
 
 **The wizard** takes one step at a time; each **Next** checks its step:
 

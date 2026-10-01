@@ -75,8 +75,26 @@ async function main(): Promise<number> {
       throw new Error(`could not type the jwt into the ${key} row`);
     };
 
-    // Welcome → Start
+    // Home (module cards) → AMP Pages Testing → welcome → Start
     await page.goto(UI);
+    await page.waitForSelector('#screen-hub:not([hidden]) #mod-pages');
+    await shot('0-home');
+    if (await page.isVisible('#go-history')) failures.push('home: "Past runs" link should be hidden on the module picker');
+    if (!(await page.isVisible('#mods .mod.soon'))) failures.push('home: "More testing modules" placeholder card missing');
+    // Search filters the catalog; list view switches layout.
+    await page.fill('#mod-search', 'no-such-module');
+    if (!(await page.isVisible('#mods .cat-empty'))) failures.push('home: search for an unknown module should show "No modules match"');
+    await page.fill('#mod-search', 'rulebook');
+    if ((await page.locator('#mods .mod').count()) !== 1) failures.push('home: search "rulebook" should leave only AMP Pages Testing');
+    await page.fill('#mod-search', '');
+    await page.click('#view-list');
+    if (!(await page.locator('#mods.list').count())) failures.push('home: list view did not switch');
+    await page.click('#view-grid');
+    await page.click('#mod-pages');
+    await page.waitForSelector('#screen-welcome:not([hidden]) #btn-mods');
+    await page.click('#btn-mods'); // back to the module picker, then in again
+    await page.waitForSelector('#screen-hub:not([hidden])');
+    await page.click('#mod-pages');
     await page.waitForSelector('#btn-start');
     await shot('1-welcome');
     await page.click('#btn-start');
