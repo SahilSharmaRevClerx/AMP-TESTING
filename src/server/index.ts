@@ -4,7 +4,7 @@ import { extname, join, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { exec } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { buildConfig, makeCredentials } from '../config';
+import { buildConfig, loadLocalEnv, makeCredentials } from '../config';
 import { parseRulebook, rulebookSummary, selectUserTypes } from '../rulebook/parse';
 import { assertSafeEnvironment, RequestGate, SafetyError } from '../safety/gate';
 import { duplicateIdentities, validateToken } from '../sessions/validate';
@@ -16,8 +16,12 @@ import type { Credentials, Environment, Rulebook, RunConfig } from '../types';
 import { checkSuperAdmin } from '../setter/session';
 import { executeSetter, newSetterRunId, planAll, type SetterOutcome } from '../setter/run';
 import { LEVELS } from '../setter/sliders';
+import { aiKeySet, aiModel } from '../setter/ai';
 
 const log = createLogger('server');
+
+// The AI review's Gemini settings may live in .env or .env.local (only these names are read; jwts are entered in the page).
+for (const file of ['.env.local', '.env']) loadLocalEnv(file, ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_MODEL']);
 const httpLog = createLogger('http');
 
 const PORT = Number(process.env.PORT ?? 4545);
@@ -63,8 +67,49 @@ interface SetterState {
   lines: string[];
   outcome: SetterOutcome | null;
   controller: AbortController;
+  /** Set after a rulebook Apply: lets Pages Testing pick up this run. */
+  handoffId?: string;
 }
 let setter: SetterState | null = null;
+
+/**
+ * Permission Setter → Pages Testing handoff: what a finished Apply leaves for the "Verify in Pages
+ * Testing" button. Memory only, for HANDOFF_MINUTES. The user jwts in it are never sent back to the
+ * page; the Pages wizard only refers to them by handoff id.
+ */
+interface Handoff {
+  id: string;
+  expiresAt: number;
+  environment: Environment;
+  rulebookId: string;
+  /** Rulebook columns whose roles were saved (or already matched). */
+  columns: string[];
+  roles: Record<string, string>;
+  setterRunId: string;
+  /** Column → that user's jwt, as pasted in the setter. */
+  jwts: Map<string, string>;
+}
+const HANDOFF_MINUTES = 15;
+const handoffs = new Map<string, Handoff>();
+
+function getHandoff(id: string | undefined): Handoff | null {
+  if (!id) return null;
+  const h = handoffs.get(id);
+  if (!h) return null;
+  if (Date.now() > h.expiresAt) {
+    dropHandoff(h.id);
+    return null;
+  }
+  return h;
+}
+
+function dropHandoff(id: string): void {
+  const h = handoffs.get(id);
+  if (!h) return;
+  h.jwts.clear();
+  handoffs.delete(id);
+  log.debug('handoff dropped', { id });
+}
 
 interface SetterBody {
   environment?: Environment;
@@ -75,6 +120,12 @@ interface SetterBody {
   bulk?: { roleName?: string; step?: number };
   apply?: boolean;
   headed?: boolean;
+  /** Rulebook column → that user's own jwt: after saving, log in as them and open the rulebook pages. */
+  users?: Record<string, string>;
+  /** Send results and screenshots to Gemini for a second check. */
+  ai?: boolean;
+  /** Pause after every step in AMP's role editor, in seconds. */
+  stepDelaySec?: number;
 }
 
 // ---------------------------------------------------------------- request shapes
@@ -85,6 +136,16 @@ interface UserInput {
   jwt?: string;
   csrf?: string;
   test?: boolean;
+  /** Use the jwt this user had in a Permission Setter run (handoff id) instead of a pasted one. */
+  handoff?: string;
+}
+
+/** The jwt for a user row: pasted, or kept from the Permission Setter handoff. */
+function jwtOf(u: UserInput | undefined): string | undefined {
+  const pasted = u?.jwt?.trim();
+  if (pasted) return pasted;
+  if (!u?.handoff) return undefined;
+  return getHandoff(u.handoff)?.jwts.get(u.key);
 }
 interface RunRequest {
   environment: Environment;
@@ -171,8 +232,8 @@ function credsFrom(users: UserInput[], keys: string[]): Map<string, Credentials>
   const creds = new Map<string, Credentials>();
   for (const key of keys) {
     const u = users.find((x) => x.key === key);
-    const jwt = u?.jwt?.trim();
-    if (!jwt) throw new HttpError(400, `jwt missing for ${u?.label || key}`);
+    const jwt = jwtOf(u);
+    if (!jwt) throw new HttpError(400, u?.handoff ? `the jwt kept from the Permission Setter for ${u.label || key} has expired: paste it again` : `jwt missing for ${u?.label || key}`);
     creds.set(key, makeCredentials(jwt, u?.csrf));
   }
   return creds;
@@ -302,6 +363,10 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   }
   if (method === 'GET' && path === '/api/runs') return send(res, 200, { runs: listRuns() });
   if (method === 'GET' && path === '/api/runs/current') return send(res, 200, { run: publicState(current) });
+  if (method === 'GET' && path === '/api/setter/info') {
+    // Whether a Gemini key is set for this process (the key itself is never sent to the page).
+    return send(res, 200, { aiKey: aiKeySet(), aiModel: aiModel() });
+  }
   if (method === 'GET' && path === '/api/setter/runs/current') return send(res, 200, { run: setterState(Number(url.searchParams.get('from') ?? 0)) });
 
   const events = /^\/api\/runs\/([\w-]+)\/events$/.exec(path);
@@ -317,6 +382,24 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
   // Everything below changes state or uses tokens: UI only.
   assertFromUi(req);
+
+  const ho = /^\/api\/handoff\/([\w-]+)$/.exec(path);
+  if (method === 'GET' && ho) {
+    const h = getHandoff(ho[1]);
+    if (!h) throw new HttpError(404, 'This hand-off from the Permission Setter has expired. Start the page test from the catalog.');
+    const loaded = rulebooks.get(h.rulebookId);
+    if (!loaded) throw new HttpError(404, 'The rulebook from the Permission Setter is no longer loaded (was the server restarted?).');
+    return send(res, 200, {
+      environment: h.environment,
+      rulebook: { id: loaded.id, name: loaded.name, summary: rulebookSummary(loaded.rulebook) },
+      columns: h.columns,
+      roles: h.roles,
+      // Which columns have a jwt kept in memory; never the jwt itself.
+      jwtFor: [...h.jwts.keys()],
+      setterRunId: h.setterRunId,
+      expiresAt: new Date(h.expiresAt).toISOString(),
+    });
+  }
 
   if (method === 'POST' && path === '/api/rulebooks/parse') {
     const body = (await readBody(req)) as { file?: string; name?: string; contentBase64?: string };
@@ -349,7 +432,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   if (method === 'POST' && path === '/api/tokens/check') {
     const body = (await readBody(req)) as { environment?: Environment; users?: UserInput[] };
     const env = environmentFrom(body);
-    const users = (body.users ?? []).filter((u) => u.key && KEY_RE.test(u.key) && u.jwt?.trim());
+    const users = (body.users ?? []).filter((u) => u.key && KEY_RE.test(u.key) && jwtOf(u));
     if (!users.length) throw new HttpError(400, 'Paste a jwt for at least one user first');
     const gate = new RequestGate(env, 300, new AuditLog(join(OUTPUT_DIR, '_ui', 'token-checks.jsonl')));
     const results = [];
@@ -421,8 +504,19 @@ function setterState(from = 0) {
     lineCount: setter.lines.length,
     outcome: o && {
       error: o.error ?? null,
-      roles: o.roles.map((r) => ({ label: r.label, roleName: r.roleName, status: r.status, error: r.error ?? null, changed: r.controls.filter((c) => c.changed).length })),
+      roles: o.roles.map((r) => ({
+        label: r.label,
+        roleName: r.roleName,
+        status: r.status,
+        error: r.error ?? null,
+        changed: r.controls.filter((c) => c.changed).length,
+        userCheck: r.userCheck ? { pass: r.userCheck.pages.filter((p) => p.verdict === 'PASS').length, total: r.userCheck.pages.length } : null,
+        ai: r.ai ? r.ai.verdict : r.aiError ? `error: ${r.aiError}` : null,
+      })),
       reportUrl: o.reportFile ? `/output/_setter/${setter.id}/report.html` : null,
+      verifyReportUrl: o.verify?.reportUrl ?? null,
+      handoffId: setter.handoffId && getHandoff(setter.handoffId) ? setter.handoffId : null,
+      handoffMinutes: HANDOFF_MINUTES,
     },
   };
 }
@@ -462,6 +556,11 @@ async function handleSetter(path: string, body: SetterBody, res: ServerResponse)
   }
 
   if (path === '/api/setter/runs') {
+    const userCreds = new Map<string, Credentials>();
+    const forgetAll = () => {
+      forget();
+      forgetSecrets([...userCreds.values()].flatMap((c) => [c.jwt, c.csrf]));
+    };
     let loaded: LoadedRulebook | null = null;
     let roles: Record<string, string> = {};
     let bulk: { roleName: string; step: 0 | 1 | 2 | 3 | 4 } | undefined;
@@ -476,16 +575,23 @@ async function handleSetter(path: string, body: SetterBody, res: ServerResponse)
       } else {
         loaded = getRulebook(body.rulebookId ?? '');
         roles = setterRoles(body, loaded.rulebook);
+        for (const ut of Object.keys(roles)) {
+          const jwt = body.users?.[ut]?.trim();
+          if (!jwt) continue;
+          const c = makeCredentials(jwt);
+          if (c.jwt === creds.jwt) throw new HttpError(400, `The ${loaded.rulebook.userTypeLabels[ut] ?? ut} jwt is the Super Admin's: paste that user's own jwt (or leave it empty)`);
+          userCreds.set(ut, c);
+        }
       }
     } catch (e) {
-      forget();
+      forgetAll();
       throw e;
     }
     const apply = body.apply === true;
     const id = newSetterRunId(env.name);
     const state: SetterState = { id, status: 'running', apply, lines: [], outcome: null, controller: new AbortController() };
     setter = state;
-    log.info('setter run started', { run: id, env: env.name, apply, roles: bulk ? 1 : Object.keys(roles).length, bulk: bulk ? LEVELS[bulk.step] : undefined });
+    log.info('setter run started', { run: id, env: env.name, apply, roles: bulk ? 1 : Object.keys(roles).length, bulk: bulk ? LEVELS[bulk.step] : undefined, verifyUsers: userCreds.size, ai: body.ai === true });
     void executeSetter(
       {
         environment: env,
@@ -496,6 +602,9 @@ async function handleSetter(path: string, body: SetterBody, res: ServerResponse)
         creds,
         apply,
         headless: body.headed !== true,
+        stepDelayMs: body.stepDelaySec !== undefined ? clamp(body.stepDelaySec, 0.5, 10) * 1000 : undefined,
+        verify: userCreds.size && loaded ? { creds: userCreds, outputDir: OUTPUT_DIR, debugDir: DEBUG_DIR, rulebookSource: { name: loaded.name, data: loaded.data }, waitSec: 5 } : undefined,
+        ai: body.ai === true,
         outputRoot: SETTER_DIR,
         signal: state.controller.signal,
         log: (line) => {
@@ -506,7 +615,22 @@ async function handleSetter(path: string, body: SetterBody, res: ServerResponse)
     )
       .catch((e: unknown): SetterOutcome => ({ runId: id, outDir: join(SETTER_DIR, id), apply, roles: [], error: scrub((e as Error).message) }))
       .then((outcome) => {
-        forget();
+        // Rulebook Apply: leave a hand-off for "Verify in Pages Testing" (columns whose role was saved or already matched).
+        const columns = outcome.roles.filter((r) => r.status === 'saved' || r.status === 'no_changes').map((r) => r.userType);
+        if (apply && loaded && columns.length) {
+          const hid = randomUUID();
+          const jwts = new Map<string, string>();
+          for (const c of columns) {
+            const u = userCreds.get(c);
+            if (u) jwts.set(c, u.jwt);
+          }
+          handoffs.set(hid, { id: hid, expiresAt: Date.now() + HANDOFF_MINUTES * 60_000, environment: env, rulebookId: loaded.id, columns, roles, setterRunId: id, jwts });
+          setTimeout(() => dropHandoff(hid), HANDOFF_MINUTES * 60_000).unref();
+          state.handoffId = hid;
+          log.info('handoff ready for Pages Testing', { run: id, columns: columns.length, jwts: jwts.size, minutes: HANDOFF_MINUTES });
+        }
+        forgetAll();
+        userCreds.clear();
         state.outcome = outcome;
         state.status = outcome.error || outcome.roles.some((r) => r.status === 'failed') ? 'failed' : 'done';
         log.info('setter run finished', { run: id, status: state.status, error: outcome.error });

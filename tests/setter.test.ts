@@ -61,7 +61,8 @@ describe('permission setter: plan for one rulebook column', () => {
   });
 
   it('pages no role slider controls are reported, not guessed', () => {
-    expect(page('Sales Dashboard').status).toBe('cannot');
+    expect(page('Sales Dashboard')).toMatchObject({ status: 'planned', controls: [] });
+    expect(page('Sales Dashboard').reason).toMatch(/nothing to set/);
     expect(page('Contacts').reason).toMatch(/forces/);
     expect(page('Roles').reason).toMatch(/Site\/Super Admin/);
     expect(page('Unknown page').reason).toMatch(/module list/);
@@ -90,7 +91,23 @@ describe('permission setter: target values', () => {
 describe('permission setter: AMP module list', () => {
   it('keeps modules, skips groups', () => {
     const m = parseModules([{ id: 2, name: 'Email', url: 'campaign/email', defaultlocalization: 'Email' }, { id: 9, name: 'Group', isgroup: true }, null]);
-    expect(m).toEqual([{ id: 2, name: 'Email', url: 'campaign/email', label: 'Email' }]);
+    expect(m).toEqual([{ id: 2, name: 'Email', url: 'campaign/email', label: 'Email', custom: false }]);
+  });
+
+  it('a Yes on drip also turns on the Advanced "drip" option its data needs; a No only lowers the sliders', () => {
+    const rb = rulebookFromRows([['page', 'A', 'B'], ['#manage/campaigns/drip', 'Yes', 'No']]);
+    const mods = [{ id: 1, name: 'Drip (Lead Nurturing)', url: 'manage/campaigns/drip' }];
+    expect(planRole(rb, 'a', 'R', mods).pages[0]!.controls).toEqual(['system:910', 'feature:1']);
+    expect(planRole(rb, 'b', 'R', mods).pages[0]!.controls).toEqual(['system:910', 'system:900']);
+  });
+
+  it('journeys (a company menu module) is set by route: Playbooks → View', () => {
+    const rb = rulebookFromRows([['page', 'User'], ['#journeys', 'Yes'], ['#custompage', 'Yes']]);
+    const mods = [{ id: 1, name: 'Journeys v5', url: 'journeys', custom: true }, { id: 2, name: 'My Custom Page', url: 'custompage', custom: true }];
+    const [journeys, custom] = planRole(rb, 'user', 'R', mods).pages;
+    expect(journeys).toMatchObject({ status: 'planned', controls: ['media:16777216'] });
+    expect(custom!.status).toBe('cannot');
+    expect(custom!.reason).toMatch(/company menu module/);
   });
 });
 
@@ -114,6 +131,17 @@ describe('permission setter: persona dashboards', () => {
     const p = planRole(rb, 'user', 'R', []).pages[0]!;
     expect(p.module).toBe('Dashboard');
     expect(p.reason).toMatch(/always visible/);
+    const no = planRole(rulebookFromRows([['page', 'User'], ['#dashboard/sales', 'No']]), 'user', 'R', []).pages[0]!;
+    expect(no.status).toBe('cannot');
+  });
+
+  it('a Yes on a page every role gets needs nothing; a No on it is out of reach', () => {
+    const rb = rulebookFromRows([['page', 'User'], ['#connections/contacts', 'Yes'], ['#connections/lists', 'No'], ['#connections/export/status', 'Yes']]);
+    const mods = [{ id: 1, name: 'Contacts', url: 'connections/contacts' }, { id: 2, name: 'Lists', url: 'connections/lists' }, { id: 3, name: 'Export Status', url: 'connections/export/status' }];
+    const [contacts, lists, exportsPage] = planRole(rb, 'user', 'R', mods).pages;
+    expect(contacts).toMatchObject({ status: 'planned', controls: [] });
+    expect(lists!.status).toBe('cannot');
+    expect(exportsPage).toMatchObject({ status: 'planned', controls: ['feature:1024'] });
   });
 });
 

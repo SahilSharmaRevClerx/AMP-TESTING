@@ -25,11 +25,15 @@ export interface ModuleRule {
   reqs: Requirement[];
   /** Extra condition outside role sliders the tester should know about. */
   note?: string;
+  /** Advanced options the page's data needs on top of `reqs`: turned on for a Yes (never off for a No). */
+  features?: Requirement[];
 }
 
 /** Why a module can't be switched with role sliders. */
 export interface CannotRule {
   cannot: string;
+  /** AMP shows it to every role anyway: a "Yes" needs nothing, only a "No" is out of reach. */
+  alwaysOn?: string;
 }
 
 /** Display names of role-editor rows. */
@@ -67,9 +71,11 @@ export const SLIDER_LABELS: Record<string, string> = {
   'system:2500': 'Content Syndication',
   'system:2600': 'Case',
   'system:2900': 'Learning Management',
+  'feature:1': 'Drip (Advanced option)',
   'feature:4': 'Auto Publishing',
   'feature:32': 'Setup menu (Marketing UI)',
   'feature:256': 'CRM Add-ons',
+  'feature:1024': 'Export (Contact export)',
 };
 
 const view = (grid: Grid, id: number, min: Step = 1): Requirement => ({ kind: 'slider', grid, id, min });
@@ -80,11 +86,14 @@ const all = (reqs: Requirement[], note?: string): ModuleRule => ({ mode: 'all', 
 const MARKETING_UI = feature(32);
 const CONTACTS_FORCED: CannotRule = {
   cannot: 'needs the Contacts permission, which AMP forces to full on every role (the row is hidden in the role editor); hide it with Navigation Layout settings instead',
+  alwaysOn: 'nothing to set: AMP gives every role the Contacts permission',
 };
 
 /** Module name (lower case, as AMP's module list returns it) → what grants it. */
 export const MODULE_RULES: Record<string, ModuleRule | CannotRule> = {
-  dashboard: { cannot: 'the Dashboard is always visible; what it shows depends on the persona, not on role sliders' },
+  dashboard: { cannot: 'the Dashboard is always visible; what it shows depends on the persona, not on role sliders', alwaysOn: 'nothing to set: the Dashboard is always visible' },
+  'rewards catalog': { cannot: 'controlled by the company Incentive Programs setting (with internal redemption) and Database → View; set it by hand' },
+  'export status': one(feature(1024)),
   roles: { cannot: 'only Site/Super Admins get Roles; no role permission can grant it' },
   contacts: CONTACTS_FORCED,
   accounts: CONTACTS_FORCED,
@@ -108,8 +117,9 @@ export const MODULE_RULES: Record<string, ModuleRule | CannotRule> = {
   'linkedin posts': one(view('media', 2048)),
   opportunities: one(view('system', 1700)),
   'opportunities reports': one(view('system', 1700)),
-  'drip (lead nurturing)': { mode: 'any', reqs: [view('system', 910), view('system', 900)] },
-  'drip campaign reports': { mode: 'any', reqs: [view('system', 910), view('system', 900)] },
+  // The menu needs one of the sliders; the page's data (GetAllDripCampaignsForCurrentUser) also needs the Advanced "drip" option.
+  'drip (lead nurturing)': { mode: 'any', reqs: [view('system', 910), view('system', 900)], features: [feature(1)] },
+  'drip campaign reports': { mode: 'any', reqs: [view('system', 910), view('system', 900)], features: [feature(1)] },
   'social drip': all([feature(4), view('system', 940)]),
   website: one(view('media', 128), 'also needs the "Websites" option under Web'),
   'web reports': one(view('media', 128), 'also needs the "Websites" option under Web'),
@@ -170,12 +180,22 @@ export const MODULE_RULES: Record<string, ModuleRule | CannotRule> = {
   'gotowebinar report': all([feature(256), view('system', 2400)], 'also needs the GoToWebinar add-on'),
 };
 
+/**
+ * Pages whose module name differs per company (custom menu modules), matched by route instead.
+ * journeys: Libraries/MindMatrix.Libraries.Pages/navin/internalplaybook/journeys.cshtml.cs requires Playbooks → View.
+ */
+export const ROUTE_RULES: Record<string, ModuleRule> = {
+  journeys: one(view('media', 16777216), 'a company menu module: it must also be visible in Navigation Layout'),
+};
+
 /** A module as AMP's Navigation Layout API lists it. */
 export interface AmpModule {
   id: number;
   name: string;
   url: string;
   label?: string;
+  /** A company-made (custom) menu module. */
+  custom?: boolean;
 }
 
 export function reqKey(r: Requirement): string {
@@ -280,25 +300,34 @@ export function planRole(rulebook: Rulebook, userType: string, roleName: string,
     const mod = findModule(rule.route, rule.label, modules);
     // Persona dashboards (dashboard/sales, dashboard/channelmanager…) are the Dashboard module.
     if (!mod && normalizeRoute(rule.route).split('/')[0] === 'dashboard') {
-      pages.push({ ...base, module: 'Dashboard', status: 'cannot', reason: (MODULE_RULES.dashboard as CannotRule).cannot });
+      const d = MODULE_RULES.dashboard as CannotRule;
+      pages.push({ ...base, module: 'Dashboard', status: expected === 'Yes' ? 'planned' : 'cannot', reason: expected === 'Yes' ? d.alwaysOn! : d.cannot });
       continue;
     }
     if (!mod) {
       pages.push({ ...base, module: null, status: 'cannot', reason: "not found in this company's module list (Navigation Layout); set it by hand" });
       continue;
     }
-    const entry = MODULE_RULES[mod.name.toLowerCase()];
+    const entry = MODULE_RULES[mod.name.toLowerCase()] ?? ROUTE_RULES[normalizeRoute(rule.route)];
     if (!entry) {
-      pages.push({ ...base, module: mod.name, status: 'cannot', reason: `no known role slider for module "${mod.name}"; set it by hand` });
+      pages.push({
+        ...base,
+        module: mod.name,
+        status: 'cannot',
+        reason: mod.custom
+          ? `"${mod.name}" is a company menu module: who sees it is set in Navigation Layout, not by role sliders; set it by hand`
+          : `no known role slider for module "${mod.name}"; set it by hand`,
+      });
       continue;
     }
     if ('cannot' in entry) {
-      pages.push({ ...base, module: mod.name, status: 'cannot', reason: entry.cannot });
+      if (expected === 'Yes' && entry.alwaysOn) pages.push({ ...base, module: mod.name, status: 'planned', reason: entry.alwaysOn });
+      else pages.push({ ...base, module: mod.name, status: 'cannot', reason: entry.cannot });
       continue;
     }
     const sliders = entry.reqs.filter((r): r is Extract<Requirement, { kind: 'slider' }> => r.kind === 'slider');
     if (expected === 'Yes') {
-      const reqs = entry.mode === 'all' ? entry.reqs : entry.reqs.slice(0, 1);
+      const reqs = [...(entry.mode === 'all' ? entry.reqs : entry.reqs.slice(0, 1)), ...(entry.features ?? [])];
       for (const r of reqs) {
         const w = want(r);
         w.raiseTo = r.kind === 'slider' ? (Math.max(w.raiseTo ?? 0, r.min) as Step) : 1;
@@ -314,8 +343,18 @@ export function planRole(rulebook: Rulebook, userType: string, roleName: string,
         base.controls.push(w.key);
       }
     }
-    const what = base.controls.map((k) => reqLabel(k)).join(' + ');
-    pages.push({ ...base, module: mod.name, status: 'planned', reason: expected === 'Yes' ? `raise ${what} to at least ${minLabel(entry, base.controls)}` : `set ${what} to NA`, note: entry.note });
+    if (expected === 'No' && !base.controls.length) {
+      // Only an Advanced checkbox opens it; the tool never turns checkboxes off (they open other pages too).
+      pages.push({ ...base, module: mod.name, status: 'cannot', reason: `only the Advanced option "${entry.reqs.map((r) => reqLabel(r)).join(' + ')}" controls it, and the tool never turns options off; untick it by hand if no other page needs it` });
+      continue;
+    }
+    const sliderKeys = base.controls.filter((k) => !k.startsWith('feature:'));
+    const featureKeys = base.controls.filter((k) => k.startsWith('feature:'));
+    const reason =
+      expected === 'Yes'
+        ? [sliderKeys.length ? `raise ${sliderKeys.map(reqLabel).join(' + ')} to at least ${minLabel(entry, sliderKeys)}` : '', featureKeys.length ? `turn on ${featureKeys.map(reqLabel).join(' + ')}` : ''].filter(Boolean).join(', ')
+        : `set ${base.controls.map(reqLabel).join(' + ')} to NA`;
+    pages.push({ ...base, module: mod.name, status: 'planned', reason, note: entry.note });
   }
 
   // A No page whose slider is also needed by a Yes page can't be hidden this way.

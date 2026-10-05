@@ -560,7 +560,9 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
-  var state = { rulebook: null, selected: [], identities: {}, runId: null, es: null, step: 1, maxStep: 1, running: false };
+  var state = { rulebook: null, selected: [], identities: {}, runId: null, es: null, step: 1, maxStep: 1, running: false, handoff: null };
+  /** Opened from the Permission Setter ("Verify in Pages Testing"): its site, rulebook and jwts win over anything remembered. */
+  var HANDOFF_ID = new URLSearchParams(location.search).get('handoff');
 
   // ---------- storage (non-secret preferences only; never tokens)
   function load(key, fallback) { try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch (e) { return fallback; } }
@@ -607,12 +609,12 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
     more: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
   };
   var MODULES = [
-    { id: 'pages', title: 'AMP Pages Testing', category: 'Access control', status: 'ready', icon: ICONS.pages,
+    { id: 'setter', title: 'Permission Setter', category: 'Step 1 · Set permissions', status: 'ready', icon: ICONS.setter,
+      desc: "Sets the role sliders in AMP (Setup → Roles) to match the client's rulebook, as the Super Admin. Preview first, then apply. When it is done, hand the result to Pages Testing in one click.",
+      tags: ['Rulebook', 'Super Admin jwt', 'Changes AMP'], open: function () { location.href = '/setter'; } },
+    { id: 'pages', title: 'AMP Pages Testing', category: 'Step 2 · Verify', status: 'ready', icon: ICONS.pages,
       desc: 'Checks which pages each user type can open on an AMP site, against your rulebook, with screenshot proof for every result.',
       tags: ['Rulebook', 'jwt per user', 'Screenshots'], open: function () { show('welcome'); } },
-    { id: 'setter', title: 'Permission Setter', category: 'Access control', status: 'ready', icon: ICONS.setter,
-      desc: "Sets the role sliders in AMP (Setup → Roles) to match your rulebook, as the Super Admin. Preview first, then apply.",
-      tags: ['Rulebook', 'Super Admin jwt', 'Changes AMP'], open: function () { location.href = '/setter'; } },
     { id: 'more', title: 'More testing modules', category: 'Platform', status: 'soon', icon: ICONS.more,
       desc: 'New kinds of AMP tests will appear here as cards when they are added.', tags: ['Roadmap'] }
   ];
@@ -836,7 +838,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   api('GET', '/api/rulebooks').then(function (r) {
     r.files.forEach(function (f) { var o = document.createElement('option'); o.value = f; o.textContent = f; $('rb-select').appendChild(o); });
     var last = load('amp-rulebook', '');
-    if (last && r.files.indexOf(last) >= 0) { $('rb-select').value = last; parseRulebook({ file: last }); }
+    if (!HANDOFF_ID && !state.handoff && last && r.files.indexOf(last) >= 0) { $('rb-select').value = last; parseRulebook({ file: last }); }
   });
   $('rb-select').addEventListener('change', function () {
     if (!this.value) return; $('rb-file').value = ''; $('rb-drop-t').textContent = 'click or drop a file here';
@@ -911,12 +913,14 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
     var prev = collectUsers();
     $('users').innerHTML = userKeys().map(function (key) {
       var p = prev[key] || {};
-      var ticked = p.test !== undefined ? p.test : !!p.jwt;
+      var kept = handoffJwt(key);
+      var ticked = p.test !== undefined ? p.test : !!(p.jwt || kept);
       return '<div class="user' + (ticked ? ' on' : '') + '" data-key="' + esc(key) + '">' +
         '<input type="checkbox" class="u-test" ' + (ticked ? 'checked' : '') + ' aria-label="Test ' + esc(labelOf(key)) + '">' +
         '<div><label class="lbl">User type</label><div class="uname">' + esc(labelOf(key)) + '</div>' +
           '</div>' +
-        '<div class="pwf"><label class="lbl">jwt</label><div class="pw"><input type="text" class="u-jwt secret" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" placeholder="paste the jwt of a ' + esc(labelOf(key)) + ' user" value="' + esc(p.jwt || '') + '"><button type="button" class="show" title="Show/hide">👁</button></div></div>' +
+        '<div class="pwf"><label class="lbl">jwt</label><div class="pw"><input type="text" class="u-jwt secret" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" placeholder="' + (kept ? 'kept from the Permission Setter (or paste another)' : 'paste the jwt of a ' + esc(labelOf(key)) + ' user') + '" value="' + esc(p.jwt || '') + '"><button type="button" class="show" title="Show/hide">👁</button></div>' +
+          (kept ? '<div class="help ok">✓ Using the jwt pasted in the Permission Setter (kept in memory, not saved). Role set: <b>' + esc((state.handoff.roles || {})[key] || '?') + '</b></div>' : '') + '</div>' +
         '<div class="who" id="st-' + esc(key) + '"></div></div>';
     }).join('');
     Object.keys(state.identities).forEach(function (k) { showIdentity(k, state.identities[k]); });
@@ -932,6 +936,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   }
   /** Removes every pasted jwt from the page. */
   function clearJwts() {
+    if (state.handoff) { state.handoff = null; renderUsers(); }
     document.querySelectorAll('#users .user').forEach(function (row) {
       var i = row.querySelector('.u-jwt'); i.value = ''; i.classList.add('secret');
       row.querySelector('.u-test').checked = false; row.classList.remove('on');
@@ -962,16 +967,21 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   function collectUsers() {
     var out = {};
     document.querySelectorAll('#users .user').forEach(function (row) {
-      out[row.getAttribute('data-key')] = {
-        key: row.getAttribute('data-key'),
-        label: labelOf(row.getAttribute('data-key')),
-        jwt: row.querySelector('.u-jwt').value.trim(),
+      var key = row.getAttribute('data-key'), jwt = row.querySelector('.u-jwt').value.trim();
+      out[key] = {
+        key: key,
+        label: labelOf(key),
+        jwt: jwt,
         test: row.querySelector('.u-test').checked
       };
+      // No jwt pasted: use the one kept from the Permission Setter (the server holds it, the page never sees it).
+      if (!jwt && handoffJwt(key)) out[key].handoff = state.handoff.id;
     });
     return out;
   }
   function usersList() { var u = collectUsers(); return Object.keys(u).map(function (k) { return u[k]; }); }
+  /** True when the Permission Setter hand-off holds a jwt for this column. */
+  function handoffJwt(key) { return !!(state.handoff && state.handoff.jwtFor.indexOf(key) >= 0); }
   function clearIdentities() { state.identities = {}; document.querySelectorAll('#users .user').forEach(function (row) { showIdentity(row.getAttribute('data-key'), null); }); }
   function showIdentity(key, id) {
     var el = $('st-' + key); if (!el) return;
@@ -985,12 +995,12 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   function validateUsers(users) {
     var tested = users.filter(function (u) { return u.test; });
     if (!tested.length) return 'Paste a jwt for at least one user (its row is ticked automatically).';
-    var incomplete = users.filter(function (u) { return u.test && !u.jwt; });
+    var incomplete = users.filter(function (u) { return u.test && !u.jwt && !u.handoff; });
     if (incomplete.length) return 'A jwt is needed for: ' + esc(incomplete.map(function (u) { return u.label || u.key; }).join(', '));
     return '';
   }
   function checkTokens() {
-    var users = usersList().filter(function (u) { return u.jwt; });
+    var users = usersList().filter(function (u) { return u.jwt || u.handoff; });
     if (!users.length) return Promise.reject(new Error('Paste a jwt for at least one user first.'));
     msg('users-msg', 'warn', '<span class="spin"></span>Checking tokens with ' + esc(environment().baseUrl) + '…');
     return api('POST', '/api/tokens/check', { environment: environment(), users: users }).then(function (r) {
@@ -1146,12 +1156,39 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
     }).catch(function () { $('history').innerHTML = '<tr><td colspan="4" class="empty">Could not load history.</td></tr>'; });
   }
 
+  // ---------- hand-off from the Permission Setter (/?handoff=<id>)
+  function loadHandoff(id) {
+    return api('GET', '/api/handoff/' + encodeURIComponent(id)).then(function (h) {
+      state.handoff = { id: id, jwtFor: h.jwtFor, roles: h.roles, setterRunId: h.setterRunId };
+      fillEnv(h.environment);
+      state.rulebook = h.rulebook;
+      state.selected = h.columns.slice();
+      $('rb-select').value = ''; $('rb-drop-t').textContent = h.rulebook.name;
+      msg('rb-msg', 'ok', '✓ <b>' + esc(h.rulebook.name) + '</b> — the rulebook the Permission Setter just applied.');
+      renderColumns();
+      renderUsers();
+      state.maxStep = 4;
+      var missing = h.columns.filter(function (k) { return h.jwtFor.indexOf(k) < 0; });
+      if (missing.length) {
+        goStep(3);
+        msg('users-msg', 'warn', 'From the Permission Setter: roles set for ' + esc(h.columns.map(labelOf).join(', ')) + '. Paste a jwt for ' + esc(missing.map(labelOf).join(', ')) + ', then Next.');
+      } else {
+        goStep(4);
+        msg('run-err', 'ok', '✓ Ready to verify the Permission Setter run: ' + esc(h.columns.map(function (k) { return labelOf(k) + ' (role “' + (h.roles[k] || '?') + '”)'; }).join(', ')) + '. Click Run.');
+      }
+    }).catch(function (e) { show('hub'); alert(e.message); });
+  }
+
   // ---------- init
   show('hub');
   renderRecent();
   var envs = recentEnvs();
   if (envs[0]) fillEnv(envs[0]); else urlFeedback(false);
   api('GET', '/api/runs/current').then(function (r) { if (r.run && r.run.status === 'running') attach(r.run); });
+  if (HANDOFF_ID) {
+    history.replaceState(null, '', location.pathname);
+    loadHandoff(HANDOFF_ID);
+  }
 })();
 </script>
 </body>

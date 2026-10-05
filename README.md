@@ -171,9 +171,30 @@ A second module on the home screen (`/setter`). It sets the role sliders in AMP 
   - Roles and other Site/Super-Admin-only pages.
   - Pages not in the module list.
   - A No page whose slider a Yes page also needs (a conflict).
-- **How:** a real browser opens Setup → Roles, opens the role, moves the sliders on screen, takes before/after screenshots and clicks Save. It checks that AMP answered the `SaveRole` call. Preview does everything except Save.
-- **Safety:** the browser may only make read-only calls, plus `SaveRole` when applying. Every other write (role assignment, delete, …) is blocked and logged. Production is refused unless approved. The jwt stays in memory only.
-- **Output:** `output/_setter/<run>/report.html` (before → after per slider, per-page actions, screenshots), `results.json`, `audit.jsonl`. Users may need to log in again to see the change. Re-run the page tests to verify.
+- **How:** a real browser opens Setup → Roles, opens the role and moves the sliders on screen, then clicks Save.
+  - **Speed:** it works slowly on purpose, pausing after every tab switch, slider move and save. *Speed in AMP* sets the pause: 0.8 s, 1.5 s (default) or 3 s.
+  - **Checks:** it confirms each slider actually moved (retrying once), and confirms AMP answered the `SaveRole` call.
+  - **Screenshots:** 2–3 per role, each showing a whole tab of the role editor (Marketing Functions, Operations, and Advanced when a checkbox is involved) in its final state, with changed rows outlined in orange.
+  - **After saving:** it **reopens the role** and reads every changed permission back, so a change AMP didn't keep shows as a failure.
+  - **Preview** does everything except Save.
+- **Check as the users (optional, after Apply):** paste a jwt for each rulebook column's user. After saving, the tool logs in as each of them (the same jwt method) and runs the page test on the rulebook pages.
+  - The results show per role ("2 / 3 pages OK"), and the full page-test report appears in Past runs.
+  - A user jwt that is the Super Admin's is refused.
+- **AI review (optional):** sends each role's results and screenshots to Google Gemini (default model `gemini-2.5-pro`, via the `@google/genai` SDK). Gemini checks the role's tab screenshots and every user-page screenshot against the rulebook and returns pass / fail / unsure with a check per item.
+  - **It is only a suggestion:** the tool's own checks still decide.
+  - **It sends data to Google:** this is the only feature that does. It is off by default and asks for confirmation.
+  - **Setup:** put `GEMINI_API_KEY=<your key>` in `.env` or `.env.local` (both git-ignored; only the Gemini settings are read from them), or set it in the terminal. Restart `npm start` after.
+  - **Other model:** set `GEMINI_MODEL`, e.g. `gemini-2.5-flash`.
+- **Output:** `output/_setter/<run>/report.html` is one simple page.
+  - **Top:** a banner saying ✓ Done, Done but some pages don't match, Preview only, or Finished with problems.
+  - **Per rulebook column:** a table of **Page · Rulebook says · Result now · Match** (✓ / ✗ / ? Check). "Result now" is what the user actually got when they were checked by logging in, otherwise what the tool set.
+  - **Below that:** the permissions changed (before → after, ✓ saved), the 2–3 tab screenshots, and the AI review (one line; details fold open).
+  - **Also in the folder:** `results.json`, `audit.jsonl` and `shots/`.
+- **Step 2, Pages Testing:** after a rulebook **Apply**, the finished screen shows **Verify in Pages Testing →**.
+  - **Pre-filled:** it opens the page test with the site, the rulebook and the columns whose roles were saved already filled in.
+  - **jwts:** if you pasted user jwts in the setter, they are kept **in server memory for 15 minutes** and used directly, so you can go straight to Run. The page never receives them; it refers to them by a hand-off id. After 15 minutes, or a server restart, paste them again.
+  - **Home screen:** shows the two modules in this order: Step 1 · Permission Setter, Step 2 · Pages Testing.
+- **Test:** `npm run e2e:setter` runs preview, apply + reopen, the check as the user, every-slider mode and the AI review against a fake AMP role editor and a fake Gemini API. `npm run e2e:handoff` runs Apply → Verify in Pages Testing through the real server and a browser.
 
 ## Keeping jwts safe
 
@@ -242,7 +263,7 @@ Config options include `parallelUsers` (default 3), `delayMs`, `pageTimeoutMs`, 
 | `src/safety/gate.ts` | Environment guard, tool request gate, browser request gate |
 | `src/util/` | Logger, token masking, audit log, route helpers, `runLimited` (parallel users) |
 | `src/config.ts`, `src/cli.ts` | Settings/defaults, credentials, command line |
-| `src/setter/`, `src/server/setter.html` | Permission Setter: page → module → slider table and plan (`sliders.ts`), Super Admin check (`session.ts`), role editor driver (`editor.ts`), run + report (`run.ts`) |
+| `src/setter/`, `src/server/setter.html` | Permission Setter: page → module → slider table and plan (`sliders.ts`), Super Admin check (`session.ts`), role editor driver (`editor.ts`), run + check as users + report (`run.ts`), AI review (`ai.ts`) |
 | `tests/` | Unit tests; `tests/e2e/fake-amp.ts` simulates AMP for the end-to-end tests |
 
 ## Development
