@@ -63,13 +63,14 @@ export function envKey(userType: string): string {
   return userType.toUpperCase().replace(/[^A-Z0-9]+/g, '_');
 }
 
-/** Loads .env.local if present (tester convenience), without overriding existing variables. */
-export function loadLocalEnv(file = '.env.local'): void {
+/** Loads .env.local if present (tester convenience), without overriding existing variables. `only` limits it to those names. */
+export function loadLocalEnv(file = '.env.local', only?: string[]): void {
   if (!existsSync(file)) return;
   for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
     const m = /^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/.exec(line);
     if (!m || line.trim().startsWith('#')) continue;
     const [, k, v] = m;
+    if (only && !only.includes(k ?? '')) continue;
     if (k && v && process.env[k] === undefined) process.env[k] = v.replace(/^["']|["']$/g, '');
   }
 }

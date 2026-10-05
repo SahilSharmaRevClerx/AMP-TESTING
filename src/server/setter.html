@@ -187,6 +187,12 @@ details.help-box ol{margin:8px 0 2px;padding-left:20px;color:var(--muted);font-s
 .sbox .l{font-size:12.5px;color:var(--muted)}
 @media (max-width:760px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .opts{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.opts{display:flex;flex-direction:column;gap:16px}
+.handoff{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:14px;padding:14px 16px;border:1px solid var(--accent);border-radius:10px;background:var(--accent-soft)}
+#review>.sec{margin-top:18px}
+.sec h3 .opt{font-weight:500;font-size:11.5px;color:var(--muted);background:var(--code);padding:1px 8px;border-radius:999px;margin-left:6px;vertical-align:1px}
+#verify-users .arrow{color:var(--muted);font-weight:500}
+#verify-users{margin-top:12px}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
@@ -359,6 +365,17 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;
         <div id="plan" class="wrap"></div>
         <div class="opts">
           <label class="toggle"><input type="checkbox" class="sw" id="opt-headed"><span class="tt"><b>Show the browser window</b><span>Watch the sliders move while it works.</span></span></label>
+          <div class="fld half"><label class="lbl" for="opt-speed">Speed in AMP</label>
+            <select id="opt-speed"><option value="0.8">Faster (0.8 s per step)</option><option value="1.5" selected>Careful (1.5 s per step)</option><option value="3">Very careful (3 s per step)</option></select>
+            <div class="help">Pause after every tab switch, slider move and save. After saving, the role is reopened to confirm AMP kept each change, and 2–3 full screenshots of its tabs are taken (changed rows outlined).</div></div>
+        </div>
+        <div class="sec" id="verify-sec">
+          <h3>Then check as the users <span class="opt">optional</span></h3>
+          <p>After <b>Apply</b>, the tool logs in as each user with their own jwt and opens every rulebook page, like the Pages test. Leave a box empty to skip that user.</p>
+          <div id="verify-users"></div>
+        </div>
+        <div class="sec">
+          <label class="toggle"><input type="checkbox" class="sw" id="opt-ai"><span class="tt"><b>AI review of the results</b><span id="ai-help">Gemini looks at every screenshot and compares it with the rulebook. This sends the screenshots and results to Google.</span></span></label>
         </div>
       </div>
       <div class="progress" id="progress" hidden>
@@ -673,14 +690,42 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;
   function body(extra) {
     var b = { environment: environment(), jwt: jwt() };
     if (mode() === 'bulk') b.bulk = { roleName: $('bulk-role').value.trim(), step: Number($('bulk-level').value) };
-    else { b.rulebookId = state.rulebook.id; b.roles = roles(); }
+    else { b.rulebookId = state.rulebook.id; b.roles = roles(); b.users = users(); }
+    b.ai = $('opt-ai').checked;
+    b.stepDelaySec = Number($('opt-speed').value);
     for (var k in extra) b[k] = extra[k];
     return b;
   }
+  /** Rulebook column -> that user's jwt (only filled boxes). Never saved in the browser. */
+  function users() {
+    var out = {};
+    document.querySelectorAll('[data-user-jwt]').forEach(function (i) {
+      var v = i.value.trim().replace(/^["']|["']$/g, ''), m = /(?:^|;\s*)jwt=([^;]+)/i.exec(v);
+      if (m) v = m[1].trim();
+      if (v) out[i.getAttribute('data-user-jwt')] = v;
+    });
+    return out;
+  }
+  function renderVerify() {
+    var bulk = mode() === 'bulk';
+    $('verify-sec').hidden = bulk;
+    if (bulk || !state.rulebook) return;
+    var s = state.rulebook.summary, r = roles(), keep = users();
+    $('verify-users').innerHTML = '<div class="grid2">' + Object.keys(r).map(function (k) {
+      return '<div class="fld"><label class="lbl" for="uj-' + esc(k) + '">' + esc(s.userTypeLabels[k] || k) + ' <span class="arrow">user jwt</span></label>' +
+        '<input type="text" class="secret" id="uj-' + esc(k) + '" data-user-jwt="' + esc(k) + '" value="' + esc(keep[k] || '') + '" placeholder="jwt of a user with role \u201c' + esc(r[k]) + '\u201d" autocomplete="off" spellcheck="false" data-1p-ignore data-lpignore="true">' +
+        '<div class="help">Log in as that user in another incognito window and copy their jwt.</div></div>';
+    }).join('') + '</div>';
+  }
+  api('GET', '/api/setter/info').then(function (r) {
+    if (r.aiKey) $('ai-help').innerHTML = 'Gemini (<code>' + esc(r.aiModel) + '</code>) looks at every screenshot and compares it with the rulebook. This sends the screenshots and results to Google.';
+    else $('ai-help').innerHTML = 'Gemini looks at every screenshot and compares it with the rulebook (sends them to Google). <b>No GEMINI_API_KEY is set</b> for the server: set it and restart, otherwise the review is skipped with a note.';
+  }).catch(function () {});
   function sbox(v, l) { return '<div class="sbox"><div class="v" title="' + esc(v) + '">' + esc(v) + '</div><div class="l">' + esc(l) + '</div></div>'; }
   function review() {
     if (state.running) return;
     $('review').hidden = false; $('progress').hidden = true;
+    renderVerify();
     var e = environment(), host = (siteUrl(e.baseUrl) || { host: e.baseUrl }).host;
     var boxes = sbox(e.name || host, e.isProduction ? 'site · PRODUCTION' : 'site') + sbox(state.admin ? state.admin.name : '?', 'Super Admin');
     if (mode() === 'bulk') {
@@ -717,6 +762,7 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;
   function run(apply) {
     var b = body({ apply: apply, headed: $('opt-headed').checked });
     if (apply && !confirm('This saves the sliders of the named role(s) in ' + b.environment.baseUrl + ' and affects every user who has those roles. Continue?')) return;
+    if (b.ai && !confirm('AI review: the screenshots and results of this run will be sent to Google (Gemini). Continue?')) return;
     remember();
     $('result').innerHTML = ''; $('log').textContent = ''; state.from = 0;
     $('progress').hidden = false; msg('prog-msg', 'warn', SPIN + (apply ? 'Applying…' : 'Previewing…'));
@@ -742,10 +788,15 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;
       var o = run.outcome || {};
       msg('prog-msg', run.status === 'done' ? 'ok' : 'bad', run.status === 'done' ? (run.apply ? '✓ Done: roles saved.' : '✓ Preview done: nothing was saved. Apply when it looks right.') : esc(o.error || 'Some roles failed; see below'));
       var names = { saved: 'Saved', previewed: 'Preview (not saved)', no_changes: 'Already matches', failed: 'Failed' };
-      $('result').innerHTML = (o.roles || []).length ? '<div class="wrap"><table style="margin-top:12px"><tr><th>Column</th><th>Role</th><th>Result</th><th>Changes</th></tr>' + o.roles.map(function (x) {
-        return '<tr><td>' + esc(x.label) + '</td><td>' + esc(x.roleName) + '</td><td><span class="tag ' + x.status + '">' + names[x.status] + '</span>' + (x.error ? '<div class="hint">' + esc(x.error) + '</div>' : '') + '</td><td>' + x.changed + '</td></tr>';
+      names.saved = 'Saved and confirmed';
+      $('result').innerHTML = (o.roles || []).length ? '<div class="wrap"><table style="margin-top:12px"><tr><th>Column</th><th>Role</th><th>Result</th><th>Changes</th><th>Checked as user</th><th>AI review</th></tr>' + o.roles.map(function (x) {
+        var uc = x.userCheck ? '<span class="tag ' + (x.userCheck.pass === x.userCheck.total ? 'saved' : 'failed') + '">' + x.userCheck.pass + ' / ' + x.userCheck.total + ' pages OK</span>' : '<span class="hint">-</span>';
+        var ai = !x.ai ? '<span class="hint">-</span>' : /^error/.test(x.ai) ? '<span class="hint">' + esc(x.ai) + '</span>' : '<span class="tag ' + (x.ai === 'pass' ? 'saved' : x.ai === 'fail' ? 'failed' : 'previewed') + '">' + esc(x.ai.toUpperCase()) + '</span>';
+        return '<tr><td>' + esc(x.label) + '</td><td>' + esc(x.roleName) + '</td><td><span class="tag ' + x.status + '">' + names[x.status] + '</span>' + (x.error ? '<div class="hint">' + esc(x.error) + '</div>' : '') + '</td><td>' + x.changed + '</td><td>' + uc + '</td><td>' + ai + '</td></tr>';
       }).join('') + '</table></div>' : '';
-      if (o.reportUrl) $('result').innerHTML += '<div class="btns" style="margin-top:14px"><a class="btn primary" href="' + esc(o.reportUrl) + '" target="_blank" rel="noopener">Open report ↗</a></div>' +
+      if (o.reportUrl) $('result').innerHTML += '<div class="btns" style="margin-top:14px"><a class="btn primary" href="' + esc(o.reportUrl) + '" target="_blank" rel="noopener">Open report ↗</a>' +
+        (o.verifyReportUrl ? '<a class="btn" href="' + esc(o.verifyReportUrl) + '" target="_blank" rel="noopener">Page test as users ↗</a>' : '') + '</div>' +
+        (o.handoffId ? '<div class="handoff"><div><b>Step 2: verify with Pages Testing</b><div class="hint">Opens the page test with this site, rulebook and columns filled in' + (Object.keys(users()).length ? ' and the user jwts you pasted (kept in memory for ' + o.handoffMinutes + ' min)' : '; you paste the user jwts there') + '.</div></div><a class="btn primary" href="/?handoff=' + encodeURIComponent(o.handoffId) + '">Verify in Pages Testing →</a></div>' : '') +
         '<div class="msg warn">🔒 Log out of the AMP window the jwt came from when you are done. Users may need to log in again to see changes.</div>';
     }).catch(function () { setTimeout(poll, 2000); });
   }
