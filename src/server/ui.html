@@ -285,7 +285,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   <div class="cat-tabs" role="tablist"><button class="on" role="tab" aria-selected="true">All modules</button></div>
   <div class="cat-head">
     <h1>Testing catalog</h1>
-    <p>Search and launch the AMP testing modules. Every module runs on your machine and only reads from the AMP site.</p>
+    <p>Search and launch the AMP testing modules. Every module runs on your machine; only the Permission Setter changes the AMP site.</p>
   </div>
   <div class="cat-tools">
     <label class="cat-search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
@@ -534,12 +534,16 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   // ---------- home: testing modules. Add a module = add one entry here.
   var ICONS = {
     pages: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9.5 14.5l1.8 1.8 3.5-3.6"/></svg>',
+    setter: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
     more: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
   };
   var MODULES = [
     { id: 'pages', title: 'AMP Pages Testing', category: 'Access control', status: 'ready', icon: ICONS.pages,
       desc: 'Checks which pages each user type can open on an AMP site, against your rulebook, with screenshot proof for every result.',
       tags: ['Rulebook', 'jwt per user', 'Screenshots'], open: function () { show('welcome'); } },
+    { id: 'setter', title: 'Permission Setter', category: 'Access control', status: 'ready', icon: ICONS.setter,
+      desc: "Sets the role sliders in AMP (Setup → Roles) to match your rulebook, as the Super Admin. Preview first, then apply.",
+      tags: ['Rulebook', 'Super Admin jwt', 'Changes AMP'], open: function () { location.href = '/setter'; } },
     { id: 'more', title: 'More testing modules', category: 'Platform', status: 'soon', icon: ICONS.more,
       desc: 'New kinds of AMP tests will appear here as cards when they are added.', tags: ['Roadmap'] }
   ];

@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Permission Setter</title>
+<style>
+:root{
+  --bg:#f4f6fa;--fg:#161a22;--muted:#5d6472;--card:#fff;--line:#e1e5ec;--input:#fff;--code:#eef1f6;
+  --accent:#2f5bd3;--accent-fg:#fff;--accent-soft:#e9efff;
+  --ok:#1b7a4b;--ok-bg:#e2f5ea;--bad:#b42318;--bad-bg:#fde8e6;--warn:#94590a;--warn-bg:#fdf1dc;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12141a;--fg:#e9ebf0;--muted:#9aa1ad;--card:#1b1e25;--line:#2b2f39;--input:#14161c;--code:#232733;
+  --accent:#7d9bff;--accent-fg:#0e1120;--accent-soft:#222a4a;
+  --ok:#6fd39c;--ok-bg:#173526;--bad:#ff8a80;--bad-bg:#3d1c1a;--warn:#f5c26b;--warn-bg:#3a2d12;
+}}
+:root[data-theme="dark"]{
+  --bg:#12141a;--fg:#e9ebf0;--muted:#9aa1ad;--card:#1b1e25;--line:#2b2f39;--input:#14161c;--code:#232733;
+  --accent:#7d9bff;--accent-fg:#0e1120;--accent-soft:#222a4a;
+  --ok:#6fd39c;--ok-bg:#173526;--bad:#ff8a80;--bad-bg:#3d1c1a;--warn:#f5c26b;--warn-bg:#3a2d12;
+}
+*{box-sizing:border-box}[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)}
+.top{border-bottom:1px solid var(--line);background:var(--card)}
+.top div{max-width:960px;margin:auto;padding:12px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between}
+main{max-width:960px;margin:auto;padding:20px 16px 60px}
+h1{font-size:24px;margin:8px 0 4px}h2{font-size:16px;margin:0 0 10px}
+.sub{color:var(--muted);margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:0 0 14px}
+.n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700;margin-right:6px}
+label{display:block;font-size:13px;color:var(--muted);margin:8px 0 4px}
+input[type=text],select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--input);color:var(--fg);font:inherit}
+.row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1 1 240px}
+.check{display:flex;gap:8px;align-items:center;color:var(--fg);font-size:14px}
+.secret{-webkit-text-security:disc;text-security:disc}
+.btn{border-radius:8px;padding:9px 16px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;font:inherit;font-weight:500}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
+.btn:disabled{opacity:.5;cursor:default}
+.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+.msg{padding:9px 12px;border-radius:8px;margin-top:10px;font-size:14px}
+.msg.ok{background:var(--ok-bg);color:var(--ok)}.msg.bad{background:var(--bad-bg);color:var(--bad)}.msg.warn{background:var(--warn-bg);color:var(--warn)}
+.hint{color:var(--muted);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.wrap{overflow-x:auto}
+.tag{font-size:12px;padding:1px 7px;border-radius:99px;white-space:nowrap}
+.tag.planned{background:var(--accent-soft);color:var(--accent)}.tag.cannot{background:var(--warn-bg);color:var(--warn)}.tag.not_specified{background:var(--code);color:var(--muted)}
+.tag.saved,.tag.no_changes{background:var(--ok-bg);color:var(--ok)}.tag.failed{background:var(--bad-bg);color:var(--bad)}.tag.previewed{background:var(--warn-bg);color:var(--warn)}
+pre{background:var(--code);border-radius:8px;padding:10px;max-height:320px;overflow:auto;font:12.5px ui-monospace,Consolas,monospace;white-space:pre-wrap;margin:10px 0 0}
+</style>
+</head>
+<body>
+<div class="top"><div><a href="/">← Testing catalog</a><span class="hint">Runs on this machine · jwt kept in memory only</span></div></div>
+<main>
+  <h1>Permission Setter</h1>
+  <p class="sub">Sets each role's sliders in AMP (Setup → Roles) to match the rulebook, logged in as the Super Admin. AMP has no per-user sliders: a user gets the permissions of the roles linked to them, so name the role each rulebook column stands for.</p>
+
+  <section class="card">
+    <h2><span class="n">1</span>Site</h2>
+    <div class="row">
+      <div><label for="env-url">AMP site URL</label><input type="text" id="env-url" placeholder="https://main.dvl.amp.vg" autocomplete="off"></div>
+      <div><label for="env-name">Name (optional)</label><input type="text" id="env-name" placeholder="main.dvl" autocomplete="off"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="env-prod"> This is a production site</label>
+    <label class="check" id="env-allow-wrap" hidden><input type="checkbox" id="env-allow"> I approve changing roles on production</label>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">2</span>Rulebook</h2>
+    <div class="row">
+      <div><label for="rb-select">Saved rulebook</label><select id="rb-select"><option value="">Choose…</option></select></div>
+      <div><label for="rb-file">…or upload (.xlsx / .csv)</label><input type="file" id="rb-file" accept=".csv,.xlsx"></div>
+    </div>
+    <div id="rb-msg"></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">3</span>Super Admin jwt</h2>
+    <label for="jwt">jwt cookie of the Super Admin (F12 → Application → Cookies → jwt)</label>
+    <input type="text" id="jwt" class="secret" autocomplete="off" spellcheck="false" placeholder="eyJhb…">
+    <div class="btns"><button class="btn" id="btn-check">Check jwt</button></div>
+    <div id="jwt-msg"></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">4</span>Role for each rulebook column</h2>
+    <p class="hint">Exact role name as shown in Setup → Roles. Leave a column empty to skip it. Use a role only that user has: company-wide or group roles also apply to others.</p>
+    <div id="roles"><p class="hint">Load a rulebook first.</p></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">5</span>Run</h2>
+    <label class="check"><input type="checkbox" id="opt-headed"> Show the browser while it works (also used below)</label>
+    <div class="btns">
+      <button class="btn" id="btn-plan">Show plan</button>
+      <button class="btn primary" id="btn-preview">Preview in AMP (no save)</button>
+      <button class="btn danger" id="btn-apply">Apply to AMP</button>
+    </div>
+    <div id="run-msg"></div>
+    <div id="plan" class="wrap"></div>
+  </section>
+
+  <section class="card">
+    <h2>Or: set every slider of one role</h2>
+    <p class="hint">No rulebook needed (steps 1 and 3 still are). Moves every slider on the Marketing Functions and Operations tabs to exactly this level, up or down. Advanced checkboxes and rows AMP hides (e.g. Contacts) are left alone.</p>
+    <div class="row">
+      <div><label for="bulk-role">AMP role</label><input type="text" id="bulk-role" placeholder="e.g. Users.INC" autocomplete="off"></div>
+      <div><label for="bulk-level">Level</label><select id="bulk-level"><option value="0">NA</option><option value="1" selected>View</option><option value="2">Edit</option><option value="3">Create</option><option value="4">Delete</option></select></div>
+    </div>
+    <div class="btns">
+      <button class="btn primary" id="btn-bulk-preview">Preview in AMP (no save)</button>
+      <button class="btn danger" id="btn-bulk-apply">Apply to AMP</button>
+    </div>
+    <div id="bulk-msg"></div>
+  </section>
+
+  <section class="card" id="progress" hidden>
+    <h2>Progress</h2>
+    <div id="prog-msg"></div>
+    <pre id="log"></pre>
+    <div id="result"></div>
+  </section>
+</main>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { rulebook: null, polling: null, from: 0 };
+
+  function api(method, path, body) {
+    return fetch(path, {
+      method: method,
+      headers: body ? { 'Content-Type': 'application/json', 'X-Amp-Ui': '1' } : { 'X-Amp-Ui': '1' },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+        return j;
+      });
+    });
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function msg(el, kind, text) { $(el).innerHTML = text ? '<div class="msg ' + kind + '">' + text + '</div>' : ''; }
+  function load(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+  // Site and role names are remembered in this browser (never the jwt).
+  var saved = load('amp-setter', {});
+  $('env-url').value = saved.url || ((load('amp-envs', [])[0] || {}).baseUrl || '');
+  $('env-name').value = saved.name || '';
+  $('env-prod').addEventListener('change', function () { $('env-allow-wrap').hidden = !this.checked; if (!this.checked) $('env-allow').checked = false; });
+
+  function environment() {
+    return { name: $('env-name').value.trim(), baseUrl: $('env-url').value.trim(), isProduction: $('env-prod').checked, allowProduction: $('env-allow').checked };
+  }
+  function jwt() { return $('jwt').value.trim(); }
+  function roles() {
+    var out = {};
+    document.querySelectorAll('[data-role]').forEach(function (i) { if (i.value.trim()) out[i.getAttribute('data-role')] = i.value.trim(); });
+    return out;
+  }
+  function remember() {
+    var r = load('amp-setter', {});
+    r.url = $('env-url').value.trim(); r.name = $('env-name').value.trim();
+    r.roles = Object.assign(r.roles || {}, roles());
+    save('amp-setter', r);
+  }
+  function body(extra) {
+    if (!$('env-url').value.trim()) throw new Error('Enter the AMP site URL');
+    if (!state.rulebook) throw new Error('Load a rulebook first');
+    if (!jwt()) throw new Error("Paste the Super Admin's jwt");
+    if (!Object.keys(roles()).length) throw new Error('Type the AMP role name for at least one column in step 4 (e.g. the role the User has; leave Super Admin empty: a Super Admin always has full access)');
+    var b = { environment: environment(), rulebookId: state.rulebook.id, jwt: jwt(), roles: roles() };
+    for (var k in extra) b[k] = extra[k];
+    return b;
+  }
+
+  // ---- rulebook
+  api('GET', '/api/rulebooks').then(function (r) {
+    r.files.forEach(function (f) { var o = document.createElement('option'); o.value = f; o.textContent = f; $('rb-select').appendChild(o); });
+  }).catch(function () {});
+  $('rb-select').addEventListener('change', function () { if (this.value) parse({ file: this.value }); });
+  $('rb-file').addEventListener('change', function () {
+    var f = this.files && this.files[0];
+    if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () { parse({ name: f.name, contentBase64: String(reader.result).split(',')[1] }); };
+    reader.readAsDataURL(f);
+  });
+  function parse(b) {
+    msg('rb-msg', 'warn', 'Reading…');
+    api('POST', '/api/rulebooks/parse', b).then(function (r) {
+      state.rulebook = r;
+      var s = r.summary;
+      msg('rb-msg', 'ok', '✓ ' + esc(r.name) + ': ' + s.pages + ' pages, columns ' + s.userTypes.map(function (k) { return esc(s.userTypeLabels[k] || k); }).join(', '));
+      renderRoles();
+    }).catch(function (e) { state.rulebook = null; msg('rb-msg', 'bad', esc(e.message)); renderRoles(); });
+  }
+  function renderRoles() {
+    if (!state.rulebook) { $('roles').innerHTML = '<p class="hint">Load a rulebook first.</p>'; return; }
+    var s = state.rulebook.summary, prev = load('amp-setter', {}).roles || {};
+    $('roles').innerHTML = '<div class="row">' + s.userTypes.map(function (k) {
+      return '<div><label for="role-' + esc(k) + '">' + esc(s.userTypeLabels[k] || k) + ' → AMP role</label>' +
+        '<input type="text" id="role-' + esc(k) + '" data-role="' + esc(k) + '" value="' + esc(prev[k] || '') + '" placeholder="leave empty to skip" autocomplete="off"></div>';
+    }).join('') + '</div>';
+  }
+
+  // ---- jwt
+  $('jwt').addEventListener('input', function () {
+    var v = this.value, m = /(?:^|;\s*)jwt=([^;]+)/i.exec(v);
+    if (m) this.value = m[1].trim();
+    msg('jwt-msg');
+  });
+  $('btn-check').addEventListener('click', function () {
+    var b;
+    try { if (!$('env-url').value.trim()) throw new Error('Enter the AMP site URL'); if (!jwt()) throw new Error("Paste the Super Admin's jwt"); b = { environment: environment(), jwt: jwt() }; }
+    catch (e) { return msg('jwt-msg', 'bad', esc(e.message)); }
+    msg('jwt-msg', 'warn', 'Checking…');
+    api('POST', '/api/setter/check', b).then(function (r) {
+      var id = r.identity || {};
+      if (r.isAdmin) msg('jwt-msg', 'ok', '✓ Super Admin: ' + esc(id.userName || '?') + (id.companyName ? ' · ' + esc(id.companyName) : '') + ' · ' + r.modules + ' modules');
+      else msg('jwt-msg', 'bad', esc(r.reason || 'Not a Super Admin'));
+    }).catch(function (e) { msg('jwt-msg', 'bad', esc(e.message)); });
+  });
+
+  // ---- plan
+  $('btn-plan').addEventListener('click', function () {
+    var b;
+    try { b = body({}); } catch (e) { return msg('run-msg', 'bad', esc(e.message)); }
+    remember();
+    msg('run-msg', 'warn', 'Planning…');
+    api('POST', '/api/setter/plan', b).then(function (r) {
+      msg('run-msg');
+      var tag = { planned: 'will set', cannot: "can't set", not_specified: 'no value' };
+      $('plan').innerHTML = r.plans.map(function (p) {
+        var sl = p.controls.map(function (c) {
+          var to = c.raiseTo !== null ? (c.kind === 'feature' ? 'on' : 'at least ' + r.levels[c.raiseTo]) : 'NA';
+          return '<li>' + esc(c.label) + ' → ' + esc(to) + '</li>';
+        }).join('');
+        return '<h2 style="margin-top:16px">' + esc(p.label) + ' → role “' + esc(p.roleName) + '”</h2>' +
+          (sl ? '<ul>' + sl + '</ul>' : '<p class="hint">No sliders to move.</p>') +
+          '<table><tr><th>Page</th><th>Rulebook</th><th>Module</th><th></th><th>Action</th></tr>' + p.pages.map(function (pg) {
+            return '<tr><td>' + esc(pg.label) + '<div class="hint">#' + esc(pg.route) + '</div></td><td>' + esc(pg.expected || '-') + '</td><td>' + esc(pg.module || '-') + '</td>' +
+              '<td><span class="tag ' + pg.status + '">' + tag[pg.status] + '</span></td><td>' + esc(pg.reason) + (pg.note ? '<div class="hint">Note: ' + esc(pg.note) + '</div>' : '') + '</td></tr>';
+          }).join('') + '</table>';
+      }).join('');
+    }).catch(function (e) { msg('run-msg', 'bad', esc(e.message)); });
+  });
+
+  // ---- run
+  function run(b, apply, where) {
+    if (apply && !confirm('This saves the sliders of the named role(s) in ' + b.environment.baseUrl + ' and affects every user who has those roles. Continue?')) return;
+    remember();
+    msg(where);
+    $('result').innerHTML = ''; $('log').textContent = ''; state.from = 0;
+    $('progress').hidden = false; msg('prog-msg', 'warn', apply ? 'Applying…' : 'Previewing…');
+    busy(true);
+    api('POST', '/api/setter/runs', b).then(poll).catch(function (e) { busy(false); $('progress').hidden = true; msg(where, 'bad', esc(e.message)); });
+  }
+  function start(apply) {
+    var b;
+    try { b = body({ apply: apply, headed: $('opt-headed').checked }); } catch (e) { return msg('run-msg', 'bad', esc(e.message)); }
+    run(b, apply, 'run-msg');
+  }
+  function startBulk(apply) {
+    if (!$('env-url').value.trim()) return msg('bulk-msg', 'bad', 'Enter the AMP site URL in step 1');
+    if (!jwt()) return msg('bulk-msg', 'bad', "Paste the Super Admin's jwt in step 3");
+    if (!$('bulk-role').value.trim()) return msg('bulk-msg', 'bad', 'Enter the AMP role name');
+    run({ environment: environment(), jwt: jwt(), bulk: { roleName: $('bulk-role').value.trim(), step: Number($('bulk-level').value) }, apply: apply, headed: $('opt-headed').checked }, apply, 'bulk-msg');
+  }
+  $('btn-preview').addEventListener('click', function () { start(false); });
+  $('btn-apply').addEventListener('click', function () { start(true); });
+  $('btn-bulk-preview').addEventListener('click', function () { startBulk(false); });
+  $('btn-bulk-apply').addEventListener('click', function () { startBulk(true); });
+  function busy(on) { ['btn-plan', 'btn-preview', 'btn-apply', 'btn-check', 'btn-bulk-preview', 'btn-bulk-apply'].forEach(function (id) { $(id).disabled = on; }); }
+
+  function poll() {
+    api('GET', '/api/setter/runs/current?from=' + state.from).then(function (r) {
+      var run = r.run;
+      if (!run) return busy(false);
+      if (run.lines.length) { $('log').textContent += run.lines.join('\n') + '\n'; $('log').scrollTop = $('log').scrollHeight; }
+      state.from = run.lineCount;
+      if (run.status === 'running') { setTimeout(poll, 1000); return; }
+      busy(false);
+      var o = run.outcome || {};
+      msg('prog-msg', run.status === 'done' ? 'ok' : 'bad', run.status === 'done' ? (run.apply ? '✓ Done: roles saved.' : '✓ Preview done: nothing was saved.') : esc(o.error || 'Some roles failed; see below'));
+      var names = { saved: 'Saved', previewed: 'Preview (not saved)', no_changes: 'Already matches', failed: 'Failed' };
+      $('result').innerHTML = (o.roles || []).length ? '<table style="margin-top:12px"><tr><th>Column</th><th>Role</th><th>Result</th><th>Changes</th></tr>' + o.roles.map(function (x) {
+        return '<tr><td>' + esc(x.label) + '</td><td>' + esc(x.roleName) + '</td><td><span class="tag ' + x.status + '">' + names[x.status] + '</span>' + (x.error ? '<div class="hint">' + esc(x.error) + '</div>' : '') + '</td><td>' + x.changed + '</td></tr>';
+      }).join('') + '</table>' : '';
+      if (o.reportUrl) $('result').innerHTML += '<div class="btns"><a class="btn primary" href="' + esc(o.reportUrl) + '" target="_blank" rel="noopener">Open report</a></div>' +
+        '<p class="hint">Log out of the AMP window the jwt came from when you are done. Users may need to log in again to see changes.</p>';
+    }).catch(function () { setTimeout(poll, 2000); });
+  }
+  // Reconnect to a run that is still going (e.g. after a refresh).
+  api('GET', '/api/setter/runs/current').then(function (r) { if (r.run && r.run.status === 'running') { $('progress').hidden = false; busy(true); poll(); } }).catch(function () {});
+})();
+</script>
+</body>
+</html>

@@ -11,8 +11,11 @@ export class SafetyError extends Error {
   }
 }
 
-/** The only AMP APIs the tool itself may call directly. */
-export const TOOL_API_ALLOWLIST = new Set(['getpermissiondataforuser']);
+/**
+ * The only AMP APIs the tool itself may call directly (both read-only). The Navigation Layout module
+ * list is used by the Permission Setter: only Site/Super Admins may call it.
+ */
+export const TOOL_API_ALLOWLIST = new Set(['getpermissiondataforuser', 'getmodulesfornavigationlayout']);
 
 /** API name prefixes that only read data. Anything else is treated as a write. */
 const READ_PREFIX = /^(get|load|check|has|is|can|search|find|fetch|list|count|view|lookup|preview|verify)/;
@@ -79,6 +82,29 @@ export function decideBrowserRequest(method: string, rawUrl: string, baseHost: s
     return { allowed: true, reason: 'read-only api' };
   }
   return { allowed: false, reason: `${m} to non-api endpoint ${url.pathname}` };
+}
+
+/** The one write the Permission Setter may let the browser make: saving the role it edited. */
+export const SETTER_WRITE_API = 'saverole';
+
+/**
+ * Policy for the Permission Setter's browser (logged in as the Super Admin): the read-only policy
+ * above, plus SaveRole when the tester chose "Apply". Every other write stays blocked.
+ */
+export function decideSetterRequest(method: string, rawUrl: string, baseHost: string, allowSave: boolean): Decision {
+  let url: URL | null = null;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    /* handled below */
+  }
+  if (url && method.toUpperCase() === 'POST' && url.host.toLowerCase() === baseHost && isApiEndpoint(url)) {
+    const funcs = apiFuncsFromUrl(url);
+    if (funcs.length === 1 && funcs[0] === SETTER_WRITE_API) {
+      return allowSave ? { allowed: true, reason: 'role save (apply)' } : { allowed: false, reason: 'role save blocked (preview only)' };
+    }
+  }
+  return decideBrowserRequest(method, rawUrl, baseHost);
 }
 
 /** Refuses production unless explicitly overridden. */

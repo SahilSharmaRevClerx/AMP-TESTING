@@ -13,6 +13,9 @@ import { AuditLog } from '../util/audit';
 import { forgetSecrets, scrub } from '../util/mask';
 import { createLogger, getLogLevel, isDebug, since } from '../util/logger';
 import type { Credentials, Environment, Rulebook, RunConfig } from '../types';
+import { checkSuperAdmin } from '../setter/session';
+import { executeSetter, newSetterRunId, planAll, type SetterOutcome } from '../setter/run';
+import { LEVELS } from '../setter/sliders';
 
 const log = createLogger('server');
 const httpLog = createLogger('http');
@@ -24,6 +27,8 @@ const RULEBOOK_DIR = join(ROOT, 'rulebook');
 const OUTPUT_DIR = join(ROOT, 'output');
 const DEBUG_DIR = join(ROOT, 'debug');
 const UI_FILE = fileURLToPath(new URL('./ui.html', import.meta.url));
+const SETTER_FILE = fileURLToPath(new URL('./setter.html', import.meta.url));
+const SETTER_DIR = join(OUTPUT_DIR, '_setter');
 const MAX_BODY = 8 * 1024 * 1024;
 const ALLOWED_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
 
@@ -49,6 +54,28 @@ interface RunState {
   listeners: Set<ServerResponse>;
 }
 let current: RunState | null = null;
+
+/** The Permission Setter's run (one at a time; the UI polls it). */
+interface SetterState {
+  id: string;
+  status: 'running' | 'done' | 'failed';
+  apply: boolean;
+  lines: string[];
+  outcome: SetterOutcome | null;
+  controller: AbortController;
+}
+let setter: SetterState | null = null;
+
+interface SetterBody {
+  environment?: Environment;
+  rulebookId?: string;
+  jwt?: string;
+  roles?: Record<string, string>;
+  /** "Set every slider": one role and a level 0–4, no rulebook. */
+  bulk?: { roleName?: string; step?: number };
+  apply?: boolean;
+  headed?: boolean;
+}
 
 // ---------------------------------------------------------------- request shapes
 
@@ -261,6 +288,10 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     return send(res, 200, readFileSync(UI_FILE, 'utf8'), 'text/html');
   }
 
+  if (method === 'GET' && (path === '/setter' || path === '/setter.html')) {
+    return send(res, 200, readFileSync(SETTER_FILE, 'utf8'), 'text/html');
+  }
+
   if (method === 'GET' && path.startsWith('/output/')) return serveOutput(path, res);
 
   if (!path.startsWith('/api/')) return send(res, 404, { error: 'Not found' });
@@ -271,6 +302,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   }
   if (method === 'GET' && path === '/api/runs') return send(res, 200, { runs: listRuns() });
   if (method === 'GET' && path === '/api/runs/current') return send(res, 200, { run: publicState(current) });
+  if (method === 'GET' && path === '/api/setter/runs/current') return send(res, 200, { run: setterState(Number(url.searchParams.get('from') ?? 0)) });
 
   const events = /^\/api\/runs\/([\w-]+)\/events$/.exec(path);
   if (method === 'GET' && events) {
@@ -363,6 +395,8 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     return send(res, 202, { run: publicState(current) });
   }
 
+  if (method === 'POST' && path.startsWith('/api/setter/')) return handleSetter(path, (await readBody(req)) as SetterBody, res);
+
   const cancel = /^\/api\/runs\/([\w-]+)\/cancel$/.exec(path);
   if (method === 'POST' && cancel) {
     if (!current || current.id !== cancel[1] || current.status !== 'running') throw new HttpError(404, 'No such active run');
@@ -372,6 +406,116 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   }
 
   return send(res, 404, { error: 'Not found' });
+}
+
+// ---------------------------------------------------------------- permission setter
+
+function setterState(from = 0) {
+  if (!setter) return null;
+  const o = setter.outcome;
+  return {
+    id: setter.id,
+    status: setter.status,
+    apply: setter.apply,
+    lines: setter.lines.slice(Math.max(0, from)),
+    lineCount: setter.lines.length,
+    outcome: o && {
+      error: o.error ?? null,
+      roles: o.roles.map((r) => ({ label: r.label, roleName: r.roleName, status: r.status, error: r.error ?? null, changed: r.controls.filter((c) => c.changed).length })),
+      reportUrl: o.reportFile ? `/output/_setter/${setter.id}/report.html` : null,
+    },
+  };
+}
+
+/** Rulebook columns → role names, only for columns the rulebook has. */
+function setterRoles(body: SetterBody, rb: Rulebook): Record<string, string> {
+  const roles: Record<string, string> = {};
+  for (const ut of rb.userTypes) {
+    const name = body.roles?.[ut]?.trim();
+    if (name) roles[ut] = name.slice(0, 200);
+  }
+  if (!Object.keys(roles).length) throw new HttpError(400, 'Enter the AMP role to set for at least one rulebook column');
+  return roles;
+}
+
+async function handleSetter(path: string, body: SetterBody, res: ServerResponse): Promise<void> {
+  const env = environmentFrom(body);
+  if (!body.jwt?.trim()) throw new HttpError(400, "Paste the Super Admin's jwt first");
+  const creds = makeCredentials(body.jwt);
+  const forget = () => forgetSecrets([creds.jwt, creds.csrf]);
+
+  if (path === '/api/setter/check' || path === '/api/setter/plan') {
+    try {
+      const gate = new RequestGate(env, 300, new AuditLog(join(OUTPUT_DIR, '_ui', 'setter-checks.jsonl')));
+      const admin = await checkSuperAdmin(gate, creds);
+      if (path === '/api/setter/check') {
+        log.info('setter token check', { env: env.name, name: admin.identity.userName, admin: admin.isAdmin, modules: admin.modules.length });
+        return send(res, 200, { identity: admin.identity, isAdmin: admin.isAdmin, reason: admin.reason ?? null, modules: admin.modules.length });
+      }
+      if (!admin.isAdmin) throw new HttpError(400, admin.reason ?? 'not a Super Admin');
+      const rb = getRulebook(body.rulebookId ?? '').rulebook;
+      const plans = planAll(rb, setterRoles(body, rb), admin.modules);
+      return send(res, 200, { plans, levels: LEVELS });
+    } finally {
+      forget();
+    }
+  }
+
+  if (path === '/api/setter/runs') {
+    let loaded: LoadedRulebook | null = null;
+    let roles: Record<string, string> = {};
+    let bulk: { roleName: string; step: 0 | 1 | 2 | 3 | 4 } | undefined;
+    try {
+      if (setter?.status === 'running') throw new HttpError(409, 'A permission run is already in progress');
+      if (body.bulk) {
+        const roleName = body.bulk.roleName?.trim().slice(0, 200);
+        const step = Number(body.bulk.step);
+        if (!roleName) throw new HttpError(400, 'Enter the AMP role name');
+        if (![0, 1, 2, 3, 4].includes(step)) throw new HttpError(400, 'Choose a level');
+        bulk = { roleName, step: step as 0 | 1 | 2 | 3 | 4 };
+      } else {
+        loaded = getRulebook(body.rulebookId ?? '');
+        roles = setterRoles(body, loaded.rulebook);
+      }
+    } catch (e) {
+      forget();
+      throw e;
+    }
+    const apply = body.apply === true;
+    const id = newSetterRunId(env.name);
+    const state: SetterState = { id, status: 'running', apply, lines: [], outcome: null, controller: new AbortController() };
+    setter = state;
+    log.info('setter run started', { run: id, env: env.name, apply, roles: bulk ? 1 : Object.keys(roles).length, bulk: bulk ? LEVELS[bulk.step] : undefined });
+    void executeSetter(
+      {
+        environment: env,
+        rulebook: loaded?.rulebook ?? null,
+        rulebookName: loaded?.name ?? '(none: every slider)',
+        roles,
+        bulk,
+        creds,
+        apply,
+        headless: body.headed !== true,
+        outputRoot: SETTER_DIR,
+        signal: state.controller.signal,
+        log: (line) => {
+          for (const l of scrub(line).split('\n')) state.lines.push(l);
+        },
+      },
+      id,
+    )
+      .catch((e: unknown): SetterOutcome => ({ runId: id, outDir: join(SETTER_DIR, id), apply, roles: [], error: scrub((e as Error).message) }))
+      .then((outcome) => {
+        forget();
+        state.outcome = outcome;
+        state.status = outcome.error || outcome.roles.some((r) => r.status === 'failed') ? 'failed' : 'done';
+        log.info('setter run finished', { run: id, status: state.status, error: outcome.error });
+      });
+    return send(res, 202, { run: setterState() });
+  }
+
+  forget();
+  throw new HttpError(404, 'Not found');
 }
 
 function startRun(
