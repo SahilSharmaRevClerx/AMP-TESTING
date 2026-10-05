@@ -7,128 +7,381 @@
 <style>
 :root{
   --bg:#f4f6fa;--fg:#161a22;--muted:#5d6472;--card:#fff;--line:#e1e5ec;--input:#fff;--code:#eef1f6;
-  --accent:#2f5bd3;--accent-fg:#fff;--accent-soft:#e9efff;
+  --accent:#2f5bd3;--accent-2:#6a4bd8;--accent-fg:#fff;--accent-soft:#e9efff;
   --ok:#1b7a4b;--ok-bg:#e2f5ea;--bad:#b42318;--bad-bg:#fde8e6;--warn:#94590a;--warn-bg:#fdf1dc;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 8px 24px rgba(16,24,40,.06);
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#12141a;--fg:#e9ebf0;--muted:#9aa1ad;--card:#1b1e25;--line:#2b2f39;--input:#14161c;--code:#232733;
-  --accent:#7d9bff;--accent-fg:#0e1120;--accent-soft:#222a4a;
+  --accent:#7d9bff;--accent-2:#a58bff;--accent-fg:#0e1120;--accent-soft:#222a4a;
   --ok:#6fd39c;--ok-bg:#173526;--bad:#ff8a80;--bad-bg:#3d1c1a;--warn:#f5c26b;--warn-bg:#3a2d12;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
 }}
 :root[data-theme="dark"]{
   --bg:#12141a;--fg:#e9ebf0;--muted:#9aa1ad;--card:#1b1e25;--line:#2b2f39;--input:#14161c;--code:#232733;
-  --accent:#7d9bff;--accent-fg:#0e1120;--accent-soft:#222a4a;
+  --accent:#7d9bff;--accent-2:#a58bff;--accent-fg:#0e1120;--accent-soft:#222a4a;
   --ok:#6fd39c;--ok-bg:#173526;--bad:#ff8a80;--bad-bg:#3d1c1a;--warn:#f5c26b;--warn-bg:#3a2d12;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
 }
 *{box-sizing:border-box}[hidden]{display:none!important}
 html,body{margin:0}
 body{background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
 a{color:var(--accent)}
-.top{border-bottom:1px solid var(--line);background:var(--card)}
-.top div{max-width:960px;margin:auto;padding:12px 16px;display:flex;gap:12px;align-items:center;justify-content:space-between}
-main{max-width:960px;margin:auto;padding:20px 16px 60px}
-h1{font-size:24px;margin:8px 0 4px}h2{font-size:16px;margin:0 0 10px}
-.sub{color:var(--muted);margin:0 0 18px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:0 0 14px}
-.n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:700;margin-right:6px}
-label{display:block;font-size:13px;color:var(--muted);margin:8px 0 4px}
-input[type=text],select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--input);color:var(--fg);font:inherit}
-.row{display:flex;gap:12px;flex-wrap:wrap}.row>*{flex:1 1 240px}
-.check{display:flex;gap:8px;align-items:center;color:var(--fg);font-size:14px}
-.secret{-webkit-text-security:disc;text-security:disc}
-.btn{border-radius:8px;padding:9px 16px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;font:inherit;font-weight:500}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
-.btn.danger{background:var(--bad);border-color:var(--bad);color:#fff}
-.btn:disabled{opacity:.5;cursor:default}
-.btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-.msg{padding:9px 12px;border-radius:8px;margin-top:10px;font-size:14px}
+code{font:12.5px ui-monospace,Consolas,monospace;background:var(--code);padding:1px 5px;border-radius:4px}
+
+/* top bar (same as the testing catalog) */
+.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top .in{max-width:1060px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--fg);font-size:15px;text-decoration:none;white-space:nowrap}
+.logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:#fff}
+.top .sp{flex:1}
+.link{color:var(--muted);text-decoration:none;padding:6px 10px;border-radius:6px;white-space:nowrap;font-size:15px}
+.link:hover{background:var(--code);color:var(--fg)}
+.safe{font-size:12.5px;color:var(--muted);display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.safe svg{color:var(--ok)}
+@media (max-width:640px){.safe{display:none}}
+
+main{max-width:1060px;margin:0 auto;padding:24px 16px 80px}
+.intro{display:flex;gap:14px;align-items:center;margin-bottom:18px}
+.intro .mic{flex:0 0 44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 12px 28px -12px color-mix(in srgb,var(--accent) 70%,transparent)}
+.intro h1{margin:0;font-size:clamp(22px,2.6vw,26px);letter-spacing:-.02em;line-height:1.2}
+.intro p{margin:2px 0 0;color:var(--muted);font-size:14.5px}
+
+/* buttons */
+button{font:inherit}
+.btn{border-radius:8px;padding:9px 16px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-size:15px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.danger{background:var(--bad);border-color:var(--bad);color:#fff;font-weight:600}
+.btn.danger:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.5;cursor:not-allowed;filter:none}
+.btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* stepper (same as the Pages wizard) */
+.stepper{display:flex;margin:4px 0 22px}
+.stp{flex:1;display:flex;align-items:center;gap:10px;background:none;border:0;padding:0;text-align:left;color:var(--muted);cursor:default;min-width:0}
+.stp .dot{flex:0 0 32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px;border:2px solid var(--line);background:var(--card);color:var(--muted)}
+.stp .t{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stp:not(:last-child)::after{content:"";flex:1;height:2px;background:var(--line);margin:0 10px;min-width:12px}
+.stp.done,.stp.reach{color:var(--fg);cursor:pointer}
+.stp.done .dot{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.stp.reach .dot{border-color:var(--accent);color:var(--accent)}
+.stp.done:not(:last-child)::after{background:var(--accent)}
+.stp.cur{color:var(--fg)}
+.stp.cur .dot{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+body.running .stp{cursor:default}
+@media (max-width:760px){.stp .t{display:none}.stp.cur .t{display:block}}
+
+/* panels: one step at a time */
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.panel .head{padding:22px 26px 6px;display:flex;gap:14px;align-items:flex-start}
+.panel .head .ic{flex:0 0 42px;height:42px;border-radius:11px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.panel h2{margin:0;font-size:20px}
+.panel .head p{margin:3px 0 0;color:var(--muted);font-size:14.5px}
+.panel .body{padding:14px 26px 22px}
+.panel .foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 26px;border-top:1px solid var(--line);background:color-mix(in srgb,var(--bg) 55%,var(--card))}
+@media (max-width:640px){.panel .head,.panel .body,.panel .foot{padding-left:16px;padding-right:16px}}
+
+/* form fields: label, input, one line of help that turns green/red */
+input[type=text],input[type=url],select{font:inherit;color:var(--fg);background:var(--input);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.form{display:flex;flex-direction:column;gap:22px;padding-top:6px}
+.form>div:empty{display:none}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.lbl{font-size:14px;font-weight:600;color:var(--fg)}
+.lbl .opt{font-weight:500;font-size:11.5px;color:var(--muted);background:var(--code);padding:1px 8px;border-radius:999px;margin-left:6px;vertical-align:1px}
+.help{font-size:13px;color:var(--muted);line-height:1.45}
+.help.ok{color:var(--ok)}.help.bad{color:var(--bad)}
+.inp-ic{position:relative}
+.inp-ic>svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.inp-ic>input{padding-left:40px}
+.inp-ic.ok>svg{color:var(--ok)}.inp-ic.ok>input{border-color:var(--ok)}
+.inp-ic.bad>svg{color:var(--bad)}.inp-ic.bad>input{border-color:var(--bad)}
+input.lg{padding:12px 14px 12px 40px;font-size:16px;border-radius:10px}
+.fld.half{max-width:420px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px 18px}
+.sub-h{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.msg{border-radius:8px;padding:10px 14px;margin-top:14px;font-size:14px}
+.form .msg{margin-top:0}
 .msg.ok{background:var(--ok-bg);color:var(--ok)}.msg.bad{background:var(--bad-bg);color:var(--bad)}.msg.warn{background:var(--warn-bg);color:var(--warn)}
-.hint{color:var(--muted);font-size:13px}
+.hint{color:var(--muted);font-size:13.5px}
+
+/* recent sites (shared with the Pages module) */
+.envs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.envc{position:relative;display:flex;align-items:center;gap:10px;min-height:56px;padding:10px 36px 10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;min-width:0;transition:border-color .15s,background .15s}
+.envc:hover{border-color:color-mix(in srgb,var(--accent) 60%,var(--line))}
+.envc:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.envc.on{border-color:var(--accent);background:var(--accent-soft)}
+.envc .av{flex:0 0 32px;height:32px;border-radius:8px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:14px}
+.envc.on .av{background:var(--accent);color:var(--accent-fg)}
+.envc .tx{min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.envc .n{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.envc .h{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.envc .pb{font-size:10.5px;font-weight:700;color:var(--bad);background:var(--bad-bg);padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:1px}
+.envc .x{position:absolute;top:50%;right:7px;transform:translateY(-50%);width:24px;height:24px;border-radius:6px;display:grid;place-items:center;border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1}
+.envc .x:hover{background:var(--code);color:var(--bad)}
+
+/* switch: a checkbox drawn as a toggle */
+input.sw{-webkit-appearance:none;appearance:none;flex:0 0 40px;width:40px;height:22px;margin:1px 0 0;border-radius:999px;background:color-mix(in srgb,var(--muted) 45%,var(--line));position:relative;cursor:pointer;transition:background .2s}
+input.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .2s}
+input.sw:checked{background:var(--accent)}
+input.sw:checked::after{transform:translateX(18px)}
+input.sw:focus{outline:none}input.sw:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.toggle{display:flex;gap:12px;align-items:flex-start;cursor:pointer}
+.toggle .tt{display:flex;flex-direction:column;gap:1px}
+.toggle .tt b{font-size:14px;font-weight:600}
+.toggle .tt span{font-size:13px;color:var(--muted)}
+.prod{border:1px solid var(--line);border-radius:10px;padding:14px 16px;transition:border-color .2s,background .2s}
+.prod:has(#env-prod:checked){border-color:color-mix(in srgb,var(--bad) 55%,var(--line));background:var(--bad-bg)}
+.prod input.sw:checked{background:var(--bad)}
+.prod .appr{display:flex;gap:10px;align-items:flex-start;margin:12px 0 0 52px;font-size:14px;font-weight:500;color:var(--bad);cursor:pointer}
+.prod .appr input{width:16px;height:16px;margin:2px 0 0;flex:0 0 auto}
+@media (max-width:640px){.prod .appr{margin-left:0}}
+
+/* step 3: what to change */
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:700px){.choices{grid-template-columns:1fr}}
+.choice{position:relative;display:flex;flex-direction:column;gap:8px;padding:20px 20px 18px;border:1.5px solid var(--line);border-radius:12px;cursor:pointer;background:var(--card);transition:border-color .15s,background .15s,box-shadow .15s}
+.choice:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
+.choice:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent-soft) 60%,var(--card));box-shadow:0 10px 26px -16px color-mix(in srgb,var(--accent) 70%,transparent)}
+.choice:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.choice input{position:absolute;opacity:0;pointer-events:none}
+.choice .cic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.choice:has(input:checked) .cic{background:var(--accent);color:var(--accent-fg)}
+.choice .tick{position:absolute;top:16px;right:16px;width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:transparent}
+.choice:has(input:checked) .tick{border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
+.choice h3{margin:4px 0 0;font-size:16.5px}
+.choice p{margin:0;color:var(--muted);font-size:14px}
+.choice .ctags{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.choice .ctags span{font-size:12px;color:var(--muted);background:var(--code);border-radius:6px;padding:2px 8px}
+
+/* rulebook: saved list or drop zone */
+.pick{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center}
+.pick .or{color:var(--muted);font-size:13px;font-weight:600}
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;cursor:pointer;color:var(--muted);font-size:14px;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--fg)}
+.drop b{color:var(--accent)}
+@media (max-width:640px){.pick{grid-template-columns:1fr}.pick .or{text-align:center}}
+.sec{border-top:1px solid var(--line);padding-top:20px}
+.sec h3{margin:0 0 2px;font-size:15.5px}
+.sec>p{margin:0 0 14px;color:var(--muted);font-size:13.5px}
+
+/* jwt */
+.secret{-webkit-text-security:disc;text-security:disc}
+.pw{display:flex;gap:6px}.pw .show{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:8px;padding:0 12px;cursor:pointer}
+.pw .show:hover{color:var(--fg);border-color:var(--muted)}
+details.help-box{background:var(--code);border-radius:8px;padding:8px 12px}
+details.help-box summary{cursor:pointer;color:var(--accent);font-size:14px;font-weight:500}
+details.help-box ol{margin:8px 0 2px;padding-left:20px;color:var(--muted);font-size:14px}
+
+/* role mapping */
+.role-f .lbl{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.role-f .arrow{color:var(--muted);font-weight:500}
+.empty{color:var(--muted);font-size:14px;text-align:center;padding:22px;border:1px dashed var(--line);border-radius:10px}
+
+/* review, plan, progress, results */
+.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.sbox{background:var(--code);border-radius:10px;padding:12px 14px;min-width:0}
+.sbox .v{font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sbox .l{font-size:12.5px;color:var(--muted)}
+@media (max-width:760px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.opts{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
 table{width:100%;border-collapse:collapse;font-size:14px}
-th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 .wrap{overflow-x:auto}
-.tag{font-size:12px;padding:1px 7px;border-radius:99px;white-space:nowrap}
+.plan-h{margin:22px 0 8px;font-size:16px}
+.plan-h .role{color:var(--accent)}
+ul.sliders{margin:0 0 10px;padding-left:20px;color:var(--muted);font-size:14px}
+.tag{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
 .tag.planned{background:var(--accent-soft);color:var(--accent)}.tag.cannot{background:var(--warn-bg);color:var(--warn)}.tag.not_specified{background:var(--code);color:var(--muted)}
 .tag.saved,.tag.no_changes{background:var(--ok-bg);color:var(--ok)}.tag.failed{background:var(--bad-bg);color:var(--bad)}.tag.previewed{background:var(--warn-bg);color:var(--warn)}
-pre{background:var(--code);border-radius:8px;padding:10px;max-height:320px;overflow:auto;font:12.5px ui-monospace,Consolas,monospace;white-space:pre-wrap;margin:10px 0 0}
+.bulk-plan{margin-top:18px;border:1px solid var(--line);border-radius:10px;padding:14px 16px;font-size:14.5px}
+.progress{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.progress h3{margin:0 0 4px;font-size:16px}
+details.logbox{margin-top:14px}
+details.logbox summary{cursor:pointer;font-size:14px;color:var(--accent)}
+pre{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;overflow:auto;font:12px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;margin:8px 0 0}
+.spin{width:16px;height:16px;border:2px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;display:inline-block;vertical-align:-3px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
-<div class="top"><div><a href="/">← Testing catalog</a><span class="hint">Runs on this machine · jwt kept in memory only</span></div></div>
+<header class="top"><div class="in">
+  <a class="brand" href="/" title="Testing catalog">
+    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></span>
+    Permission Testing
+  </a>
+  <span class="sp"></span>
+  <span class="safe"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Runs on this machine · jwt kept in memory only</span>
+  <a class="link" href="/">← Catalog</a>
+</div></header>
+
 <main>
-  <h1>Permission Setter</h1>
-  <p class="sub">Sets each role's sliders in AMP (Setup → Roles) to match the rulebook, logged in as the Super Admin. AMP has no per-user sliders: a user gets the permissions of the roles linked to them, so name the role each rulebook column stands for.</p>
+  <div class="intro">
+    <span class="mic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></span>
+    <div><h1>Permission Setter</h1><p>Sets role sliders in AMP (Setup → Roles), logged in as the Super Admin.</p></div>
+  </div>
 
-  <section class="card">
-    <h2><span class="n">1</span>Site</h2>
-    <div class="row">
-      <div><label for="env-url">AMP site URL</label><input type="text" id="env-url" placeholder="https://main.dvl.amp.vg" autocomplete="off"></div>
-      <div><label for="env-name">Name (optional)</label><input type="text" id="env-name" placeholder="main.dvl" autocomplete="off"></div>
+  <nav class="stepper" id="stepper" aria-label="Progress">
+    <button class="stp" data-step="1"><span class="dot">1</span><span class="t">Site</span></button>
+    <button class="stp" data-step="2"><span class="dot">2</span><span class="t">Super Admin</span></button>
+    <button class="stp" data-step="3"><span class="dot">3</span><span class="t">What to change</span></button>
+    <button class="stp" data-step="4"><span class="dot">4</span><span class="t" id="stp4-t">Rulebook &amp; roles</span></button>
+    <button class="stp" data-step="5"><span class="dot">5</span><span class="t">Review &amp; apply</span></button>
+  </nav>
+
+  <!-- 1 site -->
+  <section class="panel" id="step-1">
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg></div>
+      <div><h2>Which site?</h2><p>The AMP site whose roles you want to set. Use a QA or staging site, not production.</p></div></div>
+    <div class="body form">
+      <div id="env-recent-wrap" hidden>
+        <div class="sub-h">Recently used</div>
+        <div class="envs" id="env-recent"></div>
+      </div>
+      <div class="fld">
+        <label class="lbl" for="env-url">Site address</label>
+        <div class="inp-ic" id="env-url-box">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+          <input type="url" class="lg" id="env-url" placeholder="https://main.dvl.amp.vg" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="help" id="env-url-help"></div>
+      </div>
+      <div class="fld half">
+        <label class="lbl" for="env-name">Display name <span class="opt">optional</span></label>
+        <input type="text" id="env-name" placeholder="e.g. main.dvl" autocomplete="off" spellcheck="false">
+        <div class="help">Shown in the report. Left empty, the site address is used.</div>
+      </div>
+      <div class="prod">
+        <label class="toggle"><input type="checkbox" class="sw" id="env-prod">
+          <span class="tt"><b>This is a production site</b><span>Real client data. Saving roles here changes what real users can do.</span></span></label>
+        <label class="appr" id="env-allow-wrap" hidden><input type="checkbox" id="env-allow"> I approve changing roles on this production site</label>
+      </div>
+      <div id="env-msg"></div>
     </div>
-    <label class="check"><input type="checkbox" id="env-prod"> This is a production site</label>
-    <label class="check" id="env-allow-wrap" hidden><input type="checkbox" id="env-allow"> I approve changing roles on production</label>
+    <div class="foot"><a class="btn" href="/">← Catalog</a><button class="btn primary" id="next-1">Next: Super Admin →</button></div>
   </section>
 
-  <section class="card">
-    <h2><span class="n">2</span>Rulebook</h2>
-    <div class="row">
-      <div><label for="rb-select">Saved rulebook</label><select id="rb-select"><option value="">Choose…</option></select></div>
-      <div><label for="rb-file">…or upload (.xlsx / .csv)</label><input type="file" id="rb-file" accept=".csv,.xlsx"></div>
+  <!-- 2 jwt -->
+  <section class="panel" id="step-2" hidden>
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></svg></div>
+      <div><h2>Super Admin jwt</h2><p>The setter logs in as a Super Admin to edit roles. The jwt stays in memory for this run only.</p></div></div>
+    <div class="body form">
+      <details class="help-box">
+        <summary>How do I get the jwt?</summary>
+        <ol>
+          <li>Open an incognito window and log in to the site as a Super Admin.</li>
+          <li>Press <b>F12</b> → <b>Application</b> → <b>Cookies</b> → select the site.</li>
+          <li>Copy the <b>Value</b> of the <code>jwt</code> cookie below. Pasting <code>jwt=…</code> also works.</li>
+        </ol>
+      </details>
+      <div class="fld">
+        <label class="lbl" for="jwt">jwt cookie</label>
+        <div class="pw"><input type="text" id="jwt" class="secret" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" placeholder="paste the Super Admin's jwt (eyJhb…)"><button type="button" class="show" id="jwt-show" title="Show/hide">👁</button></div>
+        <div class="help">Next checks that it belongs to a Super Admin of this site.</div>
+      </div>
+      <div id="jwt-msg"></div>
     </div>
-    <div id="rb-msg"></div>
+    <div class="foot"><button class="btn" data-back>← Back</button><span class="btns"><button class="btn" id="btn-check">Check jwt</button><button class="btn primary" id="next-2">Next: What to change →</button></span></div>
   </section>
 
-  <section class="card">
-    <h2><span class="n">3</span>Super Admin jwt</h2>
-    <label for="jwt">jwt cookie of the Super Admin (F12 → Application → Cookies → jwt)</label>
-    <input type="text" id="jwt" class="secret" autocomplete="off" spellcheck="false" placeholder="eyJhb…">
-    <div class="btns"><button class="btn" id="btn-check">Check jwt</button></div>
-    <div id="jwt-msg"></div>
-  </section>
-
-  <section class="card">
-    <h2><span class="n">4</span>Role for each rulebook column</h2>
-    <p class="hint">Exact role name as shown in Setup → Roles. Leave a column empty to skip it. Use a role only that user has: company-wide or group roles also apply to others.</p>
-    <div id="roles"><p class="hint">Load a rulebook first.</p></div>
-  </section>
-
-  <section class="card">
-    <h2><span class="n">5</span>Run</h2>
-    <label class="check"><input type="checkbox" id="opt-headed"> Show the browser while it works (also used below)</label>
-    <div class="btns">
-      <button class="btn" id="btn-plan">Show plan</button>
-      <button class="btn primary" id="btn-preview">Preview in AMP (no save)</button>
-      <button class="btn danger" id="btn-apply">Apply to AMP</button>
+  <!-- 3 mode -->
+  <section class="panel" id="step-3" hidden>
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></div>
+      <div><h2>What do you want to change?</h2><p>Pick one. Either way you can preview it in AMP before anything is saved.</p></div></div>
+    <div class="body">
+      <div class="choices">
+        <label class="choice"><input type="radio" name="mode" value="rulebook" checked>
+          <span class="tick"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg></span>
+          <span class="cic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>
+          <h3>Match a rulebook</h3>
+          <p>Raise each role's sliders so its users can open the pages the rulebook says Yes to.</p>
+          <span class="ctags"><span>Rulebook</span><span>One role per column</span></span>
+        </label>
+        <label class="choice"><input type="radio" name="mode" value="bulk">
+          <span class="tick"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg></span>
+          <span class="cic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="15" cy="6" r="1.8" fill="currentColor"/><circle cx="15" cy="12" r="1.8" fill="currentColor"/><circle cx="15" cy="18" r="1.8" fill="currentColor"/></svg></span>
+          <h3>Set every slider of one role</h3>
+          <p>Move every slider on the Marketing Functions and Operations tabs to one level, up or down. No rulebook needed.</p>
+          <span class="ctags"><span>One role</span><span>NA · View · Edit · Create · Delete</span></span>
+        </label>
+      </div>
     </div>
-    <div id="run-msg"></div>
-    <div id="plan" class="wrap"></div>
+    <div class="foot"><button class="btn" data-back>← Back</button><button class="btn primary" id="next-3">Next →</button></div>
   </section>
 
-  <section class="card">
-    <h2>Or: set every slider of one role</h2>
-    <p class="hint">No rulebook needed (steps 1 and 3 still are). Moves every slider on the Marketing Functions and Operations tabs to exactly this level, up or down. Advanced checkboxes and rows AMP hides (e.g. Contacts) are left alone.</p>
-    <div class="row">
-      <div><label for="bulk-role">AMP role</label><input type="text" id="bulk-role" placeholder="e.g. Users.INC" autocomplete="off"></div>
-      <div><label for="bulk-level">Level</label><select id="bulk-level"><option value="0">NA</option><option value="1" selected>View</option><option value="2">Edit</option><option value="3">Create</option><option value="4">Delete</option></select></div>
+  <!-- 4 details -->
+  <section class="panel" id="step-4" hidden>
+    <div id="mode-rb">
+      <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div>
+        <div><h2>Rulebook &amp; roles</h2><p>Choose the rulebook, then name the AMP role each of its columns stands for.</p></div></div>
+      <div class="body form">
+        <div>
+          <div class="pick">
+            <div class="fld"><label class="lbl" for="rb-select">Saved rulebook</label><select id="rb-select"><option value="">— choose —</option></select></div>
+            <div class="or">OR</div>
+            <label class="drop" id="rb-drop"><input type="file" id="rb-file" accept=".csv,.xlsx" hidden><b>Upload .xlsx / .csv</b><br><span id="rb-drop-t">click or drop a file here</span></label>
+          </div>
+          <div id="rb-msg"></div>
+        </div>
+        <div class="sec">
+          <h3>Role for each rulebook column</h3>
+          <p>Exact role name as shown in Setup → Roles. Leave a column empty to skip it (e.g. Super Admin, who always has full access). Use a role only that user has: company-wide or group roles also apply to others.</p>
+          <div id="roles"><div class="empty">Choose a rulebook above first.</div></div>
+          <div id="roles-msg"></div>
+        </div>
+      </div>
     </div>
-    <div class="btns">
-      <button class="btn primary" id="btn-bulk-preview">Preview in AMP (no save)</button>
-      <button class="btn danger" id="btn-bulk-apply">Apply to AMP</button>
+    <div id="mode-bulk" hidden>
+      <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="15" cy="6" r="1.8" fill="currentColor"/><circle cx="15" cy="12" r="1.8" fill="currentColor"/><circle cx="15" cy="18" r="1.8" fill="currentColor"/></svg></div>
+        <div><h2>Role &amp; level</h2><p>Every slider on the Marketing Functions and Operations tabs is set to exactly this level. Advanced checkboxes and rows AMP hides (e.g. Contacts) are left alone.</p></div></div>
+      <div class="body form">
+        <div class="grid2">
+          <div class="fld"><label class="lbl" for="bulk-role">AMP role</label><input type="text" id="bulk-role" placeholder="e.g. Users.INC" autocomplete="off" spellcheck="false"><div class="help">Exact name from Setup → Roles.</div></div>
+          <div class="fld"><label class="lbl" for="bulk-level">Level</label><select id="bulk-level"><option value="0">NA</option><option value="1" selected>View</option><option value="2">Edit</option><option value="3">Create</option><option value="4">Delete</option></select><div class="help">Moves sliders up or down to this.</div></div>
+        </div>
+        <div id="bulk-msg"></div>
+      </div>
     </div>
-    <div id="bulk-msg"></div>
+    <div class="foot"><button class="btn" data-back>← Back</button><button class="btn primary" id="next-4">Next: Review →</button></div>
   </section>
 
-  <section class="card" id="progress" hidden>
-    <h2>Progress</h2>
-    <div id="prog-msg"></div>
-    <pre id="log"></pre>
-    <div id="result"></div>
+  <!-- 5 review & apply -->
+  <section class="panel" id="step-5" hidden>
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 001.5.86l10.5-6.5a1 1 0 000-1.72L9.5 4.64A1 1 0 008 5.5z"/></svg></div>
+      <div><h2>Review &amp; apply</h2><p>Preview first: it moves the sliders in AMP without saving. Apply when it looks right.</p></div></div>
+    <div class="body">
+      <div id="review">
+        <div class="summary" id="sum"></div>
+        <div id="run-msg"></div>
+        <div id="plan" class="wrap"></div>
+        <div class="opts">
+          <label class="toggle"><input type="checkbox" class="sw" id="opt-headed"><span class="tt"><b>Show the browser window</b><span>Watch the sliders move while it works.</span></span></label>
+        </div>
+      </div>
+      <div class="progress" id="progress" hidden>
+        <h3>Progress</h3>
+        <p class="hint">You can keep this page open; refreshing it does not stop the run.</p>
+        <div id="prog-msg"></div>
+        <div id="result"></div>
+        <details class="logbox"><summary>Live log</summary><pre id="log"></pre></details>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn" data-back id="back-5">← Back</button>
+      <span class="btns">
+        <button class="btn primary" id="btn-preview">Preview in AMP (no save)</button>
+        <button class="btn danger" id="btn-apply">Apply to AMP</button>
+      </span>
+    </div>
   </section>
 </main>
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var state = { rulebook: null, polling: null, from: 0 };
+  var state = { rulebook: null, from: 0, step: 1, maxStep: 1, admin: null, running: false, planFor: '' };
 
   function api(method, path, body) {
     return fetch(path, {
@@ -146,17 +399,168 @@ pre{background:var(--code);border-radius:8px;padding:10px;max-height:320px;overf
   function msg(el, kind, text) { $(el).innerHTML = text ? '<div class="msg ' + kind + '">' + text + '</div>' : ''; }
   function load(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  var SPIN = '<span class="spin"></span>';
+  var LEVELS = ['NA', 'View', 'Edit', 'Create', 'Delete'];
 
-  // Site and role names are remembered in this browser (never the jwt).
-  var saved = load('amp-setter', {});
-  $('env-url').value = saved.url || ((load('amp-envs', [])[0] || {}).baseUrl || '');
-  $('env-name').value = saved.name || '';
-  $('env-prod').addEventListener('change', function () { $('env-allow-wrap').hidden = !this.checked; if (!this.checked) $('env-allow').checked = false; });
-
-  function environment() {
-    return { name: $('env-name').value.trim(), baseUrl: $('env-url').value.trim(), isProduction: $('env-prod').checked, allowProduction: $('env-allow').checked };
+  // ---- wizard: one step at a time
+  function paintStepper() {
+    document.querySelectorAll('.stp').forEach(function (b) {
+      var s = +b.getAttribute('data-step');
+      b.classList.toggle('cur', s === state.step);
+      b.classList.toggle('done', s < state.step);
+      b.classList.toggle('reach', s > state.step && s <= state.maxStep);
+    });
   }
+  function goStep(n) {
+    state.step = n; state.maxStep = Math.max(state.maxStep, n);
+    for (var i = 1; i <= 5; i++) $('step-' + i).hidden = i !== n;
+    paintStepper();
+    if (n === 4) showMode();
+    if (n === 5) review();
+    window.scrollTo(0, 0);
+    var first = n === 3 ? $('step-3').querySelector('input:checked') : $('step-' + n).querySelector('input[type=url],input[type=text]:not([hidden]),select');
+    if (n === 4 && mode() === 'bulk') first = $('bulk-role');
+    if (first && n < 5) setTimeout(function () { first.focus(); }, 30);
+  }
+  /** Something earlier changed: later steps must be walked through again. */
+  function limitTo(n) { if (state.maxStep > n) { state.maxStep = n; paintStepper(); } }
+  $('stepper').addEventListener('click', function (e) {
+    var b = e.target.closest('.stp'); if (!b || state.running) return;
+    var s = +b.getAttribute('data-step');
+    if (s !== state.step && s <= state.maxStep) goStep(s);
+  });
+  document.querySelectorAll('[data-back]').forEach(function (b) {
+    b.addEventListener('click', function () { if (!state.running && state.step > 1) goStep(state.step - 1); });
+  });
+
+  // ---- 1 site (same form as the Pages module; recent sites are shared with it)
+  /** The site's origin from anything pasted: a full page link, a bare host, a trailing slash. Null if it is not a site. */
+  function siteUrl(v) {
+    v = String(v || '').trim(); if (!v) return null;
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) v = 'https://' + v;
+    var u; try { u = new URL(v); } catch (x) { return null; }
+    if (!/^https?:$/.test(u.protocol) || !u.hostname) return null;
+    if (u.hostname.indexOf('.') < 0 && u.hostname !== 'localhost') return null;
+    return u;
+  }
+  function isLocal(u) { return u.hostname === 'localhost' || u.hostname === '127.0.0.1'; }
+  /** A display name never needs the scheme or a trailing slash: "https://x.amp.vg/" -> "x.amp.vg". */
+  function cleanName(v) {
+    v = String(v || '').trim();
+    if (/^https?:\/\//i.test(v)) { var u = siteUrl(v); if (u) return u.host; }
+    return v.replace(/\/+$/, '');
+  }
+  var URL_HELP = 'Paste any link from the site — only the address part is kept.';
+  /** Live feedback under the address. Errors only show once the tester leaves the field (or presses Next). */
+  function urlFeedback(strict) {
+    var raw = $('env-url').value.trim(), u = siteUrl(raw), box = $('env-url-box'), help = $('env-url-help');
+    var st = !raw || !u ? (strict ? 'bad' : '') : (u.protocol === 'http:' && !isLocal(u)) ? 'bad' : 'ok';
+    box.className = 'inp-ic' + (st ? ' ' + st : '');
+    help.className = 'help' + (st ? ' ' + st : '');
+    if (st === 'ok') help.innerHTML = '✓ Will use <b>' + esc(u.origin) + '</b>';
+    else if (st === 'bad' && u) help.textContent = 'Remote sites must use https:// — try https://' + u.host;
+    else if (st === 'bad' && !raw) help.textContent = 'Enter the site address.';
+    else if (st === 'bad') help.textContent = 'That is not a site address yet. Example: https://client.sb.amp.vg';
+    else help.textContent = URL_HELP;
+    $('env-name').placeholder = u ? u.host : 'e.g. main.dvl';
+    markRecent();
+    return st === 'ok' ? u : null;
+  }
+  function environment() {
+    var u = siteUrl($('env-url').value);
+    return {
+      name: cleanName($('env-name').value) || (u ? u.host : ''),
+      baseUrl: u ? u.origin : $('env-url').value.trim(),
+      isProduction: $('env-prod').checked, allowProduction: $('env-allow').checked
+    };
+  }
+  function recentEnvs() {
+    var seen = {}, out = [];
+    load('amp-envs', []).forEach(function (e) {
+      var u = siteUrl(e && e.baseUrl); if (!u || seen[u.origin]) return; seen[u.origin] = 1;
+      out.push({ name: cleanName(e.name) || u.host, baseUrl: u.origin, isProduction: !!e.isProduction, usedAt: e.usedAt || 0 });
+    });
+    return out;
+  }
+  function ago(t) {
+    if (!t) return '';
+    var d = Math.floor((Date.now() - t) / 86400000);
+    return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? d + ' days ago' : new Date(t).toLocaleDateString();
+  }
+  function renderRecent() {
+    var list = recentEnvs();
+    save('amp-envs', list);
+    $('env-recent-wrap').hidden = !list.length;
+    $('env-recent').innerHTML = list.map(function (e) {
+      var host = new URL(e.baseUrl).host, when = ago(e.usedAt);
+      var sub = e.name !== host ? host + (when ? ' · ' + when : '') : (when ? 'Last used ' + when : '');
+      return '<div class="envc" role="button" tabindex="0" data-url="' + esc(e.baseUrl) + '" title="' + esc(e.baseUrl) + '">' +
+        '<span class="av">' + esc(e.name.charAt(0).toUpperCase()) + '</span>' +
+        '<span class="tx"><span class="n">' + esc(e.name) + (e.isProduction ? '<span class="pb">PROD</span>' : '') + '</span>' + (sub ? '<span class="h">' + esc(sub) + '</span>' : '') + '</span>' +
+        '<button type="button" class="x" data-del="' + esc(e.baseUrl) + '" title="Forget this site" aria-label="Forget ' + esc(e.name) + '">×</button></div>';
+    }).join('');
+    markRecent();
+  }
+  function markRecent() {
+    var u = siteUrl($('env-url').value), cur = u ? u.origin : '';
+    document.querySelectorAll('#env-recent .envc').forEach(function (c) { c.classList.toggle('on', c.getAttribute('data-url') === cur); });
+  }
+  function rememberEnv() {
+    var e = environment(); if (!siteUrl(e.baseUrl)) return;
+    var list = recentEnvs().filter(function (x) { return x.baseUrl !== e.baseUrl; });
+    list.unshift({ name: e.name, baseUrl: e.baseUrl, isProduction: e.isProduction, usedAt: Date.now() });
+    save('amp-envs', list.slice(0, 12)); renderRecent();
+  }
+  function toggleProd() { $('env-allow-wrap').hidden = !$('env-prod').checked; if (!$('env-prod').checked) $('env-allow').checked = false; }
+  /** A different site means the Super Admin check no longer holds. */
+  function siteChanged() { state.admin = null; msg('jwt-msg'); msg('env-msg'); limitTo(1); }
+  function fillEnv(e) {
+    var u = siteUrl(e.baseUrl), n = cleanName(e.name);
+    $('env-name').value = n && u && n !== u.host ? n : '';
+    $('env-url').value = u ? u.origin : (e.baseUrl || ''); $('env-prod').checked = !!e.isProduction; toggleProd(); urlFeedback(false);
+  }
+  function pickRecent(card) {
+    var e = recentEnvs().filter(function (x) { return x.baseUrl === card.getAttribute('data-url'); })[0];
+    if (e) { fillEnv(e); siteChanged(); }
+  }
+  $('env-recent').addEventListener('click', function (ev) {
+    var del = ev.target.closest('[data-del]');
+    if (del) { save('amp-envs', recentEnvs().filter(function (x) { return x.baseUrl !== del.getAttribute('data-del'); })); renderRecent(); return; }
+    var card = ev.target.closest('.envc'); if (card) pickRecent(card);
+  });
+  $('env-recent').addEventListener('keydown', function (ev) {
+    if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.classList.contains('envc')) { ev.preventDefault(); pickRecent(ev.target); }
+  });
+  $('env-prod').addEventListener('change', function () { toggleProd(); siteChanged(); });
+  $('env-allow').addEventListener('change', function () { msg('env-msg'); });
+  $('env-url').addEventListener('input', function () { urlFeedback(false); siteChanged(); });
+  $('env-url').addEventListener('blur', function () {
+    if (!$('env-url').value.trim()) return urlFeedback(false);
+    var u = urlFeedback(true); if (u && $('env-url').value !== u.origin) $('env-url').value = u.origin;
+  });
+  $('env-name').addEventListener('blur', function () { $('env-name').value = cleanName($('env-name').value); });
+  ['env-url', 'env-name'].forEach(function (id) { $(id).addEventListener('keydown', function (ev) { if (ev.key === 'Enter') $('next-1').click(); }); });
+  $('next-1').addEventListener('click', function () {
+    var u = urlFeedback(true);
+    if (!u) { msg('env-msg', 'bad', siteUrl($('env-url').value) ? 'Remote sites must use <code>https://</code>.' : 'Enter the site address, e.g. <code>https://main.dvl.amp.vg</code>'); $('env-url').focus(); return; }
+    if ($('env-prod').checked && !$('env-allow').checked) { msg('env-msg', 'bad', 'This is marked as production — tick the approval box, or switch production off.'); return; }
+    $('env-url').value = u.origin; $('env-name').value = cleanName($('env-name').value);
+    msg('env-msg'); rememberEnv(); goStep(2);
+  });
+
+  // Site, mode and role names are remembered in this browser (never the jwt).
+  var saved = load('amp-setter', {});
+  renderRecent();
+  var savedSite = siteUrl(saved.url);
+  var known = savedSite && recentEnvs().filter(function (x) { return x.baseUrl === savedSite.origin; })[0];
+  if (savedSite) fillEnv({ name: saved.name, baseUrl: savedSite.origin, isProduction: !!(known && known.isProduction) });
+  else if (recentEnvs()[0]) fillEnv(recentEnvs()[0]);
+  else urlFeedback(false);
+  if (saved.mode === 'bulk') document.querySelector('input[name=mode][value=bulk]').checked = true;
+  if (saved.bulkRole) $('bulk-role').value = saved.bulkRole;
+
   function jwt() { return $('jwt').value.trim(); }
+  function mode() { return document.querySelector('input[name=mode]:checked').value; }
   function roles() {
     var out = {};
     document.querySelectorAll('[data-role]').forEach(function (i) { if (i.value.trim()) out[i.getAttribute('data-role')] = i.value.trim(); });
@@ -164,75 +568,135 @@ pre{background:var(--code);border-radius:8px;padding:10px;max-height:320px;overf
   }
   function remember() {
     var r = load('amp-setter', {});
-    r.url = $('env-url').value.trim(); r.name = $('env-name').value.trim();
+    var e = environment();
+    r.url = e.baseUrl; r.name = e.name; r.mode = mode();
     r.roles = Object.assign(r.roles || {}, roles());
+    if ($('bulk-role').value.trim()) r.bulkRole = $('bulk-role').value.trim();
     save('amp-setter', r);
   }
-  function body(extra) {
-    if (!$('env-url').value.trim()) throw new Error('Enter the AMP site URL');
-    if (!state.rulebook) throw new Error('Load a rulebook first');
-    if (!jwt()) throw new Error("Paste the Super Admin's jwt");
-    if (!Object.keys(roles()).length) throw new Error('Type the AMP role name for at least one column in step 4 (e.g. the role the User has; leave Super Admin empty: a Super Admin always has full access)');
-    var b = { environment: environment(), rulebookId: state.rulebook.id, jwt: jwt(), roles: roles() };
-    for (var k in extra) b[k] = extra[k];
-    return b;
-  }
 
-  // ---- rulebook
+  // ---- 2 Super Admin jwt
+  $('jwt').addEventListener('input', function () {
+    var v = this.value.trim().replace(/^["']|["']$/g, ''), m = /(?:^|;\s*)jwt=([^;]+)/i.exec(v);
+    if (m) this.value = m[1].trim();
+    state.admin = null; msg('jwt-msg'); limitTo(2);
+  });
+  $('jwt').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') $('next-2').click(); });
+  $('jwt-show').addEventListener('click', function () { $('jwt').classList.toggle('secret'); });
+  /** Resolves true when the jwt belongs to a Super Admin of the site. */
+  function checkJwt() {
+    if (!jwt()) { msg('jwt-msg', 'bad', "Paste the Super Admin's jwt first."); $('jwt').focus(); return Promise.resolve(false); }
+    var b = { environment: environment(), jwt: jwt() };
+    msg('jwt-msg', 'warn', SPIN + 'Checking with ' + esc(b.environment.baseUrl) + '…');
+    $('btn-check').disabled = $('next-2').disabled = true;
+    return api('POST', '/api/setter/check', b).then(function (r) {
+      var id = r.identity || {};
+      if (!r.isAdmin) { msg('jwt-msg', 'bad', esc(r.reason || 'Not a Super Admin')); return false; }
+      state.admin = { name: id.userName || '?', company: id.companyName || '' };
+      msg('jwt-msg', 'ok', '✓ Super Admin: <b>' + esc(state.admin.name) + '</b>' + (state.admin.company ? ' · ' + esc(state.admin.company) : '') + ' · ' + r.modules + ' modules');
+      return true;
+    }).catch(function (e) { msg('jwt-msg', 'bad', esc(e.message)); return false; })
+      .then(function (ok) { $('btn-check').disabled = $('next-2').disabled = false; return ok; });
+  }
+  $('btn-check').addEventListener('click', checkJwt);
+  $('next-2').addEventListener('click', function () {
+    if (state.admin) return goStep(3);
+    checkJwt().then(function (ok) { if (ok) goStep(3); });
+  });
+
+  // ---- 3 what to change
+  function showMode() {
+    var bulk = mode() === 'bulk';
+    $('mode-rb').hidden = bulk; $('mode-bulk').hidden = !bulk;
+  }
+  function labelStep4() { $('stp4-t').textContent = mode() === 'bulk' ? 'Role & level' : 'Rulebook & roles'; }
+  document.querySelectorAll('input[name=mode]').forEach(function (r) {
+    r.addEventListener('change', function () { labelStep4(); limitTo(3); });
+  });
+  labelStep4();
+  $('next-3').addEventListener('click', function () { goStep(4); });
+
+  // ---- 4a rulebook & roles
   api('GET', '/api/rulebooks').then(function (r) {
     r.files.forEach(function (f) { var o = document.createElement('option'); o.value = f; o.textContent = f; $('rb-select').appendChild(o); });
+    if (saved.rulebook && r.files.indexOf(saved.rulebook) >= 0) { $('rb-select').value = saved.rulebook; parse({ file: saved.rulebook }); }
   }).catch(function () {});
-  $('rb-select').addEventListener('change', function () { if (this.value) parse({ file: this.value }); });
-  $('rb-file').addEventListener('change', function () {
-    var f = this.files && this.files[0];
+  $('rb-select').addEventListener('change', function () {
+    if (!this.value) return; $('rb-file').value = ''; $('rb-drop-t').textContent = 'click or drop a file here';
+    var r = load('amp-setter', {}); r.rulebook = this.value; save('amp-setter', r);
+    parse({ file: this.value });
+  });
+  function readFile(f) {
     if (!f) return;
+    $('rb-select').value = ''; $('rb-drop-t').textContent = f.name;
     var reader = new FileReader();
     reader.onload = function () { parse({ name: f.name, contentBase64: String(reader.result).split(',')[1] }); };
     reader.readAsDataURL(f);
-  });
+  }
+  $('rb-file').addEventListener('change', function () { readFile(this.files && this.files[0]); });
+  var drop = $('rb-drop');
+  ['dragenter', 'dragover'].forEach(function (t) { drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
+  ['dragleave', 'drop'].forEach(function (t) { drop.addEventListener(t, function () { drop.classList.remove('over'); }); });
+  drop.addEventListener('drop', function (e) { e.preventDefault(); readFile(e.dataTransfer.files && e.dataTransfer.files[0]); });
   function parse(b) {
-    msg('rb-msg', 'warn', 'Reading…');
+    msg('rb-msg', 'warn', SPIN + 'Reading rulebook…'); limitTo(4);
     api('POST', '/api/rulebooks/parse', b).then(function (r) {
       state.rulebook = r;
       var s = r.summary;
-      msg('rb-msg', 'ok', '✓ ' + esc(r.name) + ': ' + s.pages + ' pages, columns ' + s.userTypes.map(function (k) { return esc(s.userTypeLabels[k] || k); }).join(', '));
+      msg('rb-msg', 'ok', '✓ <b>' + esc(r.name) + '</b> loaded — <b>' + s.pages + ' pages</b>, columns ' + s.userTypes.map(function (k) { return esc(s.userTypeLabels[k] || k); }).join(', '));
       renderRoles();
     }).catch(function (e) { state.rulebook = null; msg('rb-msg', 'bad', esc(e.message)); renderRoles(); });
   }
   function renderRoles() {
-    if (!state.rulebook) { $('roles').innerHTML = '<p class="hint">Load a rulebook first.</p>'; return; }
+    msg('roles-msg');
+    if (!state.rulebook) { $('roles').innerHTML = '<div class="empty">Choose a rulebook above first.</div>'; return; }
     var s = state.rulebook.summary, prev = load('amp-setter', {}).roles || {};
-    $('roles').innerHTML = '<div class="row">' + s.userTypes.map(function (k) {
-      return '<div><label for="role-' + esc(k) + '">' + esc(s.userTypeLabels[k] || k) + ' → AMP role</label>' +
-        '<input type="text" id="role-' + esc(k) + '" data-role="' + esc(k) + '" value="' + esc(prev[k] || '') + '" placeholder="leave empty to skip" autocomplete="off"></div>';
+    $('roles').innerHTML = '<div class="grid2">' + s.userTypes.map(function (k) {
+      return '<div class="fld role-f"><label class="lbl" for="role-' + esc(k) + '">' + esc(s.userTypeLabels[k] || k) + ' <span class="arrow">→ AMP role</span></label>' +
+        '<input type="text" id="role-' + esc(k) + '" data-role="' + esc(k) + '" value="' + esc(prev[k] || '') + '" placeholder="leave empty to skip" autocomplete="off" spellcheck="false"></div>';
     }).join('') + '</div>';
   }
-
-  // ---- jwt
-  $('jwt').addEventListener('input', function () {
-    var v = this.value, m = /(?:^|;\s*)jwt=([^;]+)/i.exec(v);
-    if (m) this.value = m[1].trim();
-    msg('jwt-msg');
-  });
-  $('btn-check').addEventListener('click', function () {
-    var b;
-    try { if (!$('env-url').value.trim()) throw new Error('Enter the AMP site URL'); if (!jwt()) throw new Error("Paste the Super Admin's jwt"); b = { environment: environment(), jwt: jwt() }; }
-    catch (e) { return msg('jwt-msg', 'bad', esc(e.message)); }
-    msg('jwt-msg', 'warn', 'Checking…');
-    api('POST', '/api/setter/check', b).then(function (r) {
-      var id = r.identity || {};
-      if (r.isAdmin) msg('jwt-msg', 'ok', '✓ Super Admin: ' + esc(id.userName || '?') + (id.companyName ? ' · ' + esc(id.companyName) : '') + ' · ' + r.modules + ' modules');
-      else msg('jwt-msg', 'bad', esc(r.reason || 'Not a Super Admin'));
-    }).catch(function (e) { msg('jwt-msg', 'bad', esc(e.message)); });
+  $('roles').addEventListener('input', function () { msg('roles-msg'); limitTo(4); });
+  $('bulk-role').addEventListener('input', function () { msg('bulk-msg'); limitTo(4); });
+  $('bulk-level').addEventListener('change', function () { limitTo(4); });
+  $('next-4').addEventListener('click', function () {
+    if (mode() === 'bulk') {
+      if (!$('bulk-role').value.trim()) { msg('bulk-msg', 'bad', 'Enter the AMP role name.'); $('bulk-role').focus(); return; }
+    } else {
+      if (!state.rulebook) { msg('rb-msg', 'bad', 'Choose a saved rulebook or upload one first.'); return; }
+      if (!Object.keys(roles()).length) { msg('roles-msg', 'bad', 'Type the AMP role name for at least one column (e.g. the role the User has). Leave Super Admin empty: a Super Admin always has full access.'); return; }
+    }
+    remember(); goStep(5);
   });
 
-  // ---- plan
-  $('btn-plan').addEventListener('click', function () {
-    var b;
-    try { b = body({}); } catch (e) { return msg('run-msg', 'bad', esc(e.message)); }
-    remember();
-    msg('run-msg', 'warn', 'Planning…');
-    api('POST', '/api/setter/plan', b).then(function (r) {
+  // ---- 5 review & apply
+  function body(extra) {
+    var b = { environment: environment(), jwt: jwt() };
+    if (mode() === 'bulk') b.bulk = { roleName: $('bulk-role').value.trim(), step: Number($('bulk-level').value) };
+    else { b.rulebookId = state.rulebook.id; b.roles = roles(); }
+    for (var k in extra) b[k] = extra[k];
+    return b;
+  }
+  function sbox(v, l) { return '<div class="sbox"><div class="v" title="' + esc(v) + '">' + esc(v) + '</div><div class="l">' + esc(l) + '</div></div>'; }
+  function review() {
+    if (state.running) return;
+    $('review').hidden = false; $('progress').hidden = true;
+    var e = environment(), host = (siteUrl(e.baseUrl) || { host: e.baseUrl }).host;
+    var boxes = sbox(e.name || host, e.isProduction ? 'site · PRODUCTION' : 'site') + sbox(state.admin ? state.admin.name : '?', 'Super Admin');
+    if (mode() === 'bulk') {
+      boxes += sbox($('bulk-role').value.trim(), 'role') + sbox(LEVELS[+$('bulk-level').value], 'every slider set to');
+      $('sum').innerHTML = boxes; msg('run-msg');
+      $('plan').innerHTML = '<div class="bulk-plan">Every slider on the <b>Marketing Functions</b> and <b>Operations</b> tabs of role <b>“' + esc($('bulk-role').value.trim()) + '”</b> will be set to exactly <b>' + esc(LEVELS[+$('bulk-level').value]) + '</b>, up or down. Advanced checkboxes and rows AMP hides are left alone.</div>';
+      return;
+    }
+    var mapped = Object.keys(roles()).length;
+    boxes += sbox(state.rulebook.summary.pages + ' pages', state.rulebook.name) + sbox(mapped + ' of ' + state.rulebook.summary.userTypes.length, 'columns with a role');
+    $('sum').innerHTML = boxes;
+    loadPlan();
+  }
+  function loadPlan() {
+    msg('run-msg', 'warn', SPIN + 'Working out which sliders to move…'); $('plan').innerHTML = '';
+    api('POST', '/api/setter/plan', body({})).then(function (r) {
       msg('run-msg');
       var tag = { planned: 'will set', cannot: "can't set", not_specified: 'no value' };
       $('plan').innerHTML = r.plans.map(function (p) {
@@ -240,42 +704,32 @@ pre{background:var(--code);border-radius:8px;padding:10px;max-height:320px;overf
           var to = c.raiseTo !== null ? (c.kind === 'feature' ? 'on' : 'at least ' + r.levels[c.raiseTo]) : 'NA';
           return '<li>' + esc(c.label) + ' → ' + esc(to) + '</li>';
         }).join('');
-        return '<h2 style="margin-top:16px">' + esc(p.label) + ' → role “' + esc(p.roleName) + '”</h2>' +
-          (sl ? '<ul>' + sl + '</ul>' : '<p class="hint">No sliders to move.</p>') +
+        return '<h3 class="plan-h">' + esc(p.label) + ' → role <span class="role">“' + esc(p.roleName) + '”</span></h3>' +
+          (sl ? '<ul class="sliders">' + sl + '</ul>' : '<p class="hint">No sliders to move.</p>') +
           '<table><tr><th>Page</th><th>Rulebook</th><th>Module</th><th></th><th>Action</th></tr>' + p.pages.map(function (pg) {
             return '<tr><td>' + esc(pg.label) + '<div class="hint">#' + esc(pg.route) + '</div></td><td>' + esc(pg.expected || '-') + '</td><td>' + esc(pg.module || '-') + '</td>' +
               '<td><span class="tag ' + pg.status + '">' + tag[pg.status] + '</span></td><td>' + esc(pg.reason) + (pg.note ? '<div class="hint">Note: ' + esc(pg.note) + '</div>' : '') + '</td></tr>';
           }).join('') + '</table>';
       }).join('');
     }).catch(function (e) { msg('run-msg', 'bad', esc(e.message)); });
-  });
+  }
 
-  // ---- run
-  function run(b, apply, where) {
+  function run(apply) {
+    var b = body({ apply: apply, headed: $('opt-headed').checked });
     if (apply && !confirm('This saves the sliders of the named role(s) in ' + b.environment.baseUrl + ' and affects every user who has those roles. Continue?')) return;
     remember();
-    msg(where);
     $('result').innerHTML = ''; $('log').textContent = ''; state.from = 0;
-    $('progress').hidden = false; msg('prog-msg', 'warn', apply ? 'Applying…' : 'Previewing…');
+    $('progress').hidden = false; msg('prog-msg', 'warn', SPIN + (apply ? 'Applying…' : 'Previewing…'));
+    $('progress').scrollIntoView({ behavior: 'smooth', block: 'start' });
     busy(true);
-    api('POST', '/api/setter/runs', b).then(poll).catch(function (e) { busy(false); $('progress').hidden = true; msg(where, 'bad', esc(e.message)); });
+    api('POST', '/api/setter/runs', b).then(poll).catch(function (e) { busy(false); msg('prog-msg', 'bad', esc(e.message)); });
   }
-  function start(apply) {
-    var b;
-    try { b = body({ apply: apply, headed: $('opt-headed').checked }); } catch (e) { return msg('run-msg', 'bad', esc(e.message)); }
-    run(b, apply, 'run-msg');
+  $('btn-preview').addEventListener('click', function () { run(false); });
+  $('btn-apply').addEventListener('click', function () { run(true); });
+  function busy(on) {
+    state.running = on; document.body.classList.toggle('running', on);
+    ['btn-preview', 'btn-apply', 'back-5'].forEach(function (id) { $(id).disabled = on; });
   }
-  function startBulk(apply) {
-    if (!$('env-url').value.trim()) return msg('bulk-msg', 'bad', 'Enter the AMP site URL in step 1');
-    if (!jwt()) return msg('bulk-msg', 'bad', "Paste the Super Admin's jwt in step 3");
-    if (!$('bulk-role').value.trim()) return msg('bulk-msg', 'bad', 'Enter the AMP role name');
-    run({ environment: environment(), jwt: jwt(), bulk: { roleName: $('bulk-role').value.trim(), step: Number($('bulk-level').value) }, apply: apply, headed: $('opt-headed').checked }, apply, 'bulk-msg');
-  }
-  $('btn-preview').addEventListener('click', function () { start(false); });
-  $('btn-apply').addEventListener('click', function () { start(true); });
-  $('btn-bulk-preview').addEventListener('click', function () { startBulk(false); });
-  $('btn-bulk-apply').addEventListener('click', function () { startBulk(true); });
-  function busy(on) { ['btn-plan', 'btn-preview', 'btn-apply', 'btn-check', 'btn-bulk-preview', 'btn-bulk-apply'].forEach(function (id) { $(id).disabled = on; }); }
 
   function poll() {
     api('GET', '/api/setter/runs/current?from=' + state.from).then(function (r) {
@@ -286,17 +740,25 @@ pre{background:var(--code);border-radius:8px;padding:10px;max-height:320px;overf
       if (run.status === 'running') { setTimeout(poll, 1000); return; }
       busy(false);
       var o = run.outcome || {};
-      msg('prog-msg', run.status === 'done' ? 'ok' : 'bad', run.status === 'done' ? (run.apply ? '✓ Done: roles saved.' : '✓ Preview done: nothing was saved.') : esc(o.error || 'Some roles failed; see below'));
+      msg('prog-msg', run.status === 'done' ? 'ok' : 'bad', run.status === 'done' ? (run.apply ? '✓ Done: roles saved.' : '✓ Preview done: nothing was saved. Apply when it looks right.') : esc(o.error || 'Some roles failed; see below'));
       var names = { saved: 'Saved', previewed: 'Preview (not saved)', no_changes: 'Already matches', failed: 'Failed' };
-      $('result').innerHTML = (o.roles || []).length ? '<table style="margin-top:12px"><tr><th>Column</th><th>Role</th><th>Result</th><th>Changes</th></tr>' + o.roles.map(function (x) {
+      $('result').innerHTML = (o.roles || []).length ? '<div class="wrap"><table style="margin-top:12px"><tr><th>Column</th><th>Role</th><th>Result</th><th>Changes</th></tr>' + o.roles.map(function (x) {
         return '<tr><td>' + esc(x.label) + '</td><td>' + esc(x.roleName) + '</td><td><span class="tag ' + x.status + '">' + names[x.status] + '</span>' + (x.error ? '<div class="hint">' + esc(x.error) + '</div>' : '') + '</td><td>' + x.changed + '</td></tr>';
-      }).join('') + '</table>' : '';
-      if (o.reportUrl) $('result').innerHTML += '<div class="btns"><a class="btn primary" href="' + esc(o.reportUrl) + '" target="_blank" rel="noopener">Open report</a></div>' +
-        '<p class="hint">Log out of the AMP window the jwt came from when you are done. Users may need to log in again to see changes.</p>';
+      }).join('') + '</table></div>' : '';
+      if (o.reportUrl) $('result').innerHTML += '<div class="btns" style="margin-top:14px"><a class="btn primary" href="' + esc(o.reportUrl) + '" target="_blank" rel="noopener">Open report ↗</a></div>' +
+        '<div class="msg warn">🔒 Log out of the AMP window the jwt came from when you are done. Users may need to log in again to see changes.</div>';
     }).catch(function () { setTimeout(poll, 2000); });
   }
-  // Reconnect to a run that is still going (e.g. after a refresh).
-  api('GET', '/api/setter/runs/current').then(function (r) { if (r.run && r.run.status === 'running') { $('progress').hidden = false; busy(true); poll(); } }).catch(function () {});
+
+  // Reconnect to a run that is still going (e.g. after a refresh): show its progress on the last step.
+  api('GET', '/api/setter/runs/current').then(function (r) {
+    if (!r.run || r.run.status !== 'running') return;
+    state.step = 5;
+    for (var i = 1; i <= 5; i++) $('step-' + i).hidden = i !== 5;
+    $('review').hidden = true; paintStepper();
+    $('progress').hidden = false; busy(true); poll();
+  }).catch(function () {});
+  paintStepper();
 })();
 </script>
 </body>

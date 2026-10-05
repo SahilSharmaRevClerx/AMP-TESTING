@@ -84,8 +84,8 @@ async function main(): Promise<number> {
     // Search filters the catalog; list view switches layout.
     await page.fill('#mod-search', 'no-such-module');
     if (!(await page.isVisible('#mods .cat-empty'))) failures.push('home: search for an unknown module should show "No modules match"');
-    await page.fill('#mod-search', 'rulebook');
-    if ((await page.locator('#mods .mod').count()) !== 1) failures.push('home: search "rulebook" should leave only AMP Pages Testing');
+    await page.fill('#mod-search', 'screenshots');
+    if ((await page.locator('#mods .mod').count()) !== 1) failures.push('home: search "screenshots" should leave only AMP Pages Testing');
     await page.fill('#mod-search', '');
     await page.click('#view-list');
     if (!(await page.locator('#mods.list').count())) failures.push('home: list view did not switch');

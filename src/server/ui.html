@@ -185,6 +185,52 @@ main.wide,body.hub-on .top .in{max-width:1240px}
 .chip:hover{border-color:var(--accent)}
 .chip .x{margin-left:7px;color:var(--muted)}
 
+/* form fields: label, input, one line of help that turns green/red */
+.form{display:flex;flex-direction:column;gap:22px;padding-top:6px}
+.form>div:empty{display:none}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.fld>.lbl{color:var(--fg);font-size:14px}
+.lbl .opt{font-weight:500;font-size:11.5px;color:var(--muted);background:var(--code);padding:1px 8px;border-radius:999px;margin-left:6px;vertical-align:1px}
+.help{font-size:13px;color:var(--muted);line-height:1.45}
+.help.ok{color:var(--ok)}.help.bad{color:var(--bad)}
+.inp-ic{position:relative}
+.inp-ic>svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.inp-ic>input{padding-left:40px}
+.inp-ic.ok>svg{color:var(--ok)}.inp-ic.ok>input{border-color:var(--ok)}
+.inp-ic.bad>svg{color:var(--bad)}.inp-ic.bad>input{border-color:var(--bad)}
+input.lg{padding:12px 14px 12px 40px;font-size:16px;border-radius:10px}
+.fld.half{max-width:420px}
+.sub-h{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.envs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.envc{position:relative;display:flex;align-items:center;gap:10px;min-height:56px;padding:10px 36px 10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;min-width:0;transition:border-color .15s,background .15s}
+.envc:hover{border-color:color-mix(in srgb,var(--accent) 60%,var(--line))}
+.envc:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.envc.on{border-color:var(--accent);background:var(--accent-soft)}
+.envc .av{flex:0 0 32px;height:32px;border-radius:8px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:14px}
+.envc.on .av{background:var(--accent);color:var(--accent-fg)}
+.envc .tx{min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.envc .n{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.envc .h{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.envc .pb{font-size:10.5px;font-weight:700;color:var(--bad);background:var(--bad-bg);padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:1px}
+.envc .x{position:absolute;top:50%;right:7px;transform:translateY(-50%);width:24px;height:24px;border-radius:6px;display:grid;place-items:center;border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1}
+.envc .x:hover{background:var(--code);color:var(--bad)}
+/* switch: a checkbox drawn as a toggle */
+input.sw{-webkit-appearance:none;appearance:none;flex:0 0 40px;width:40px;height:22px;margin:1px 0 0;border-radius:999px;background:color-mix(in srgb,var(--muted) 45%,var(--line));position:relative;cursor:pointer;transition:background .2s}
+input.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .2s}
+input.sw:checked{background:var(--accent)}
+input.sw:checked::after{transform:translateX(18px)}
+input.sw:focus{outline:none}input.sw:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.toggle{display:flex;gap:12px;align-items:flex-start;cursor:pointer}
+.toggle .tt{display:flex;flex-direction:column;gap:1px}
+.toggle .tt b{font-size:14px;font-weight:600}
+.toggle .tt span{font-size:13px;color:var(--muted)}
+.prod{border:1px solid var(--line);border-radius:10px;padding:14px 16px;transition:border-color .2s,background .2s}
+.prod:has(#env-prod:checked){border-color:color-mix(in srgb,var(--bad) 55%,var(--line));background:var(--bad-bg)}
+.prod input.sw:checked{background:var(--bad)}
+.prod .appr{display:flex;gap:10px;align-items:flex-start;margin:12px 0 0 52px;font-size:14px;font-weight:500;color:var(--bad);cursor:pointer}
+.prod .appr input{width:16px;height:16px;margin:2px 0 0;flex:0 0 auto}
+@media (max-width:640px){.prod .appr{margin-left:0}}
+
 .pick{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center}
 .pick .or{color:var(--muted);font-size:13px;font-weight:600}
 .drop{border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;cursor:pointer;color:var(--muted);font-size:14px;transition:border-color .15s,background .15s}
@@ -228,6 +274,12 @@ details.help ol{margin:8px 0 2px;padding-left:20px;color:var(--muted);font-size:
 details.adv{margin-top:18px;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
 details.adv summary{cursor:pointer;font-weight:600;font-size:14px}
 details.adv .row{margin-top:12px}
+details.adv[open] summary{margin-bottom:14px}
+.ogrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px 18px}
+.ogrid .fld>.lbl{font-size:13.5px}
+.ogrid .help{font-size:12.5px}
+.unit{font-weight:500;color:var(--muted);font-size:12px}
+.otoggles{display:flex;flex-wrap:wrap;gap:14px 32px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
 
 .live{margin-top:6px}
 .phase{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px}
@@ -374,14 +426,29 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   <div class="panel" id="step-1" hidden>
     <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg></div>
       <div><h2>Which environment?</h2><p>The AMP site to test. Use a QA or staging site, not production.</p></div></div>
-    <div class="body">
-      <div class="row">
-        <div class="field narrow"><label class="lbl" for="env-name">Name</label><input type="text" id="env-name" placeholder="e.g. ITBD"></div>
-        <div class="field"><label class="lbl" for="env-url">Base URL</label><input type="url" id="env-url" placeholder="https://client.sb.amp.vg"></div>
+    <div class="body form">
+      <div id="env-recent-wrap" hidden>
+        <div class="sub-h">Recently used</div>
+        <div class="envs" id="env-recent"></div>
       </div>
-      <div class="chips" id="env-recent"></div>
-      <label class="check"><input type="checkbox" id="env-prod"> This is a production environment</label>
-      <label class="check" id="env-allow-wrap" hidden><input type="checkbox" id="env-allow"> I have approval to run read-only checks on production</label>
+      <div class="fld">
+        <label class="lbl" for="env-url">Site address</label>
+        <div class="inp-ic" id="env-url-box">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+          <input type="url" class="lg" id="env-url" placeholder="https://client.sb.amp.vg" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="help" id="env-url-help"></div>
+      </div>
+      <div class="fld half">
+        <label class="lbl" for="env-name">Display name <span class="opt">optional</span></label>
+        <input type="text" id="env-name" placeholder="e.g. ITBD QA" autocomplete="off" spellcheck="false">
+        <div class="help">Shown in history and reports. Left empty, the site address is used.</div>
+      </div>
+      <div class="prod">
+        <label class="toggle"><input type="checkbox" class="sw" id="env-prod">
+          <span class="tt"><b>This is a production site</b><span>Real client data. The tool still only opens pages, but it then tests one user at a time.</span></span></label>
+        <label class="appr" id="env-allow-wrap" hidden><input type="checkbox" id="env-allow"> I have approval to run read-only checks on this production site</label>
+      </div>
       <div id="env-msg"></div>
     </div>
     <div class="foot"><button class="btn" data-back>Back</button><button class="btn primary" id="next-1">Next: Rulebook →</button></div>
@@ -435,15 +502,17 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
         <div id="plan-msg"></div>
         <details class="adv" id="adv">
           <summary>Advanced options</summary>
-          <div class="row">
-            <div class="field narrow"><label class="lbl" for="opt-limit">Only first N pages</label><input type="number" id="opt-limit" min="1" placeholder="all"></div>
-            <div class="field narrow"><label class="lbl" for="opt-delay">Delay between pages (ms)</label><input type="number" id="opt-delay" min="200" max="5000" value="500"></div>
-            <div class="field narrow"><label class="lbl" for="opt-th">Match threshold (%)</label><input type="number" id="opt-th" min="20" max="100" value="60"></div>
-            <div class="field narrow"><label class="lbl" for="opt-par">Users tested at the same time</label><input type="number" id="opt-par" min="1" max="5" value="3"></div>
-            <div class="field narrow"><label class="lbl" for="opt-wait">Longest wait per page (s)</label><input type="number" id="opt-wait" min="10" max="120" value="30" title="Raise this for slow servers. Fast pages still finish in 1–2 s."></div>
+          <div class="ogrid">
+            <div class="fld"><label class="lbl" for="opt-limit">Only the first N pages</label><input type="number" id="opt-limit" min="1" placeholder="all pages"><div class="help">For a quick trial run.</div></div>
+            <div class="fld"><label class="lbl" for="opt-par">Users at the same time</label><input type="number" id="opt-par" min="1" max="5" value="3"><div class="help">1–5. Production always uses 1.</div></div>
+            <div class="fld"><label class="lbl" for="opt-delay">Pause between pages <span class="unit">ms</span></label><input type="number" id="opt-delay" min="200" max="5000" value="500"><div class="help">Higher is gentler on the server.</div></div>
+            <div class="fld"><label class="lbl" for="opt-wait">Longest wait per page <span class="unit">s</span></label><input type="number" id="opt-wait" min="10" max="120" value="30"><div class="help">Raise for slow servers. Fast pages still take 1–2 s.</div></div>
+            <div class="fld"><label class="lbl" for="opt-th">Match threshold <span class="unit">%</span></label><input type="number" id="opt-th" min="20" max="100" value="60"><div class="help">How similar to the reference view a page must be.</div></div>
           </div>
-          <label class="check"><input type="checkbox" id="opt-headed"> Show the browser window while testing</label>
-          <label class="check"><input type="checkbox" id="opt-debug" checked> Save step-by-step screenshots of every page (in the <code>debug</code> folder)</label>
+          <div class="otoggles">
+            <label class="toggle"><input type="checkbox" class="sw" id="opt-headed"><span class="tt"><b>Show the browser window</b><span>Watch the pages open while testing.</span></span></label>
+            <label class="toggle"><input type="checkbox" class="sw" id="opt-debug" checked><span class="tt"><b>Save step-by-step screenshots</b><span>Every page, into the <code>debug</code> folder.</span></span></label>
+          </div>
         </details>
       </div>
       <div id="run-live" class="live" hidden>
@@ -648,39 +717,118 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   $('btn-welcome-history').addEventListener('click', function () { show('history'); });
 
   // ---------- 1 environment
+  /** The site's origin from anything pasted: a full page link, a bare host, a trailing slash. Null if it is not a site. */
+  function siteUrl(v) {
+    v = String(v || '').trim(); if (!v) return null;
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) v = 'https://' + v;
+    var u; try { u = new URL(v); } catch (x) { return null; }
+    if (!/^https?:$/.test(u.protocol) || !u.hostname) return null;
+    if (u.hostname.indexOf('.') < 0 && u.hostname !== 'localhost') return null;
+    return u;
+  }
+  function isLocal(u) { return u.hostname === 'localhost' || u.hostname === '127.0.0.1'; }
+  /** A display name never needs the scheme or a trailing slash: "https://x.amp.vg/" -> "x.amp.vg". */
+  function cleanName(v) {
+    v = String(v || '').trim();
+    if (/^https?:\/\//i.test(v)) { var u = siteUrl(v); if (u) return u.host; }
+    return v.replace(/\/+$/, '');
+  }
   function environment() {
-    return { name: $('env-name').value.trim(), baseUrl: $('env-url').value.trim(), isProduction: $('env-prod').checked, allowProduction: $('env-allow').checked };
+    var u = siteUrl($('env-url').value);
+    return {
+      name: cleanName($('env-name').value) || (u ? u.host : ''),
+      baseUrl: u ? u.origin : $('env-url').value.trim(),
+      isProduction: $('env-prod').checked, allowProduction: $('env-allow').checked
+    };
+  }
+  var URL_HELP = 'Paste any link from the site — only the address part is kept.';
+  /** Live feedback under the address. Errors only show once the tester leaves the field (or presses Next). */
+  function urlFeedback(strict) {
+    var raw = $('env-url').value.trim(), u = siteUrl(raw), box = $('env-url-box'), help = $('env-url-help');
+    var state_ = !raw ? '' : !u ? (strict ? 'bad' : '') : (u.protocol === 'http:' && !isLocal(u)) ? 'bad' : 'ok';
+    box.className = 'inp-ic' + (state_ ? ' ' + state_ : '');
+    help.className = 'help' + (state_ ? ' ' + state_ : '');
+    if (state_ === 'ok') help.innerHTML = '✓ Will test <b>' + esc(u.origin) + '</b>';
+    else if (state_ === 'bad' && u) help.textContent = 'Remote sites must use https:// — try https://' + u.host;
+    else if (state_ === 'bad') help.textContent = 'That is not a site address yet. Example: https://client.sb.amp.vg';
+    else help.textContent = URL_HELP;
+    $('env-name').placeholder = u ? u.host : 'e.g. ITBD QA';
+    markRecent();
+    return state_ === 'ok' ? u : null;
+  }
+  /** Saved sites, cleaned up: one per address, names without https:// or trailing slashes. */
+  function recentEnvs() {
+    var seen = {}, out = [];
+    load('amp-envs', []).forEach(function (e) {
+      var u = siteUrl(e && e.baseUrl); if (!u || seen[u.origin]) return; seen[u.origin] = 1;
+      out.push({ name: cleanName(e.name) || u.host, baseUrl: u.origin, isProduction: !!e.isProduction, usedAt: e.usedAt || 0 });
+    });
+    return out;
+  }
+  function ago(t) {
+    if (!t) return '';
+    var d = Math.floor((Date.now() - t) / 86400000);
+    return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? d + ' days ago' : new Date(t).toLocaleDateString();
   }
   function renderRecent() {
-    var list = load('amp-envs', []);
-    $('env-recent').innerHTML = list.length ? '<span class="hint">Recent:</span>' + list.map(function (e, i) {
-      return '<span class="chip" data-i="' + i + '" title="' + esc(e.baseUrl) + '">' + esc(e.name || e.baseUrl) + '<span class="x" data-del="' + i + '" title="Forget">×</span></span>';
-    }).join('') : '';
+    var list = recentEnvs();
+    save('amp-envs', list);
+    $('env-recent-wrap').hidden = !list.length;
+    $('env-recent').innerHTML = list.map(function (e) {
+      var host = new URL(e.baseUrl).host, when = ago(e.usedAt);
+      var sub = e.name !== host ? host + (when ? ' · ' + when : '') : (when ? 'Last used ' + when : '');
+      return '<div class="envc" role="button" tabindex="0" data-url="' + esc(e.baseUrl) + '" title="' + esc(e.baseUrl) + '">' +
+        '<span class="av">' + esc(e.name.charAt(0).toUpperCase()) + '</span>' +
+        '<span class="tx"><span class="n">' + esc(e.name) + (e.isProduction ? '<span class="pb">PROD</span>' : '') + '</span>' + (sub ? '<span class="h">' + esc(sub) + '</span>' : '') + '</span>' +
+        '<button type="button" class="x" data-del="' + esc(e.baseUrl) + '" title="Forget this site" aria-label="Forget ' + esc(e.name) + '">×</button></div>';
+    }).join('');
+    markRecent();
+  }
+  function markRecent() {
+    var u = siteUrl($('env-url').value), cur = u ? u.origin : '';
+    document.querySelectorAll('#env-recent .envc').forEach(function (c) { c.classList.toggle('on', c.getAttribute('data-url') === cur); });
   }
   function rememberEnv() {
     var e = environment(); if (!e.baseUrl) return;
-    var list = load('amp-envs', []).filter(function (x) { return x.baseUrl !== e.baseUrl; });
-    list.unshift({ name: e.name, baseUrl: e.baseUrl, isProduction: e.isProduction });
+    var list = recentEnvs().filter(function (x) { return x.baseUrl !== e.baseUrl; });
+    list.unshift({ name: e.name, baseUrl: e.baseUrl, isProduction: e.isProduction, usedAt: Date.now() });
     save('amp-envs', list.slice(0, 12)); renderRecent();
   }
+  function fillEnv(e) {
+    $('env-name').value = e.name && e.name !== new URL(e.baseUrl).host ? e.name : '';
+    $('env-url').value = e.baseUrl; $('env-prod').checked = !!e.isProduction; toggleProd(); urlFeedback(false);
+  }
+  function pickRecent(card) {
+    var e = recentEnvs().filter(function (x) { return x.baseUrl === card.getAttribute('data-url'); })[0]; if (!e) return;
+    fillEnv(e); clearIdentities(); msg('env-msg', '', '');
+  }
   $('env-recent').addEventListener('click', function (ev) {
-    var del = ev.target.getAttribute('data-del');
-    var list = load('amp-envs', []);
-    if (del !== null) { list.splice(+del, 1); save('amp-envs', list); renderRecent(); return; }
-    var chip = ev.target.closest('.chip'); if (!chip) return;
-    var e = list[+chip.getAttribute('data-i')]; $('env-name').value = e.name || ''; $('env-url').value = e.baseUrl; $('env-prod').checked = !!e.isProduction; toggleProd();
-    clearIdentities(); msg('env-msg', '', '');
+    var del = ev.target.closest('[data-del]');
+    if (del) { save('amp-envs', recentEnvs().filter(function (x) { return x.baseUrl !== del.getAttribute('data-del'); })); renderRecent(); return; }
+    var card = ev.target.closest('.envc'); if (card) pickRecent(card);
+  });
+  $('env-recent').addEventListener('keydown', function (ev) {
+    if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.classList.contains('envc')) { ev.preventDefault(); pickRecent(ev.target); }
   });
   function toggleProd() { $('env-allow-wrap').hidden = !$('env-prod').checked; if (!$('env-prod').checked) $('env-allow').checked = false; }
-  $('env-prod').addEventListener('change', toggleProd);
+  $('env-prod').addEventListener('change', function () { toggleProd(); if ($('env-prod').checked) msg('env-msg', '', ''); });
+  $('env-allow').addEventListener('change', function () { msg('env-msg', '', ''); });
+  $('env-url').addEventListener('input', function () { urlFeedback(false); msg('env-msg', '', ''); });
+  $('env-url').addEventListener('blur', function () {
+    var u = urlFeedback(true); if (u && $('env-url').value !== u.origin) $('env-url').value = u.origin;
+  });
+  $('env-name').addEventListener('blur', function () { $('env-name').value = cleanName($('env-name').value); });
   ['env-url', 'env-name'].forEach(function (id) { $(id).addEventListener('change', clearIdentities); });
+  ['env-url', 'env-name'].forEach(function (id) { $(id).addEventListener('keydown', function (ev) { if (ev.key === 'Enter') $('next-1').click(); }); });
   $('next-1').addEventListener('click', function () {
-    var e = environment(), u;
-    try { u = new URL(e.baseUrl); } catch (x) { msg('env-msg', 'bad', 'Enter the site address, e.g. <code>https://client.sb.amp.vg</code>'); $('env-url').focus(); return; }
-    if (!/^https?:$/.test(u.protocol)) { msg('env-msg', 'bad', 'The address must start with https://'); return; }
-    if (e.isProduction && !e.allowProduction) { msg('env-msg', 'bad', 'Production needs the approval box ticked.'); return; }
+    var u = urlFeedback(true), e = environment();
+    if (!u) {
+      msg('env-msg', 'bad', siteUrl($('env-url').value) ? 'Remote sites must use <code>https://</code>.' : 'Enter the site address, e.g. <code>https://client.sb.amp.vg</code>');
+      $('env-url').focus(); return;
+    }
+    if (e.isProduction && !e.allowProduction) { msg('env-msg', 'bad', 'This is marked as production — tick the approval box, or switch production off.'); return; }
     $('env-url').value = u.origin;
-    if (!e.name) $('env-name').value = u.host;
+    $('env-name').value = cleanName($('env-name').value);
     msg('env-msg', '', ''); rememberEnv(); goStep(2);
   });
 
@@ -1001,8 +1149,8 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   // ---------- init
   show('hub');
   renderRecent();
-  var envs = load('amp-envs', []);
-  if (envs[0]) { $('env-name').value = envs[0].name || ''; $('env-url').value = envs[0].baseUrl; $('env-prod').checked = !!envs[0].isProduction; toggleProd(); }
+  var envs = recentEnvs();
+  if (envs[0]) fillEnv(envs[0]); else urlFeedback(false);
   api('GET', '/api/runs/current').then(function (r) { if (r.run && r.run.status === 'running') attach(r.run); });
 })();
 </script>
