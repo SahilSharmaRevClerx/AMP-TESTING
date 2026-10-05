@@ -188,6 +188,7 @@ details.help-box ol{margin:8px 0 2px;padding-left:20px;color:var(--muted);font-s
 @media (max-width:760px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .opts{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
 .opts{display:flex;flex-direction:column;gap:16px}
+.user-hint{margin-top:6px;font-size:13px}.bad-t{color:var(--bad)}
 .handoff{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:14px;padding:14px 16px;border:1px solid var(--accent);border-radius:10px;background:var(--accent-soft)}
 #review>.sec{margin-top:18px}
 .sec h3 .opt{font-weight:500;font-size:11.5px;color:var(--muted);background:var(--code);padding:1px 8px;border-radius:999px;margin-left:6px;vertical-align:1px}
@@ -368,6 +369,9 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;
           <div class="fld half"><label class="lbl" for="opt-speed">Speed in AMP</label>
             <select id="opt-speed"><option value="0.8">Faster (0.8 s per step)</option><option value="1.5" selected>Careful (1.5 s per step)</option><option value="3">Very careful (3 s per step)</option></select>
             <div class="help">Pause after every tab switch, slider move and save. After saving, the role is reopened to confirm AMP kept each change, and 2–3 full screenshots of its tabs are taken (changed rows outlined).</div></div>
+        </div>
+        <div class="sec" id="nav-sec">
+          <label class="toggle"><input type="checkbox" class="sw" id="opt-nav" checked><span class="tt"><b>Also use Navigation Layout</b><span>For pages AMP gives every role (Contacts, Lists, Import…), role sliders can't hide them. With this on, each such module is set to <b>Shown to: specific users</b> — everyone in the company except the users who must not see it. This affects the whole company; new users won't see those modules until linked.</span></span></label>
         </div>
         <div class="sec" id="verify-sec">
           <h3>Then check as the users <span class="opt">optional</span></h3>
@@ -578,6 +582,11 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;
 
   function jwt() { return $('jwt').value.trim(); }
   function mode() { return document.querySelector('input[name=mode]:checked').value; }
+  function userHints() {
+    var out = {};
+    document.querySelectorAll('[data-user-hint]').forEach(function (i) { if (i.value.trim()) out[i.getAttribute('data-user-hint')] = i.value.trim(); });
+    return out;
+  }
   function roles() {
     var out = {};
     document.querySelectorAll('[data-role]').forEach(function (i) { if (i.value.trim()) out[i.getAttribute('data-role')] = i.value.trim(); });
@@ -588,6 +597,7 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;
     var e = environment();
     r.url = e.baseUrl; r.name = e.name; r.mode = mode();
     r.roles = Object.assign(r.roles || {}, roles());
+    r.userHints = Object.assign(r.userHints || {}, userHints());
     if ($('bulk-role').value.trim()) r.bulkRole = $('bulk-role').value.trim();
     save('amp-setter', r);
   }
@@ -669,8 +679,10 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;
     if (!state.rulebook) { $('roles').innerHTML = '<div class="empty">Choose a rulebook above first.</div>'; return; }
     var s = state.rulebook.summary, prev = load('amp-setter', {}).roles || {};
     $('roles').innerHTML = '<div class="grid2">' + s.userTypes.map(function (k) {
+      var hints = load('amp-setter', {}).userHints || {};
       return '<div class="fld role-f"><label class="lbl" for="role-' + esc(k) + '">' + esc(s.userTypeLabels[k] || k) + ' <span class="arrow">→ AMP role</span></label>' +
-        '<input type="text" id="role-' + esc(k) + '" data-role="' + esc(k) + '" value="' + esc(prev[k] || '') + '" placeholder="leave empty to skip" autocomplete="off" spellcheck="false"></div>';
+        '<input type="text" id="role-' + esc(k) + '" data-role="' + esc(k) + '" value="' + esc(prev[k] || '') + '" placeholder="leave empty to skip" autocomplete="off" spellcheck="false">' +
+        '<input type="text" class="user-hint" data-user-hint="' + esc(k) + '" value="' + esc(hints[k] || '') + '" placeholder="this column\'s user email (for Navigation Layout, optional)" autocomplete="off" spellcheck="false"></div>';
     }).join('') + '</div>';
   }
   $('roles').addEventListener('input', function () { msg('roles-msg'); limitTo(4); });
@@ -690,7 +702,7 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;
   function body(extra) {
     var b = { environment: environment(), jwt: jwt() };
     if (mode() === 'bulk') b.bulk = { roleName: $('bulk-role').value.trim(), step: Number($('bulk-level').value) };
-    else { b.rulebookId = state.rulebook.id; b.roles = roles(); b.users = users(); }
+    else { b.rulebookId = state.rulebook.id; b.roles = roles(); b.users = users(); b.userHints = userHints(); b.navigation = $('opt-nav').checked; }
     b.ai = $('opt-ai').checked;
     b.stepDelaySec = Number($('opt-speed').value);
     for (var k in extra) b[k] = extra[k];
@@ -709,6 +721,7 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;
   function renderVerify() {
     var bulk = mode() === 'bulk';
     $('verify-sec').hidden = bulk;
+    $('nav-sec').hidden = bulk;
     if (bulk || !state.rulebook) return;
     var s = state.rulebook.summary, r = roles(), keep = users();
     $('verify-users').innerHTML = '<div class="grid2">' + Object.keys(r).map(function (k) {
@@ -755,13 +768,32 @@ pre{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;
             return '<tr><td>' + esc(pg.label) + '<div class="hint">#' + esc(pg.route) + '</div></td><td>' + esc(pg.expected || '-') + '</td><td>' + esc(pg.module || '-') + '</td>' +
               '<td><span class="tag ' + pg.status + '">' + tag[pg.status] + '</span></td><td>' + esc(pg.reason) + (pg.note ? '<div class="hint">Note: ' + esc(pg.note) + '</div>' : '') + '</td></tr>';
           }).join('') + '</table>';
-      }).join('');
+      }).join('') + navPlan(r.navigation);
     }).catch(function (e) { msg('run-msg', 'bad', esc(e.message)); });
   }
 
+  /** The Navigation Layout part of the plan: who each column is, and each module's new "Shown to". */
+  function navPlan(n) {
+    if (!n) return '';
+    if (n.error) return '<h3 class="plan-h">Navigation Layout</h3><div class="msg bad">' + esc(n.error) + '</div>';
+    if (!n.nav.length) return '';
+    var who = n.columnUsers.map(function (c) { return esc(c.label) + ' = ' + (c.user ? '<b>' + esc(c.user.name) + '</b> (' + esc(c.user.email) + ')' : '<span class="bad-t">' + esc(c.problem) + '</span>'); }).join(' · ');
+    var rows = n.nav.map(function (m) {
+      var hide = m.hideFrom.map(function (c) { var u = n.columnUsers.filter(function (x) { return x.column === c; })[0]; return u && u.user ? u.user.name : c; }).join(', ');
+      return '<tr><td><b>' + esc(m.moduleName) + '</b><div class="hint">' + esc(m.pages.join(', ')) + '</div></td>' +
+        (m.status === 'skipped'
+          ? '<td colspan="2"><span class="tag cannot">skipped</span> ' + esc(m.note || '') + '</td>'
+          : '<td>' + esc(m.before) + ' → specific</td><td>Hide from <b>' + esc(hide) + '</b><div class="hint">Shown only to: ' + esc((m.shownTo || []).join(', ')) + ' · ' + m.add.length + ' link(s) to add, ' + m.remove.length + ' to remove</div></td>') + '</tr>';
+    }).join('');
+    return '<h3 class="plan-h">Navigation Layout</h3><p class="hint">Users: ' + who + '</p><table><tr><th>Module</th><th>Shown to</th><th>Change</th></tr>' + rows + '</table>';
+  }
+  $('opt-nav').addEventListener('change', function () { if (state.step === 5 && !state.running && mode() !== 'bulk') loadPlan(); });
+  var replanTimer = null;
+  $('verify-users').addEventListener('input', function () { clearTimeout(replanTimer); replanTimer = setTimeout(function () { if (state.step === 5 && !state.running && $('opt-nav').checked) loadPlan(); }, 800); });
+
   function run(apply) {
     var b = body({ apply: apply, headed: $('opt-headed').checked });
-    if (apply && !confirm('This saves the sliders of the named role(s) in ' + b.environment.baseUrl + ' and affects every user who has those roles. Continue?')) return;
+    if (apply && !confirm('This saves the sliders of the named role(s) in ' + b.environment.baseUrl + ' and affects every user who has those roles.' + (b.navigation ? '\n\nNavigation Layout: modules in the plan will be shown only to the listed users, for the whole company.' : '') + ' Continue?')) return;
     if (b.ai && !confirm('AI review: the screenshots and results of this run will be sent to Google (Gemini). Continue?')) return;
     remember();
     $('result').innerHTML = ''; $('log').textContent = ''; state.from = 0;

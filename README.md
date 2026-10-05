@@ -4,6 +4,8 @@ A standalone tool that checks, for every user type, which AMP pages **actually o
 
 A tester enters the client's site, uploads the client's rulebook (page + Yes/No per user type) and pastes a **jwt** per user type. The tool opens every page **as each user** in a real (headless) browser, decides whether that user got a usable page, and flags every mismatch.
 
+- **All features of both modules:** [docs/FEATURES.md](docs/FEATURES.md)
+- **Ideas to make it better:** [docs/IMPROVEMENT-SUGGESTIONS.md](docs/IMPROVEMENT-SUGGESTIONS.md)
 - Handoff / full context for developers: [docs/chat1_Context.md](docs/chat1_Context.md)
 - How it works (flow, files, diagrams; open in a browser): [docs/how-it-works.html](docs/how-it-works.html). Its judging tables are partly outdated; this README is current.
 - Original spec: [docs/PRD.md](docs/PRD.md)
@@ -11,7 +13,7 @@ A tester enters the client's site, uploads the client's rulebook (page + Yes/No 
 
 **Status:** v1 (page-level access) with a tester web UI. Used on real environments (`ai.sb.amp.vg`, `itbydesign.sb.amp.vg`, jwt-only confirmed). Verified end to end against a simulated AMP. API data-leak testing is a planned v2.
 
-No LLM and no third-party services: every verdict is decided by code, and nothing leaves the tester's machine except requests to the AMP environment being tested.
+Every verdict is decided by code. Nothing leaves the tester's machine except requests to the AMP environment being tested. The one exception is the Permission Setter's optional **AI review** (Google Gemini): it is off by default, asks for confirmation, and never sends jwts.
 
 ## Setup (once per machine)
 
@@ -177,6 +179,11 @@ A second module on the home screen (`/setter`). It sets the role sliders in AMP 
   - **Screenshots:** 2–3 per role, each showing a whole tab of the role editor (Marketing Functions, Operations, and Advanced when a checkbox is involved) in its final state, with changed rows outlined in orange.
   - **After saving:** it **reopens the role** and reads every changed permission back, so a change AMP didn't keep shows as a failure.
   - **Preview** does everything except Save.
+- **Navigation Layout step (on by default):** some pages AMP gives every role, so role sliders can't hide them: Contacts, Lists, Import, and company menu modules. For a "No" on one of these, the tool sets the module's Navigation Layout setting to **Shown to: specific users** and links **everyone in the company except** the users who must not see it. AMP then hides the menu item and redirects the page to `/noaccess`.
+  - **Who each column is:** taken from the user's jwt, if pasted, or from the email typed under the column's role.
+  - **Process:** current links are read first and only the needed toggles are made. Afterwards the links are read back, and a screenshot of the module's settings is saved.
+  - **Waiting:** before the check as the users, it waits ~70 s, because AMP caches module settings.
+  - **Caveats:** this affects the whole company. Users added later won't see those modules until they are linked. A user can still see a module through a persona, group or organization link; the check as the users shows that.
 - **Check as the users (optional, after Apply):** paste a jwt for each rulebook column's user. After saving, the tool logs in as each of them (the same jwt method) and runs the page test on the rulebook pages.
   - The results show per role ("2 / 3 pages OK"), and the full page-test report appears in Past runs.
   - A user jwt that is the Super Admin's is refused.
@@ -269,9 +276,11 @@ Config options include `parallelUsers` (default 3), `delayMs`, `pageTimeoutMs`, 
 ## Development
 
 ```powershell
-npm test          # 91 unit tests
+npm test          # unit tests
 npm run e2e       # full pipeline against a simulated AMP (tests/e2e/fake-amp.ts), incl. proof that users run in parallel
 npm run e2e:ui    # the tester web UI driven in a real browser against the simulated AMP
+npm run e2e:setter   # Permission Setter against a fake AMP role editor + Navigation Layout + fake Gemini
+npm run e2e:handoff  # Setter Apply → Verify in Pages Testing, through the real server and a browser
 npm run typecheck
 ```
 

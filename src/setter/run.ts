@@ -12,6 +12,8 @@ import { createLogger } from '../util/logger';
 import { checkSuperAdmin } from './session';
 import { DEFAULT_STEP_DELAY_MS, RoleEditor, type RoleValues } from './editor';
 import { aiErrorMessage, aiModel, reviewRole, type AiReview, type AiRoleInput } from './ai';
+import { applyNavModule, prepareNavigation } from './navrun';
+import type { ColumnUser, NavModulePlan } from './nav';
 import { LEVELS, planRole, reqLabel, targetFor, valueLabel, type ControlWant, type PagePlan, type RolePlan, type Step } from './sliders';
 
 const log = createLogger('setter');
@@ -25,6 +27,8 @@ export interface VerifyAsUsers {
   rulebookSource: { name: string; data: Buffer };
   /** Pause after saving before the users open pages (AMP rebuilds permissions on the next request). */
   waitSec: number;
+  /** After a Navigation Layout change: AMP caches module settings ~1 minute (default 70 s). */
+  navCacheSec?: number;
 }
 
 export interface SetterRequest {
@@ -44,6 +48,8 @@ export interface SetterRequest {
   stepDelayMs?: number;
   /** After saving: log in as each column's user and open the rulebook pages. */
   verify?: VerifyAsUsers;
+  /** Navigation Layout step: hide pages role sliders can't (Contacts, Lists, Import…) from the "No" columns' users. */
+  navigation?: { enabled: boolean; hints: Record<string, string> };
   /** After everything: send results and screenshots to Gemini for a second check. */
   ai?: boolean;
   outputRoot: string;
@@ -96,6 +102,8 @@ export interface SetterOutcome {
   identity?: Identity;
   error?: string;
   roles: RoleResult[];
+  /** The Navigation Layout step. */
+  nav?: { modules: NavModulePlan[]; columnUsers: ColumnUser[]; error?: string };
   /** The page-test run made as the users (when verified). */
   verify?: { runId: string; reportUrl?: string; error?: string };
   reportFile?: string;
@@ -141,6 +149,7 @@ export async function executeSetter(req: SetterRequest, runId = newSetterRunId(r
         if (req.signal?.aborted) throw new Error('cancelled');
         out.roles.push(await applyRole(editor, plan, req, outDir, say));
       }
+      if (req.navigation?.enabled && req.rulebook && !req.bulk) await navigationStep(editor, gate, plans, admin.modules, req, out, say);
     } finally {
       await editor.close();
     }
@@ -278,6 +287,47 @@ function everySlider(current: RoleValues, step: Step): ControlWant[] {
   return out;
 }
 
+// ---------------------------------------------------------------- layer 1b: Navigation Layout (pages role sliders can't hide)
+
+async function navigationStep(
+  editor: RoleEditor,
+  gate: RequestGate,
+  plans: RolePlan[],
+  modules: Parameters<typeof planRole>[3],
+  req: SetterRequest,
+  out: SetterOutcome,
+  say: (l: string) => void,
+): Promise<void> {
+  say('\nNavigation Layout: pages role sliders cannot hide (Contacts, Lists, Import, company menu modules) …');
+  try {
+    const { nav, columnUsers } = await prepareNavigation({ gate, creds: req.creds, rulebook: req.rulebook!, plans, modules, hints: req.navigation!.hints, userCreds: req.verify?.creds });
+    out.nav = { modules: nav, columnUsers };
+    if (!nav.length) {
+      say('  nothing to change');
+      return;
+    }
+    for (const c of columnUsers) say(c.user ? `  ${c.label} = ${c.user.name} (${c.user.email})` : `  ${c.label}: skipped (${c.problem})`);
+    const shotDir = join(out.outDir, 'shots', 'navigation');
+    for (const m of nav) {
+      if (m.status === 'skipped') {
+        say(`  ${m.moduleName}: skipped (${m.note})`);
+        continue;
+      }
+      say(`  ${m.moduleName}: ${m.before} → shown only to ${m.shownTo!.join(', ')} (${m.add!.length} to add, ${m.remove!.length} to remove)`);
+      if (!req.apply) continue;
+      await applyNavModule(editor, gate, req.creds, m, columnUsers, shotDir, (f) => rel(out.outDir, f), say);
+      if (m.status === 'failed') {
+        // Its pages are not taken care of after all.
+        for (const p of plans.flatMap((x) => x.pages)) if (p.nav && m.pages.includes(p.label)) Object.assign(p, { status: 'cannot', nav: false, reason: `Navigation Layout change failed: ${m.note}` });
+      }
+    }
+    if (!req.apply) say('  preview only: Navigation Layout not changed');
+  } catch (e) {
+    out.nav = { modules: [], columnUsers: [], error: scrub((e as Error).message) };
+    say(`  ✗ Navigation Layout step: ${out.nav.error}`);
+  }
+}
+
 // ---------------------------------------------------------------- layer 2: log in as each user and open the pages
 
 async function verifyAsUsers(out: SetterOutcome, req: SetterRequest, rulebook: Rulebook, v: VerifyAsUsers, say: (l: string) => void): Promise<void> {
@@ -290,8 +340,11 @@ async function verifyAsUsers(out: SetterOutcome, req: SetterRequest, rulebook: R
     say('\nSkipping the check as users: no saved role has a user jwt');
     return;
   }
-  say(`\nWaiting ${v.waitSec}s, then logging in as ${cols.map((c) => rulebook.userTypeLabels[c] ?? c).join(', ')} to open the rulebook pages …`);
-  await new Promise((r) => setTimeout(r, v.waitSec * 1000));
+  // AMP keeps module settings cached for about a minute: wait that out after a Navigation Layout change.
+  const navChanged = out.nav?.modules.some((m) => m.status === 'done');
+  const waitSec = navChanged ? Math.max(v.waitSec, v.navCacheSec ?? 70) : v.waitSec;
+  say(`\nWaiting ${waitSec}s${navChanged ? " (AMP's module cache)" : ''}, then logging in as ${cols.map((c) => rulebook.userTypeLabels[c] ?? c).join(', ')} to open the rulebook pages …`);
+  await new Promise((r) => setTimeout(r, waitSec * 1000));
 
   const rb = selectUserTypes(rulebook, cols);
   const userTypes: Record<string, { label: string }> = {};
@@ -419,6 +472,7 @@ function compareRows(r: RoleResult): { page: string; route: string; expected: st
     if (p.status === 'cannot') return { ...base, result: "Can't be set with role sliders", detail: p.reason, mark: 'check' };
     if (r.status === 'failed') return { ...base, result: 'Not set (the role could not be saved)', detail: r.error ?? '', mark: 'bad' };
     if (r.status === 'previewed') return { ...base, result: 'Preview only: not saved', detail: p.reason, mark: 'none' };
+    if (p.nav) return { ...base, result: p.expected === 'No' ? 'Hidden with Navigation Layout' : 'Kept visible (Navigation Layout)', detail: p.reason, mark: 'ok' };
     return { ...base, result: p.expected === 'Yes' ? 'Permission given' : 'Permission removed', detail: p.reason, mark: 'ok' };
   });
 }
@@ -458,6 +512,23 @@ function roleSection(r: RoleResult, bulk: boolean): string {
   return `<section><h2>${title}</h2><p class="head ${r.status === 'failed' ? 'bad' : ''}">${roleHeadline(r, rows)}</p>${table}<h3>What changed in AMP</h3>${changes}${shots}${ai}</section>`;
 }
 
+function navSection(out: SetterOutcome): string {
+  const n = out.nav;
+  if (!n || (!n.modules.length && !n.error)) return '';
+  const label: Record<string, string> = { done: '✓ Changed and confirmed', no_changes: '✓ Already right', planned: out.apply ? 'Not applied' : 'Preview only: not changed', skipped: 'Skipped', failed: '✗ Failed' };
+  const cls = (st?: string) => (st === 'done' || st === 'no_changes' ? 'ok' : st === 'failed' ? 'bad' : 'check');
+  const users = n.columnUsers.length
+    ? `<p class="muted">Users: ${n.columnUsers.map((c) => `${esc(c.label)} = ${c.user ? `${esc(c.user.name)} (${esc(c.user.email)})` : `<span class="bad">${esc(c.problem ?? 'unknown')}</span>`}`).join(' · ')}</p>`
+    : '';
+  const rows = n.modules
+    .map((m) => {
+      const hide = m.hideFrom.map((c) => n.columnUsers.find((x) => x.column === c)?.user?.name ?? c).join(', ');
+      return `<tr><td><b>${esc(m.moduleName)}</b><div class="muted">${esc(m.pages.join(', '))}</div></td><td>${esc(m.before ?? '–')} → ${esc(m.after ?? '–')}</td><td>Hidden from <b>${esc(hide)}</b>${m.shownTo ? `<div class="muted">Shown only to: ${esc(m.shownTo.join(', '))}</div>` : ''}</td><td class="m ${cls(m.status)}">${esc(label[m.status ?? 'planned'] ?? m.status)}${m.note ? `<div class="muted">${esc(m.note)}</div>` : ''}</td><td>${m.shot ? `<a href="${esc(m.shot)}" target="_blank"><img class="thumb" src="${esc(m.shot)}" alt="${esc(m.moduleName)} settings"></a>` : ''}</td></tr>`;
+    })
+    .join('');
+  return `<section><h2>Navigation Layout</h2><p class="head">For pages AMP gives every role, so role sliders can't hide them: the module is set to <b>Shown to: specific users</b>, with everyone in the company linked except the users who must not see it.</p>${users}${n.error ? `<p class="bad">${esc(n.error)}</p>` : ''}${rows ? `<table><tr><th>Module</th><th>Shown to</th><th>Change</th><th>Result</th><th></th></tr>${rows}</table>` : ''}<p class="muted">New users added to the company later will not see these modules until they are linked in Navigation Layout.</p></section>`;
+}
+
 export function writeSetterReport(out: SetterOutcome, req: Pick<SetterRequest, 'environment' | 'rulebookName' | 'bulk'>): string {
   writeFileSync(join(out.outDir, 'results.json'), JSON.stringify({ ...out, environment: req.environment, rulebook: req.rulebookName }, null, 2));
   const failed = !!out.error || out.roles.some((r) => r.status === 'failed');
@@ -481,12 +552,13 @@ p.head{margin:0 0 12px;color:var(--muted)}p.head.bad{color:var(--bad)}
 table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:13px;color:var(--muted);font-weight:600}
 .muted{color:var(--muted);font-size:12.5px}.m{font-weight:600;white-space:nowrap}.ok,.m.ok{color:var(--ok)}.bad,.m.bad{color:var(--bad)}.m.check{color:var(--warn)}.m.none{color:var(--muted)}
 ul.chg{margin:0;padding-left:20px}
+.thumb{width:150px;border:1px solid var(--line);border-radius:6px}
 .shots{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}figure{margin:0;flex:1 1 280px}figure img{width:100%;max-height:420px;object-fit:cover;object-position:top;border:1px solid var(--line);border-radius:8px}figcaption{font-size:13px;color:var(--muted);text-align:center}
 details.ai{margin-top:14px}details.ai summary{cursor:pointer}
 .wrap{overflow-x:auto}</style></head><body><main>
 <div class="banner ${headline.cls}"><h1>${headline.text}</h1><p>${esc(headline.sub)}</p></div>
 <p class="meta">${esc(req.environment.name)} · ${esc(req.environment.baseUrl)} · ${req.bulk ? 'every slider of one role' : `rulebook ${esc(req.rulebookName)}`} · by ${esc(out.identity?.userName ?? '?')} (Super Admin) · ${esc(new Date().toLocaleString())}${out.verify?.reportUrl ? ` · <a href="../../${esc(out.verify.runId)}/report.html">full page test as the users</a>` : ''}</p>
-<div class="wrap">${out.roles.map((r) => roleSection(r, !!req.bulk)).join('')}</div>
+<div class="wrap">${out.roles.map((r) => roleSection(r, !!req.bulk)).join('')}${navSection(out)}</div>
 <p class="meta">A user gets the highest level from every role linked to them (own, groups, organization, company-wide). If a "No" page still opens, check the user's other roles. Click a screenshot to open it full size.</p>
 </main></body></html>`;
   const file = join(out.outDir, 'report.html');

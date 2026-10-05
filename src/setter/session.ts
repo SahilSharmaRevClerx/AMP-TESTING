@@ -53,6 +53,7 @@ export function parseModules(list: unknown[]): AmpModule[] {
       url: typeof r.url === 'string' ? r.url : '',
       label: typeof r.defaultlocalization === 'string' ? r.defaultlocalization : undefined,
       custom: r.custom === true,
+      level: typeof r.level === 'string' ? r.level : undefined,
     });
   }
   return out;

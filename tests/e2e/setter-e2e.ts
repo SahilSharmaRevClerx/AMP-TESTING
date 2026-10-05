@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { rulebookFromRows } from '../../src/rulebook/parse';
 import { makeCredentials } from '../../src/config';
 import { executeSetter } from '../../src/setter/run';
-import { resetRoles, roles, saves, SETTER_TOKENS, startFakeGemini, startFakeRolesAmp } from './fake-amp-roles';
+import { navSettings, navWrites, resetRoles, roles, saves, SETTER_TOKENS, startFakeGemini, startFakeRolesAmp } from './fake-amp-roles';
 
 const failures: string[] = [];
 const check = (ok: unknown, what: string) => {
@@ -30,6 +30,7 @@ const rulebook = rulebookFromRows([
   [`${amp.baseUrl}/#collateral/internal-playbook`, 'Internal Playbook', 'Yes', 'Yes', 'No'],
   [`${amp.baseUrl}/#manage/opportunity-records`, 'Opportunities', 'Yes', 'No', 'Yes'],
   [`${amp.baseUrl}/#dashboard/sales`, 'Sales Dashboard', 'Yes', 'Yes', 'Yes'],
+  [`${amp.baseUrl}/#connections/contacts`, 'Manage Contacts', 'Yes', 'No', 'Yes'],
 ]);
 const environment = { name: 'fake', baseUrl: amp.baseUrl, isProduction: false };
 const lines: string[] = [];
@@ -40,6 +41,8 @@ const base = {
   roles: { user: 'Ayush Normal', other: 'Other Role' } as Record<string, string>,
   headless: process.env.HEADED !== '1',
   stepDelayMs: 150,
+  // Navigation Layout: "Other" is Anmol (by email); "User" is identified from their jwt (Ayushmaan).
+  navigation: { enabled: true, hints: { other: 'anmol.sethi@revclerx.com' } },
   outputRoot: join(root, '_setter'),
   log: (l: string) => {
     lines.push(l);
@@ -50,10 +53,13 @@ const base = {
 try {
   // 1. Preview: sliders move on screen, nothing saved.
   resetRoles();
-  const preview = await executeSetter({ ...base, creds: makeCredentials(SETTER_TOKENS.superAdmin), apply: false });
+  // In the preview nobody's jwt is pasted: the tester types the User's email instead.
+  const preview = await executeSetter({ ...base, navigation: { enabled: true, hints: { user: 'ayushmaan@revclerx.com', other: 'anmol.sethi@revclerx.com' } }, creds: makeCredentials(SETTER_TOKENS.superAdmin), apply: false });
   const pr = preview.roles[0];
   check(!preview.error && pr?.status === 'previewed', `preview finished as "previewed" (${preview.error ?? pr?.status})`);
   check(saves.length === 0 && roles[0]!.media['16777216'] === 0, 'preview saved nothing (SaveRole blocked)');
+  check(navWrites.length === 0 && navSettings[4]!.display === 'all', 'preview changed no Navigation Layout setting');
+  check(preview.nav?.modules[0]?.status === 'planned' && preview.nav.modules[0].moduleName === 'Contacts', `preview planned the Contacts change (${preview.nav?.modules[0]?.status ?? preview.nav?.error})`);
   check(pr?.shots.length === 2 && pr.shots.every((x) => existsSync(join(preview.outDir, x.file))), `2 full-tab screenshots in the preview (${pr?.shots.map((x) => x.label).join(', ')})`);
 
   // 2. Apply + check as the user + AI review.
@@ -63,7 +69,7 @@ try {
     creds: makeCredentials(SETTER_TOKENS.superAdmin),
     apply: true,
     ai: true,
-    verify: { creds: new Map([['user', makeCredentials(SETTER_TOKENS.user)]]), outputDir: root, debugDir: join(root, 'debug'), rulebookSource: { name: 'fake.csv', data: Buffer.from('') }, waitSec: 0 },
+    verify: { creds: new Map([['user', makeCredentials(SETTER_TOKENS.user)]]), outputDir: root, debugDir: join(root, 'debug'), rulebookSource: { name: 'fake.csv', data: Buffer.from('') }, waitSec: 0, navCacheSec: 0 },
   });
   const r = out.roles[0]!;
   check(!out.error, `apply run had no error (${out.error ?? 'ok'})`);
@@ -82,7 +88,13 @@ try {
   check(/nothing to set/.test(r.pages.find((p) => p.label === 'Sales Dashboard')?.reason ?? ''), 'Sales Dashboard (Yes) reported as nothing to set');
 
   const uc = r.userCheck?.pages ?? [];
-  check(uc.length === 3, `checked all 3 rulebook pages as the user (${uc.length})`);
+  check(uc.length === 4, `checked all 4 rulebook pages as the user (${uc.length})`);
+  const contactsNav = navSettings[4]!;
+  check(contactsNav.display === 'specific' && [...contactsNav.links].sort().join() === '1,3', `Contacts shown only to sahil + Anmol (${contactsNav.display}: ${[...contactsNav.links].join(',')})`);
+  check(out.nav?.modules[0]?.status === 'done', `Navigation Layout change confirmed (${out.nav?.modules[0]?.status} ${out.nav?.modules[0]?.note ?? ''})`);
+  check(uc.find((p) => p.label === 'Manage Contacts')?.verdict === 'PASS', 'as the user: Manage Contacts now blocked (PASS)');
+  check(r.pages.find((p) => p.label === 'Manage Contacts')?.nav === true, 'Manage Contacts marked as handled by Navigation Layout');
+  check(out.nav?.modules[0]?.shot && existsSync(join(out.outDir, out.nav.modules[0].shot)), 'screenshot of the Contacts settings');
   check(uc.find((p) => p.label === 'Internal Playbook')?.verdict === 'PASS', 'as the user: Internal Playbook opens (PASS)');
   check(uc.find((p) => p.label === 'Opportunities')?.verdict === 'PASS', 'as the user: Opportunities blocked (PASS)');
   check(out.verify?.reportUrl && existsSync(join(root, out.verify.runId, 'report.html')), 'page-test report written for the user check');
@@ -93,7 +105,7 @@ try {
   const images = sent?.contents?.[0]?.parts.filter((p) => p.inlineData).length ?? 0;
   check(gemini.requests.length === 2 && /models\/gemini-2\.5-pro:generateContent/.test(call?.path ?? ''), `one Gemini generateContent request per role (${call?.path})`);
   check(call?.key === 'fake-gemini-key-for-tests', 'Gemini key sent as the API key header');
-  check(images === 5, `screenshots sent for review (${images} images: 2 role tabs + 3 user pages)`);
+  check(images === 6, `screenshots sent for review (${images} images: 2 role tabs + 4 user pages)`);
   check(!JSON.stringify(sent).includes(SETTER_TOKENS.superAdmin) && !JSON.stringify(sent).includes(SETTER_TOKENS.user), 'no jwt in the AI request');
   check(out.reportFile && existsSync(out.reportFile), 'setter report written');
 

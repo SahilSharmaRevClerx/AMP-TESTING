@@ -15,7 +15,7 @@ export class SafetyError extends Error {
  * The only AMP APIs the tool itself may call directly (both read-only). The Navigation Layout module
  * list is used by the Permission Setter: only Site/Super Admins may call it.
  */
-export const TOOL_API_ALLOWLIST = new Set(['getpermissiondataforuser', 'getmodulesfornavigationlayout']);
+export const TOOL_API_ALLOWLIST = new Set(['getpermissiondataforuser', 'getmodulesfornavigationlayout', 'getmodulesettingdata']);
 
 /** API name prefixes that only read data. Anything else is treated as a write. */
 const READ_PREFIX = /^(get|load|check|has|is|can|search|find|fetch|list|count|view|lookup|preview|verify)/;
@@ -86,6 +86,8 @@ export function decideBrowserRequest(method: string, rawUrl: string, baseHost: s
 
 /** The one write the Permission Setter may let the browser make: saving the role it edited. */
 export const SETTER_WRITE_API = 'saverole';
+/** The Navigation Layout step's writes: link/unlink a user to a module, and save the module's "Shown to" setting. */
+export const SETTER_NAV_APIS = new Set(['togglemodulesettinglink', 'updatemodulesetting']);
 
 /**
  * Policy for the Permission Setter's browser (logged in as the Super Admin): the read-only policy
@@ -102,6 +104,9 @@ export function decideSetterRequest(method: string, rawUrl: string, baseHost: st
     const funcs = apiFuncsFromUrl(url);
     if (funcs.length === 1 && funcs[0] === SETTER_WRITE_API) {
       return allowSave ? { allowed: true, reason: 'role save (apply)' } : { allowed: false, reason: 'role save blocked (preview only)' };
+    }
+    if (funcs.length === 1 && SETTER_NAV_APIS.has(funcs[0]!)) {
+      return allowSave ? { allowed: true, reason: 'navigation layout setting (apply)' } : { allowed: false, reason: 'navigation layout change blocked (preview only)' };
     }
   }
   return decideBrowserRequest(method, rawUrl, baseHost);
