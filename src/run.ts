@@ -6,6 +6,7 @@ import { RequestGate } from './safety/gate';
 import { describeIdentity, duplicateIdentities, validateToken } from './sessions/validate';
 import { fetchMenu, menuHasRoute, menuMatch } from './probe/menu';
 import { BrowserProbe } from './probe/browser';
+import { BrowserStartError } from './probe/launch';
 import { buildFrame, pickReference, type EvidenceByUser, type PageReference } from './verdict/fingerprint';
 import { accessState, pageContent, type Frame, type StateResult } from './verdict/state';
 import { pageVerdict, VERDICT_ORDER } from './verdict/compare';
@@ -42,6 +43,9 @@ export interface RunInput {
   /** Extra notes shown as warnings in the report (e.g. assumptions made for this run). */
   notes?: string[];
 }
+
+/** Row reason when a user's browser never started: no page was opened for that user. */
+export const NOT_TESTED_BROWSER = 'not tested: the browser did not start';
 
 export interface RunOutcome {
   /** 0 all pass, 2 failures found, 1 run error, 130 cancelled. */
@@ -230,6 +234,8 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
       } catch (e) {
         if (e instanceof CancelledError) throw e;
         // One user's browser failing must not stop the others.
+        if (e instanceof BrowserStartError) return `${NOT_TESTED_BROWSER}: ${e.message}`;
+        log.error('user browser failed', e, { user: ut });
         return `browser failed: ${scrub((e as Error).message).split('\n')[0]}`;
       }
     });
@@ -248,6 +254,15 @@ export async function executeRun(input: RunInput, runId = newRunId(input.cfg.env
       }
     });
     log.info('all users done', { users: plan.testedTypes.length, parallel, ms: since(probeStarted) });
+    const label = (ut: string) => cfg.userTypes[ut]?.label ?? ut;
+    if (failedUsers.size === plan.testedTypes.length) {
+      // Nothing was opened for anyone: a report of all-Review rows would read like a permission result.
+      const why = [...new Set(failedUsers.values())][0]!;
+      return fail(`No pages were tested: ${why.replace(`${NOT_TESTED_BROWSER}: `, '')}. Nothing in AMP was checked. Click Test again; if it keeps happening, restart the tool (Ctrl+C, then npm start).`);
+    }
+    for (const [ut, why] of failedUsers) {
+      warnings.push(`${label(ut)} was not tested: ${why.replace(`${NOT_TESTED_BROWSER}: `, '')}. Its rows are marked Review and say nothing about permissions. Test again for this user type.`);
+    }
 
     // ④ Decide each page: did each user get usable content? (Rulebook Yes/No says how to read "not usable".)
     r.log('\n④ Deciding');

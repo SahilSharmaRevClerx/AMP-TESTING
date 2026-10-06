@@ -192,6 +192,7 @@ Opens every rulebook page **as each user** and decides whether that user got a u
 
 ### 5.2 How it opens pages
 - **Per user:** a fresh, separate browser profile, with the jwt set as an **HttpOnly** cookie for the site only.
+- **Browser start is retried:** Chromium occasionally dies while starting (seen on Windows right after a Setter run). Starting is tried up to 4 times, about 10 s in all, and every failed attempt is logged with Playwright's full message. If one user's browser still won't start, the report says that user was not tested. If no user's browser starts, the run stops with "No pages were tested" instead of writing a report where every page is Review. The Setter's role editor uses the same retry.
 - **The AMP frame first:** it loads AMP's main page, then takes a **"frame only" snapshot** (menu, header and notifications) so they can be ignored when judging page content.
 - **Each page in the same tab,** like clicking a menu item. It waits until the page has **finished loading**:
   - nothing on screen has changed for ~0.8 s;
@@ -284,6 +285,7 @@ The question is **"did this user get a usable page?"**, not "does it look like s
 | `src/run.ts` | Pages Testing engine (shared by UI, CLI and the setter's check as users) |
 | `src/rulebook/parse.ts` | `.xlsx` / `.csv` reader, header search, value-based column detection |
 | `src/probe/browser.ts`, `src/probe/menu.ts` | Playwright page probe (wait-until-loaded, evidence, screenshots) and menu reader |
+| `src/probe/launch.ts` | Starts Chromium for both modules, with retries and full error logging |
 | `src/verdict/*` | Page state, AMP frame, reference view, verdict |
 | `src/report/write.ts` | Pages report |
 | `src/setter/sliders.ts` | Page → module → permission table (from AMP's `Module.HasModuleAccess`) and the per-role plan |
@@ -304,6 +306,7 @@ The question is **"did this user get a usable page?"**, not "does it look like s
 | `npm run e2e` | Pages Testing against a simulated AMP (every verdict scenario, write blocking, jwt leak scan, parallel users) |
 | `npm run e2e:ui` | The Pages wizard driven in a real browser |
 | `npm run e2e:setter` | Setter against a fake AMP role editor and Navigation Layout. Covers: preview, apply + reopen, two roles in one run, the Navigation Layout whitelist, the check as the users, every-slider mode, and the AI review against a fake Gemini API |
+| `npm run e2e:browser-start` | Chromium unavailable: start is retried and logged, then the run stops with "No pages were tested" and writes no all-Review report |
 | `npm run e2e:handoff` | Apply → Verify in Pages Testing through the real server and a browser (the kept jwt is never exposed) |
 | `npm run typecheck` | TypeScript |
 

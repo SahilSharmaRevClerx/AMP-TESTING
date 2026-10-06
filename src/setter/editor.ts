@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { chromium, type Browser, type Page } from 'playwright';
+import type { Browser, Page } from 'playwright';
+import { startBrowser } from '../probe/launch';
 import { apiFuncsFromUrl, decideSetterRequest, isApiEndpoint, SETTER_WRITE_API } from '../safety/gate';
 import type { AuditLog } from '../util/audit';
 import type { Credentials } from '../types';
@@ -56,8 +57,9 @@ export class RoleEditor {
   }
 
   async open(creds: Credentials): Promise<void> {
-    this.browser = await chromium.launch({ headless: this.opts.headless });
-    const context = await this.browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const started = await startBrowser({ headless: this.opts.headless, context: { viewport: { width: 1440, height: 900 } }, who: USER });
+    this.browser = started.browser;
+    const context = started.context;
     await context.addCookies([
       { name: 'jwt', value: creds.jwt, url: this.origin, httpOnly: true, sameSite: 'Lax' },
       { name: 'X-CSRF-Token', value: creds.csrf, url: this.origin, sameSite: 'Lax' },
