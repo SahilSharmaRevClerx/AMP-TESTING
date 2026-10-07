@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Permission Testing Platform</title>
+<title>QA Studio</title>
 <style>
 :root{
   --bg:#f4f6fa;--fg:#161a22;--muted:#5d6472;--card:#fff;--line:#e1e5ec;--input:#fff;--code:#eef1f6;
@@ -321,7 +321,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
 <header class="top"><div class="in">
   <button class="brand" id="go-home" title="Home">
     <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></span>
-    Permission Testing
+    QA Studio
   </button>
   <span class="sp"></span>
   <button class="link" id="go-history">Past runs</button>
@@ -365,7 +365,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
     <div class="scene-in">
       <div class="reveal"><div class="hero-mark"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></div></div>
       <span class="eyebrow reveal" style="--d:.12s">AMP · Role-based access</span>
-      <h1 class="reveal" style="--d:.24s">Welcome to the <span class="grad">Permission Testing Platform</span></h1>
+      <h1 class="reveal" style="--d:.24s">Welcome to <span class="grad">QA Studio</span></h1>
       <p class="lead reveal" style="--d:.38s">Check which pages each user type can open on any AMP environment — automatically, read-only, with screenshot proof for every result.</p>
     </div>
     <button class="scroll-cue reveal" style="--d:.7s" data-go="scene-2"><span class="mouse"></span>Scroll to see how it works</button>
@@ -606,6 +606,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
   var ICONS = {
     pages: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M9.5 14.5l1.8 1.8 3.5-3.6"/></svg>',
     setter: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
+    mcp: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4M15 3v4M7 7h10v4a5 5 0 01-10 0zM12 16v5"/></svg>',
     more: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>'
   };
   var MODULES = [
@@ -615,6 +616,9 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
     { id: 'pages', title: 'AMP Pages Testing', category: 'Step 2 · Verify', status: 'ready', icon: ICONS.pages,
       desc: 'Checks which pages each user type can open on an AMP site, against your rulebook, with screenshot proof for every result.',
       tags: ['Rulebook', 'jwt per user', 'Screenshots'], open: function () { show('welcome'); } },
+    { id: 'mcp', title: 'MCP Connector Health', category: 'Step 3 · Connectors', status: 'ready', icon: ICONS.mcp,
+      desc: 'Checks every MCP connector the AIRA workflows depend on: which are broken, which just need a reconnect, and which workflow nodes call a tool that does not exist.',
+      tags: ['jwt per account', 'Read-only', 'Tool lists'], open: function () { location.href = '/mcp'; } },
     { id: 'more', title: 'More testing modules', category: 'Platform', status: 'soon', icon: ICONS.more,
       desc: 'New kinds of AMP tests will appear here as cards when they are added.', tags: ['Roadmap'] }
   ];
