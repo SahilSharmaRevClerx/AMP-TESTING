@@ -528,6 +528,10 @@ export interface CliOptions {
   limit?: number;
   dryRun?: boolean;
   headed?: boolean;
+  /** MCP only: repeatable KEY=jwt-file. */
+  account?: string[];
+  /** MCP only: pause between AMP calls in ms. */
+  delayMs?: number;
 }
 
 async function cliSetup(opts: CliOptions) {

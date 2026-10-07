@@ -75,3 +75,46 @@ describe('RequestGate (tool requests)', () => {
     expect(log).toContain('"decision":"blocked"');
   });
 });
+
+describe('RequestGate (P08 MCP Connector Health, Phase 0 read-only)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'gate-mcp-'));
+  const audit = new AuditLog(join(dir, 'audit.jsonl'));
+  const gate = new RequestGate({ name: 'AISB', baseUrl: `https://${HOST}`, isProduction: false }, 0, audit);
+
+  it.each(['getmcpservers', 'getmcpservertools'])('allows POST api.ashx?func=%s', (f) => {
+    expect(gate.checkToolRequest('POST', new URL(api(f)))).toBeNull();
+  });
+
+  it.each([
+    'savemcpserver',
+    'deletemcpserver',
+    'callmcptools',
+    'CallMCPTools',
+    'approvemcptool',
+    'ApproveMCPTool',
+    'mcptoolpermission',
+    'savemptoolpermission',
+    'getmcptoolpermission',
+  ])('keeps POST api.ashx?func=%s blocked in Phase 0', (f) => {
+    expect(gate.checkToolRequest('POST', new URL(api(f)))).toMatch(/not allow-listed/);
+  });
+
+  it('keeps GET /api/<Func> blocked for the tool (including the MCP reads)', () => {
+    expect(gate.checkToolRequest('GET', new URL(`https://${HOST}/api/GetMCPServers`))).toMatch(/GET to api endpoint/);
+    expect(gate.checkToolRequest('GET', new URL(`https://${HOST}/api/GetMCPServerTools`))).toMatch(/GET to api endpoint/);
+  });
+
+  it('keeps POST /api/<Func> blocked for the tool (route proof pending, P08 T1)', () => {
+    expect(gate.checkToolRequest('POST', new URL(`https://${HOST}/api/GetMCPServers`))).toMatch(/POST only allowed/);
+    expect(gate.checkToolRequest('POST', new URL(`https://${HOST}/api/GetMCPServerTools`))).toMatch(/POST only allowed/);
+  });
+
+  it('allows the workflow-list GETs the module reads (no login required on AMP)', () => {
+    expect(gate.checkToolRequest('GET', new URL(`https://${HOST}/api/elsa-agents/workflow-definitions`))).toBeNull();
+    expect(gate.checkToolRequest('GET', new URL(`https://${HOST}/api/elsa-agents/workflow-definitions/abc123`))).toBeNull();
+  });
+
+  it.each(['POST', 'PUT', 'DELETE'])('keeps %s to /api/elsa-agents blocked', (m) => {
+    expect(gate.checkToolRequest(m, new URL(`https://${HOST}/api/elsa-agents/workflow-definitions`))).not.toBeNull();
+  });
+});

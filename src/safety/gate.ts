@@ -12,10 +12,16 @@ export class SafetyError extends Error {
 }
 
 /**
- * The only AMP APIs the tool itself may call directly (both read-only). The Navigation Layout module
- * list is used by the Permission Setter: only Site/Super Admins may call it.
+ * The only AMP APIs the tool itself may call directly (all read-only). The Navigation Layout module
+ * list is used by the Permission Setter: only Site/Super Admins may call it. The getmcpservers /
+ * getmcpservertools pair is used by the MCP Connector Health module (P08, Phase 0, read-only):
+ * listing servers this user can see, then asking AMP to connect live and list each server's tools.
+ * NOTE (P08 T1 pending): the live route proof (notes/repro-muse/mcp-route-proof.ts) has not been
+ * run by the user yet. These names are allow-listed for POST /services/api.ashx?func= only. If the
+ * proof shows AMP does not serve them via api.ashx, a follow-up packet may add a narrow rule for
+ * POST /api/<these two names>; nothing else is loosened here.
  */
-export const TOOL_API_ALLOWLIST = new Set(['getpermissiondataforuser', 'getmodulesfornavigationlayout', 'getmodulesettingdata']);
+export const TOOL_API_ALLOWLIST = new Set(['getpermissiondataforuser', 'getmodulesfornavigationlayout', 'getmodulesettingdata', 'getmcpservers', 'getmcpservertools']);
 
 /** API name prefixes that only read data. Anything else is treated as a write. */
 const READ_PREFIX = /^(get|load|check|has|is|can|search|find|fetch|list|count|view|lookup|preview|verify)/;
