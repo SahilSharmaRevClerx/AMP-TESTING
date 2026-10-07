@@ -53,6 +53,57 @@ export const PARTNER_SUB_LINK = 'setup/roles/overview';
 
 export const received: { user: User | null; method: string; path: string; func?: string; at: number }[] = [];
 
+/** MCP Connector Health fixtures (P08 T7 / P10 T7): a healthy server, a dead host, a rejected key, a not-connected server. */
+const MCP_FIXTURES = [
+  { id: 4, name: 'Healthy MCP', adminScopes: ['company', 'org', 'user'], partnerScopes: ['company', 'org', 'user'] },
+  { id: 5, name: 'Key MCP', adminScopes: ['company', 'org', 'user'], partnerScopes: ['company', 'org'] },
+  { id: 6, name: 'Dead MCP', adminScopes: ['company'], partnerScopes: [] },
+  { id: 8, name: 'OAuth MCP', adminScopes: ['company', 'org'], partnerScopes: [] },
+];
+
+/** Calls to GetMCPServerTools(4) so far: the second call lists one more tool, so a second run shows "changes". */
+let healthyToolCalls = 0;
+
+function mcpToolList(id: number): unknown {
+  if (id === 4) {
+    healthyToolCalls += 1;
+    const tools = [
+      { name: 'good_tool', description: 'a good tool', inputSchema: {}, permission: 'allow', readOnly: true },
+    ];
+    if (healthyToolCalls > 1) tools.push({ name: 'new_tool', description: 'a new tool', inputSchema: {}, permission: 'allow', readOnly: true });
+    return { tools };
+  }
+  if (id === 5) return { error: 'The server rejected the key in Headers' };
+  if (id === 6) return { error: 'No such host is known for this tunnel' };
+  if (id === 8) return { error: 'this server is not connected to your account' };
+  return { error: 'not connected to your account' };
+}
+
+const mcpLiteral = (value: unknown) => ({ expression: { type: 'Literal', value } });
+
+const MCP_WORKFLOWS = [
+  { definitionId: 'w1', name: 'WF Orders' },
+  { definitionId: 'w2', name: 'WF Support' },
+];
+
+function mcpWorkflowDetail(id: string): unknown {
+  if (id === 'w1') {
+    return {
+      activities: [
+        { type: 'ElsaServer.Activities.GmailMCP', inputs: { mcpServerId: mcpLiteral(4), toolName: mcpLiteral('good_tool') } },
+        { type: 'ElsaServer.Activities.GmailMCP', inputs: { mcpServerId: mcpLiteral(4), toolName: mcpLiteral('missing_tool') } },
+      ],
+    };
+  }
+  return {
+    activities: [
+      { type: 'ElsaServer.Activities.GmailMCP', inputs: { mcpServerId: mcpLiteral(99), toolName: mcpLiteral('t') } },
+      { type: 'ElsaServer.Activities.GmailMCP', inputs: { toolName: mcpLiteral('no_server_tool') } },
+      { type: 'Elsa.HttpWebRequest', inputs: {} },
+    ],
+  };
+}
+
 function cookiesOf(req: IncomingMessage): Record<string, string> {
   return Object.fromEntries(
     (req.headers.cookie ?? '').split(';').map((c) => c.trim().split('=')).filter((p) => p.length === 2) as [string, string][],
@@ -114,7 +165,45 @@ export function startFakeAmp(): Promise<{ server: Server; baseUrl: string }> {
     if (path === '/leak-probe') return send(204, '');
     if (path === '/login') return send(200, '<h1>Login</h1>');
     if (path === '/noaccess') return send(200, NOACCESS);
+
+    // MCP workflow graphs need no login on AMP (security finding); mirror that here.
+    if (req.method === 'GET' && path === '/api/elsa-agents/workflow-definitions') {
+      return send(200, JSON.stringify(MCP_WORKFLOWS), 'application/json');
+    }
+    const wfDetail = /^\/api\/elsa-agents\/workflow-definitions\/([\w-]+)$/.exec(path);
+    if (req.method === 'GET' && wfDetail) {
+      const wf = MCP_WORKFLOWS.find((w) => w.definitionId === wfDetail[1]);
+      if (!wf) return send(404, '');
+      return send(200, JSON.stringify(mcpWorkflowDetail(wf.definitionId)), 'application/json');
+    }
+
     if (!user) return send(302, '', 'text/html', { Location: '/login' });
+
+    // MCP reads via api.ashx?func= (the route form the tool uses) or POST /api/<Func>.
+    const mcpFunc = path === '/services/api.ashx' ? (func === 'getmcpservers' || func === 'getmcpservertools' ? func : null) : /^\/api\/(getmcpservers|getmcpservertools)$/i.exec(path)?.[1]?.toLowerCase() ?? null;
+    if (req.method === 'POST' && mcpFunc) {
+      let bodyText = '';
+      req.on('data', (c: Buffer) => (bodyText += c));
+      req.on('end', () => {
+        let body: { scope?: unknown; mcpServerId?: unknown } = {};
+        try {
+          body = JSON.parse(bodyText || '{}');
+        } catch {
+          /* empty */
+        }
+        const csrfCookie = cookiesOf(req)['X-CSRF-Token'];
+        if (!csrfCookie || req.headers['x-csrf-token'] !== csrfCookie) {
+          return send(200, JSON.stringify({ status: 3, result: { code: 'c', message: 'CSRF mismatch' } }), 'application/json');
+        }
+        if (mcpFunc === 'getmcpservers') {
+          const scope = typeof body.scope === 'string' ? body.scope : 'company';
+          const list = MCP_FIXTURES.filter((s) => (user === 'admin' ? s.adminScopes : s.partnerScopes).includes(scope)).map((s) => ({ id: s.id, name: s.name }));
+          return send(200, JSON.stringify({ result: list }), 'application/json');
+        }
+        return send(200, JSON.stringify(mcpToolList(Number(body.mcpServerId))), 'application/json');
+      });
+      return;
+    }
 
     if (path === '/services/api.ashx') {
       if (req.method !== 'POST') return send(405, '');
