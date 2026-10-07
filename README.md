@@ -1,4 +1,4 @@
-# AMP Permission Testing
+# AMP QA Studio
 
 A standalone tool that checks, for every user type, which AMP pages **actually open**, compares that with an expected-access rulebook, and produces a report with screenshot evidence for tester review.
 
