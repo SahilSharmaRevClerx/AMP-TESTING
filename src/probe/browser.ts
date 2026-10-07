@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { chromium, type Browser, type BrowserContext, type Page, type Request, type Response } from 'playwright';
+import type { Browser, BrowserContext, Page, Request, Response } from 'playwright';
+import { startBrowser } from './launch';
 import { apiFuncsFromUrl, decideBrowserRequest, isApiEndpoint } from '../safety/gate';
 import type { AuditLog } from '../util/audit';
 import type { ApiCall, Credentials, PageEvidence, RunConfig } from '../types';
@@ -58,9 +59,14 @@ export class BrowserProbe {
   /** Starts the browser, sets the user's cookies and loads the AMP shell. Returns an error string on failure. */
   async open(creds: Credentials): Promise<string | null> {
     const started = Date.now();
-    this.browser = await chromium.launch({ headless: this.cfg.headless });
+    const { browser, context } = await startBrowser({
+      headless: this.cfg.headless,
+      context: { viewport: { width: 1440, height: 900 }, ignoreHTTPSErrors: false },
+      who: this.userType,
+    });
+    this.browser = browser;
+    this.context = context;
     log.debug('chromium launched', { user: this.userType, headless: this.cfg.headless, version: this.browser.version(), ms: since(started) });
-    this.context = await this.browser.newContext({ viewport: { width: 1440, height: 900 }, ignoreHTTPSErrors: false });
     // The jwt is HttpOnly (as AMP sets it): scripts on the page, including third-party ones
     // loaded by AMP pages, cannot read it; it is only sent to this exact host.
     // The CSRF cookie must stay readable: AMP's own JavaScript copies it into the X-CSRF-Token header.

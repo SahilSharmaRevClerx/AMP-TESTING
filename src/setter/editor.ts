@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { chromium, type Browser, type Page } from 'playwright';
+import type { Browser, Page } from 'playwright';
+import { startBrowser } from '../probe/launch';
 import { apiFuncsFromUrl, decideSetterRequest, isApiEndpoint, SETTER_WRITE_API } from '../safety/gate';
 import type { AuditLog } from '../util/audit';
 import type { Credentials } from '../types';
@@ -56,8 +57,9 @@ export class RoleEditor {
   }
 
   async open(creds: Credentials): Promise<void> {
-    this.browser = await chromium.launch({ headless: this.opts.headless });
-    const context = await this.browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const started = await startBrowser({ headless: this.opts.headless, context: { viewport: { width: 1440, height: 900 } }, who: USER });
+    this.browser = started.browser;
+    const context = started.context;
     await context.addCookies([
       { name: 'jwt', value: creds.jwt, url: this.origin, httpOnly: true, sameSite: 'Lax' },
       { name: 'X-CSRF-Token', value: creds.csrf, url: this.origin, sameSite: 'Lax' },
@@ -334,6 +336,63 @@ export class RoleEditor {
   async scrollTo(grid: Grid, id: number): Promise<void> {
     await this.page!.locator(`#${grid}gridrecorditem${id}`).first().scrollIntoViewIfNeeded().catch(() => undefined);
     await this.page!.waitForTimeout(Math.min(500, this.opts.stepDelayMs));
+  }
+
+  /** The configured pause between steps (also used between Navigation Layout changes). */
+  async pauseStep(): Promise<void> {
+    await this.pause();
+  }
+
+  /**
+   * Calls an AMP API from inside AMP's own page, exactly as AMP's JavaScript does (same session,
+   * X-CSRF-Token header from the cookie). Requests still pass the browser safety gate.
+   */
+  async api(func: string, body: unknown): Promise<{ http: number; status?: number; result?: unknown }> {
+    const page = this.page!;
+    if (!page.url().startsWith(this.origin)) {
+      await page.goto(`${this.origin}/#setup/navigationlayout`, { waitUntil: 'domcontentloaded', timeout: this.opts.timeoutMs });
+      await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => undefined);
+    }
+    return page.evaluate(
+      async ({ func, body }) => {
+        const m = /(?:^|;\s*)X-CSRF-Token=([^;]+)/.exec(document.cookie);
+        const res = await fetch('/api/' + func, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json; charset=utf-8', 'X-CSRF-Token': m ? decodeURIComponent(m[1]!) : '' },
+          body: JSON.stringify(body),
+        });
+        const j = (await res.json().catch(() => null)) as { status?: number; result?: unknown } | null;
+        return { http: res.status, status: j?.status, result: j?.result };
+      },
+      { func, body },
+    );
+  }
+
+  /**
+   * Screenshot of a module's Navigation Layout settings, Users tab (who it is shown to): opens
+   * Setup → Navigation Layout fresh and clicks the module's settings cog, as a person would.
+   */
+  async shotNavSettings(dir: string, name: string, moduleId: number): Promise<string | null> {
+    const page = this.page!;
+    try {
+      await page.goto('about:blank');
+      await page.goto(`${this.origin}/#setup/navigationlayout`, { waitUntil: 'domcontentloaded', timeout: this.opts.timeoutMs });
+      const cog = `#nestable-modules-added li.dd3-item[data-id="${moduleId}"] > .dd3-content > .manage-module-settings`;
+      await page.waitForSelector(cog, { state: 'attached', timeout: this.opts.timeoutMs });
+      await this.pause();
+      // The cog may sit inside a collapsed group: trigger AMP's own (jQuery) click handler.
+      await page.evaluate((sel) => {
+        const jq = (window as unknown as { jQuery: (s: string) => { trigger: (e: string) => void } }).jQuery;
+        jq(sel).trigger('click');
+      }, cog);
+      await page.locator("li[id$='_users_li'] a").first().click({ timeout: this.opts.timeoutMs });
+      await page.waitForSelector("[id$='_users'] tr[data-recordid]", { timeout: this.opts.timeoutMs }).catch(() => undefined);
+      await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => undefined);
+      await this.pause();
+      return await this.screenshot(dir, name);
+    } catch {
+      return this.screenshot(dir, name);
+    }
   }
 
   /** Shows a tab of the open role (for screenshots). */

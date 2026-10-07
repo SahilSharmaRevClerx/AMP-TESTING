@@ -32,9 +32,31 @@ export function freshRoles(): RoleState[] {
 
 export let roles = freshRoles();
 export const saves: { roleid: number; body: unknown }[] = [];
+
+/** Company users (Navigation Layout → Users tab). Only the Super Admin and the "User" have jwts. */
+export const COMPANY_USERS = [
+  { id: 1, email: 'sahil@revclerx.com', firstname: 'sahil', lastname: 'sharma' },
+  { id: 2, email: 'ayushmaan@revclerx.com', firstname: 'Ayushmaan', lastname: '' },
+  { id: 3, email: 'anmol.sethi@revclerx.com', firstname: 'Anmol', lastname: 'Sethi' },
+];
+/** Navigation Layout "Shown to" per module id: display + linked user ids (a whitelist when "specific"). */
+export let navSettings: Record<number, { display: string; links: Set<number> }> = {};
+export const navWrites: { func: string; body: unknown }[] = [];
+
 export function resetRoles(): void {
   roles = freshRoles();
   saves.length = 0;
+  navSettings = { 4: { display: 'all', links: new Set() } };
+  navWrites.length = 0;
+}
+resetRoles();
+
+/** Like Module.CustomModuleAccess: "specific" = only linked users (Super Admins too), "hidden" = nobody. */
+export function navAllows(moduleId: number, userId: number): boolean {
+  const n = navSettings[moduleId];
+  if (!n || n.display === 'all') return true;
+  if (n.display === 'specific') return n.links.has(userId);
+  return false;
 }
 
 const LABELS: Record<string, string> = { 'media:32': 'Email Campaigns', 'media:16777216': 'Playbooks', 'system:100': 'Platform Users', 'system:600': 'Contacts', 'system:1700': 'Opportunity' };
@@ -43,6 +65,7 @@ const MODULES = [
   { id: 1, name: 'Internal Playbook', url: 'collateral/internal-playbook', isgroup: false },
   { id: 2, name: 'Opportunities', url: 'manage/opportunity-records', isgroup: false },
   { id: 3, name: 'Dashboard', url: 'dashboard', isgroup: false },
+  { id: 4, name: 'Contacts', url: 'connections/contacts', isgroup: false },
 ];
 
 function cookies(req: IncomingMessage): Record<string, string> {
@@ -65,7 +88,7 @@ function call(f, body){ return fetch('/api/' + f, { method: 'POST', headers: { '
 // Minimal jQuery: only what the setter uses ($(sel).slider('value'[, v]) and .length).
 window.jQuery = function (sel) {
   var el = typeof sel === 'string' ? document.querySelector(sel) : sel;
-  return { length: el ? 1 : 0, slider: function (m, v) {
+  return { length: el ? 1 : 0, trigger: function (e) { if (el && e === 'click') el.click(); }, slider: function (m, v) {
     if (v === undefined) return Number(el.getAttribute('data-v'));
     el.setAttribute('data-v', v);
     el.querySelector('.fill').style.width = (v / 10 * 100) + '%';
@@ -100,10 +123,21 @@ function openRole(id){
     };
   });
 }
+function navPage(){
+  document.getElementById('content').innerHTML = '<ol id="nestable-modules-added"><li class="dd-item dd3-item" data-id="4" data-name="Contacts"><div class="dd3-content">Contacts <span class="manage-module-settings" id="4">cog</span></div></li></ol>';
+  document.querySelector('.manage-module-settings').onclick = function(){
+    call('GetModuleSettingData', { type: 2, moduleId: 4 }).then(function(r){
+      var m = document.getElementById('modal'); m.style.display = 'block';
+      m.innerHTML = '<ul><li id="rid_users_li"><a href="javascript:void 0">Users</a></li></ul><div id="rid_users"><table>' + r.result.item.map(function(u){
+        return '<tr data-recordid="' + u.id + '"><td>' + u.email + '</td><td>' + (u.selected === '1' ? 'Shown' : 'Hidden') + '</td></tr>'; }).join('') + '</table></div>';
+    });
+  };
+}
 function load(){
   var h = location.hash.replace(/^#/, ''); if (!h) return;
   // Like AMP: navigating does not close an open role editor.
   if (h === 'setup/roles' && USER === 'sa') return rolesPage();
+  if (h === 'setup/navigationlayout' && USER === 'sa') return navPage();
   fetch('/' + h).then(function(r){ return r.text(); }).then(function(t){ document.getElementById('content').innerHTML = t; });
 }
 window.addEventListener('hashchange', load); load();
@@ -133,7 +167,30 @@ export function startFakeRolesAmp(): Promise<{ server: Server; baseUrl: string }
         const csrf = cookies(req)['X-CSRF-Token'];
         if (!csrf || req.headers['x-csrf-token'] !== csrf) return json({ code: 'c', message: 'CSRF mismatch' }, 3);
         if (func === 'getpermissiondataforuser') return json(user === 'sa' ? { userName: 'sahil sharma', isSiteAdmin: false, userCompanyName: 'Rev Sparks' } : { userName: 'Ayushmaan', isSiteAdmin: false, userCompanyName: 'Rev Sparks' });
-        if (func === 'getmodulesfornavigationlayout') return user === 'sa' ? json({ modulesArray: MODULES }) : json({ code: 'x', message: 'only site admin user can add/ update modules' }, 3);
+        if (func === 'getmodulesfornavigationlayout') return user === 'sa' ? json({ modulesArray: MODULES.map((m) => ({ ...m, level: navSettings[m.id]?.display ?? 'all' })) }) : json({ code: 'x', message: 'only site admin user can add/ update modules' }, 3);
+        if (func === 'getmodulesettingdata' && user === 'sa') {
+          const n = navSettings[Number(body.moduleId)] ?? { display: 'all', links: new Set<number>() };
+          return json({ item: COMPANY_USERS.map((u) => ({ ...u, friendlyname: `${u.firstname} ${u.lastname}`.trim(), selected: n.links.has(u.id) ? '1' : '0' })), row_count: COMPANY_USERS.length });
+        }
+        if (func === 'togglemodulesettinglink' && user === 'sa') {
+          navWrites.push({ func, body });
+          const n = (navSettings[Number(body.moduleid)] ??= { display: 'all', links: new Set() });
+          const id = Number(body.linktoid);
+          if (n.links.has(id)) n.links.delete(id);
+          else n.links.add(id);
+          // Like ToggleModuleSettingLink: with a settings row, the display follows the link count.
+          n.display = n.links.size ? 'specific' : 'all';
+          return json(true);
+        }
+        if (func === 'updatemodulesetting' && user === 'sa') {
+          navWrites.push({ func, body });
+          const n = (navSettings[Number(body.moduleId)] ??= { display: 'all', links: new Set() });
+          const display = body.configurationval?.items?.[0]?.permissions?.[0]?.display;
+          if (display === 'specific' && !n.links.size) return json({ status: false, errors: ['NO_SETTINGS_ADDED'] });
+          n.display = display;
+          if (display !== 'specific') n.links.clear();
+          return json({ status: true, errors: [] });
+        }
         if (user !== 'sa') return json({ rows: [1] });
         if (func === 'getroles') return json({ item: roles.map((r) => ({ id: r.id, name: r.name })), row_count: roles.length });
         if (func === 'getrolesdata') {
@@ -156,6 +213,11 @@ export function startFakeRolesAmp(): Promise<{ server: Server; baseUrl: string }
       const mine = roles.find((r) => r.name === 'Ayush Normal')!;
       const allowed = (route: string) => user === 'sa' || (route === 'collateral/internal-playbook' ? mine.media['16777216']! >= 1 : route === 'manage/opportunity-records' ? mine.system['1700']! >= 1 : false);
       const route = path.slice(1);
+      if (route === 'connections/contacts') {
+        const uid = user === 'sa' ? 1 : 2;
+        if (!navAllows(4, uid)) return send(302, '', 'text/html', { Location: '/noaccess' });
+        return send(200, '<div id="contacts-grid"><h2>Contacts</h2><table id="t-contacts"><tr><td>data</td></tr></table></div>');
+      }
       if (route === 'collateral/internal-playbook' || route === 'manage/opportunity-records') {
         if (!allowed(route)) return send(302, '', 'text/html', { Location: '/noaccess' });
         return send(200, `<div id="${route.replace(/\//g, '-')}-grid"><h2>${route}</h2><table id="t-${route.replace(/\//g, '-')}"><tr><td>data</td></tr></table></div>`);

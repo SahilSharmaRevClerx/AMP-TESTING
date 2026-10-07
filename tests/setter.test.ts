@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { rulebookFromRows } from '../src/rulebook/parse';
 import { findModule, planRole, targetFor, type AmpModule } from '../src/setter/sliders';
 import { parseModules } from '../src/setter/session';
+import { matchUser, navChanges, planNavigation } from '../src/setter/nav';
 import { decideSetterRequest } from '../src/safety/gate';
 
 const MODULES: AmpModule[] = [
@@ -91,7 +92,7 @@ describe('permission setter: target values', () => {
 describe('permission setter: AMP module list', () => {
   it('keeps modules, skips groups', () => {
     const m = parseModules([{ id: 2, name: 'Email', url: 'campaign/email', defaultlocalization: 'Email' }, { id: 9, name: 'Group', isgroup: true }, null]);
-    expect(m).toEqual([{ id: 2, name: 'Email', url: 'campaign/email', label: 'Email', custom: false }]);
+    expect(m).toEqual([{ id: 2, name: 'Email', url: 'campaign/email', label: 'Email', custom: false, level: undefined }]);
   });
 
   it('a Yes on drip also turns on the Advanced "drip" option its data needs; a No only lowers the sliders', () => {
@@ -151,5 +152,56 @@ describe('permission setter: set every slider', () => {
     expect(targetFor(w, 0)).toBe(1);
     expect(targetFor(w, 4)).toBe(1);
     expect(targetFor(w, 1)).toBeNull();
+  });
+});
+
+describe('permission setter: Navigation Layout step', () => {
+  const users = [
+    { id: 1, email: 'sahil@revclerx.com', name: 'sahil sharma', linked: false },
+    { id: 2, email: 'ayushmaan@revclerx.com', name: 'Ayushmaan', linked: false },
+    { id: 3, email: 'anmol.sethi@revclerx.com', name: 'Anmol Sethi', linked: false },
+  ];
+  const mods = [{ id: 4, name: 'Contacts', url: 'connections/contacts' }, { id: 5, name: 'Lists', url: 'connections/lists' }, { id: 6, name: 'Email', url: 'communicate/email' }];
+  const rb = rulebookFromRows([
+    ['page', 'CM', 'PS'],
+    ['#connections/contacts', 'Yes', 'No'],
+    ['#connections/lists', 'No', 'No'],
+    ['#communicate/email', 'Yes', 'No'],
+  ]);
+  const plans = ['cm', 'ps'].map((c) => planRole(rb, c, 'R', mods));
+  const cols = [
+    { column: 'cm', label: 'CM', hint: 'ayushmaan@revclerx.com', user: { id: 2, email: 'ayushmaan@revclerx.com', name: 'Ayushmaan' } },
+    { column: 'ps', label: 'PS', hint: 'Sethi Anmol', user: { id: 3, email: 'anmol.sethi@revclerx.com', name: 'Anmol Sethi' } },
+  ];
+
+  it('finds a user by email or by name in either order', () => {
+    expect(matchUser('ANMOL.SETHI@revclerx.com', users).user?.id).toBe(3);
+    expect(matchUser('Sethi, Anmol', users).user?.id).toBe(3);
+    expect(matchUser('nobody', users).problem).toMatch(/no user called/);
+  });
+
+  it('only modules role sliders cannot hide, and only where someone must not see them', () => {
+    const nav = planNavigation(plans, mods, cols);
+    expect(nav.map((m) => m.moduleName)).toEqual(['Contacts', 'Lists']);
+    expect(nav[0]).toMatchObject({ hideFrom: ['ps'], showTo: ['cm'] });
+    expect(nav[1]).toMatchObject({ hideFrom: ['cm', 'ps'], showTo: [] });
+  });
+
+  it('from "all": everyone except the hidden users stays linked (the rest of the company keeps it)', () => {
+    const [contacts, lists] = planNavigation(plans, mods, cols);
+    expect(navChanges(contacts!, users, cols, 'all').add!.map((u) => u.id)).toEqual([1, 2]);
+    expect(navChanges(lists!, users, cols, 'all').shownTo).toEqual(['sahil sharma']);
+  });
+
+  it('from "specific": keeps the current whitelist, minus the hidden users, plus the shown ones', () => {
+    const [contacts] = planNavigation(plans, mods, cols);
+    const now = users.map((u) => ({ ...u, linked: u.id !== 2 }));
+    const ch = navChanges(contacts!, now, cols, 'specific');
+    expect(ch.add!.map((u) => u.id)).toEqual([2]);
+    expect(ch.remove!.map((u) => u.id)).toEqual([3]);
+  });
+
+  it('a column whose user is unknown takes no part', () => {
+    expect(planNavigation(plans, mods, [cols[0]!])).toHaveLength(1);
   });
 });

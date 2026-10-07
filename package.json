@@ -18,7 +18,8 @@
     "e2e": "tsx tests/e2e/run-e2e.ts",
     "e2e:ui": "tsx tests/e2e/ui-e2e.ts",
     "e2e:setter": "tsx tests/e2e/setter-e2e.ts",
-    "e2e:handoff": "tsx tests/e2e/handoff-e2e.ts"
+    "e2e:handoff": "tsx tests/e2e/handoff-e2e.ts",
+    "e2e:browser-start": "tsx tests/e2e/browser-start-e2e.ts"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",

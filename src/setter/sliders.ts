@@ -34,6 +34,8 @@ export interface CannotRule {
   cannot: string;
   /** AMP shows it to every role anyway: a "Yes" needs nothing, only a "No" is out of reach. */
   alwaysOn?: string;
+  /** Navigation Layout → module → Settings can hide it from chosen users instead. */
+  nav?: true;
 }
 
 /** Display names of role-editor rows. */
@@ -87,6 +89,7 @@ const MARKETING_UI = feature(32);
 const CONTACTS_FORCED: CannotRule = {
   cannot: 'needs the Contacts permission, which AMP forces to full on every role (the row is hidden in the role editor); hide it with Navigation Layout settings instead',
   alwaysOn: 'nothing to set: AMP gives every role the Contacts permission',
+  nav: true,
 };
 
 /** Module name (lower case, as AMP's module list returns it) → what grants it. */
@@ -196,6 +199,8 @@ export interface AmpModule {
   label?: string;
   /** A company-made (custom) menu module. */
   custom?: boolean;
+  /** Navigation Layout "Shown to": all | specific | hidden. */
+  level?: string;
 }
 
 export function reqKey(r: Requirement): string {
@@ -238,6 +243,8 @@ export interface PagePlan {
   controls: string[];
   reason: string;
   note?: string;
+  /** Taken care of by the Navigation Layout step instead of role sliders. */
+  nav?: boolean;
 }
 
 /** What the rulebook wants from one role-editor control, before its current value is known. */

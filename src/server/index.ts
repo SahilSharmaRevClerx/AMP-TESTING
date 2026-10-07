@@ -17,6 +17,7 @@ import { checkSuperAdmin } from '../setter/session';
 import { executeSetter, newSetterRunId, planAll, type SetterOutcome } from '../setter/run';
 import { LEVELS } from '../setter/sliders';
 import { aiKeySet, aiModel } from '../setter/ai';
+import { prepareNavigation } from '../setter/navrun';
 
 const log = createLogger('server');
 
@@ -126,6 +127,20 @@ interface SetterBody {
   ai?: boolean;
   /** Pause after every step in AMP's role editor, in seconds. */
   stepDelaySec?: number;
+  /** Use Navigation Layout for pages role sliders can't hide (default on). */
+  navigation?: boolean;
+  /** Rulebook column → that column's AMP user (email or name), for Navigation Layout. */
+  userHints?: Record<string, string>;
+}
+
+/** Column → typed user (email or name), only for the rulebook's columns. */
+function userHintsFrom(body: SetterBody, rb: Rulebook): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const ut of rb.userTypes) {
+    const v = body.userHints?.[ut]?.trim();
+    if (v) out[ut] = v.slice(0, 200);
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- request shapes
@@ -549,7 +564,19 @@ async function handleSetter(path: string, body: SetterBody, res: ServerResponse)
       if (!admin.isAdmin) throw new HttpError(400, admin.reason ?? 'not a Super Admin');
       const rb = getRulebook(body.rulebookId ?? '').rulebook;
       const plans = planAll(rb, setterRoles(body, rb), admin.modules);
-      return send(res, 200, { plans, levels: LEVELS });
+      let navigation: unknown = null;
+      if (body.navigation !== false) {
+        const userCreds = new Map<string, Credentials>();
+        for (const ut of Object.keys(body.users ?? {})) if (body.users![ut]?.trim()) userCreds.set(ut, makeCredentials(body.users![ut]!));
+        try {
+          navigation = await prepareNavigation({ gate, creds, rulebook: rb, plans, modules: admin.modules, hints: userHintsFrom(body, rb), userCreds });
+        } catch (e) {
+          navigation = { nav: [], columnUsers: [], error: scrub((e as Error).message) };
+        } finally {
+          forgetSecrets([...userCreds.values()].flatMap((c) => [c.jwt, c.csrf]));
+        }
+      }
+      return send(res, 200, { plans, levels: LEVELS, navigation });
     } finally {
       forget();
     }
@@ -605,6 +632,7 @@ async function handleSetter(path: string, body: SetterBody, res: ServerResponse)
         stepDelayMs: body.stepDelaySec !== undefined ? clamp(body.stepDelaySec, 0.5, 10) * 1000 : undefined,
         verify: userCreds.size && loaded ? { creds: userCreds, outputDir: OUTPUT_DIR, debugDir: DEBUG_DIR, rulebookSource: { name: loaded.name, data: loaded.data }, waitSec: 5 } : undefined,
         ai: body.ai === true,
+        navigation: loaded && body.navigation !== false ? { enabled: true, hints: userHintsFrom(body, loaded.rulebook) } : undefined,
         outputRoot: SETTER_DIR,
         signal: state.controller.signal,
         log: (line) => {
