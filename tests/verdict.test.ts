@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { ApiCall, PageEvidence } from '../src/types';
-import { buildFrame, pickReference, type EvidenceByUser } from '../src/verdict/fingerprint';
-import { accessState, type Frame } from '../src/verdict/state';
-import { pageVerdict } from '../src/verdict/compare';
-import { duplicateIdentities } from '../src/sessions/validate';
+import type { ApiCall, PageEvidence } from '../src/modules/pages/types';
+import { buildFrame, pickReference, type EvidenceByUser } from '../src/modules/pages/verdict/fingerprint';
+import { accessState, type Frame } from '../src/modules/pages/verdict/state';
+import { pageVerdict } from '../src/modules/pages/verdict/compare';
+import { duplicateIdentities } from '../src/core/sessions/validate';
 
 describe('duplicateIdentities', () => {
   it('flags a later row logged in as the same person (same name, same org)', () => {

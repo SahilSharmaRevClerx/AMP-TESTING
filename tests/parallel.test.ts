@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { runLimited } from '../src/util/limit';
-import { buildConfig, effectiveParallelUsers } from '../src/config';
-import { planRun } from '../src/run';
-import { rulebookFromRows } from '../src/rulebook/parse';
+import { runLimited } from '../src/core/util/limit';
+import { buildConfig, effectiveParallelUsers } from '../src/modules/pages/config';
+import { planRun } from '../src/modules/pages/run';
+import { rulebookFromRows } from '../src/core/rulebook/parse';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 

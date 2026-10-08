@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bucketRank, classifyNode, classifyServerResponse, quotedStatus, unwrapResponse } from '../src/mcp/classify';
+import { bucketRank, classifyNode, classifyServerResponse, quotedStatus, unwrapResponse } from '../src/modules/mcp/classify';
 
 const tools = (...names: string[]) => ({ tools: names.map((name) => ({ name, description: 'd', inputSchema: {}, permission: 'x', readOnly: true })) });
 

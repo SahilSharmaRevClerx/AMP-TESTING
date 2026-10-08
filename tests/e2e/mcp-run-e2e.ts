@@ -71,7 +71,7 @@ async function main(): Promise<number> {
   let uiOut = '';
   const browser = await chromium.launch();
   try {
-    ui = spawn(process.execPath, ['--import', 'tsx', 'src/server/index.ts', '--no-open'], {
+    ui = spawn(process.execPath, ['--import', 'tsx', 'src/app/server.ts', '--no-open'], {
       env: { ...process.env, PORT: String(PORT) },
       stdio: ['ignore', 'pipe', 'pipe'],
     });

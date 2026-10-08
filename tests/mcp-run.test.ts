@@ -8,7 +8,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { runMcpHealth, type McpTransport } from '../src/mcp/run';
+import { runMcpHealth, type McpTransport } from '../src/modules/mcp/run';
 
 const JWT = 'stub-jwt-for-mcp-run-test-0123456789';
 
@@ -167,7 +167,7 @@ describe('Run screen details (progress, tally, timestamped log, tool description
 
   it('every progress event carries start time, account, stage times and facts; the tally ends at the final counts', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mcp-run-'));
-    const events: import('../src/mcp/run').McpProgress[] = [];
+    const events: import('../src/modules/mcp/run').McpProgress[] = [];
     const result = await runMcpHealth({
       environment: env, accounts: [{ key: 'default', jwt: JWT }, { key: 'second', jwt: JWT }], outputDir: dir,
       transport: () => stub(workflows, servers, withDescriptions), onProgress: (p) => events.push(p),

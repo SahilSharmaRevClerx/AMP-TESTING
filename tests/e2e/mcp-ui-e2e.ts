@@ -1,7 +1,7 @@
 /**
  * MCP Connector Health page e2e (P09 T-FE3). Follows tests/e2e/ui-e2e.ts.
  * The P08 T5 backend routes do not exist yet, so the page (served statically
- * from src/server/mcp.html) is driven against an in-process stub of the
+ * from src/modules/mcp/mcp.html) is driven against an in-process stub of the
  * /api/mcp/* contract with synthetic jwts. No real AMP, no real token.
  * Run: npm run e2e:mcp
  */
@@ -63,7 +63,7 @@ function stub(): Promise<{ server: Server; baseUrl: string }> {
       res.writeHead(code, { 'Content-Type': type });
       res.end(type === 'application/json' ? JSON.stringify(body) : String(body));
     };
-    if (url.pathname === '/mcp') return send(200, readFileSync(join(root, 'src', 'server', 'mcp.html'), 'utf8'), 'text/html');
+    if (url.pathname === '/mcp') return send(200, readFileSync(join(root, 'src', 'modules', 'mcp', 'mcp.html'), 'utf8'), 'text/html');
     if (url.pathname === '/api/mcp/check' && req.method === 'POST') {
       return send(200, { users: [{ key: 'default', ok: true, identity: { name: 'E2E User', persona: 'admin', company: 'E2E Co' } }] });
     }

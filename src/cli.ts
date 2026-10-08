@@ -1,8 +1,9 @@
-﻿import { commandCheck, commandMenu, commandRun, type CliOptions as RunOptions } from './run';
-import { commandMcp } from './mcp/run';
-import { SafetyError } from './safety/gate';
-import { scrub } from './util/mask';
-import { setLogLevel } from './util/logger';
+﻿import type { CliOptions as RunOptions } from './core/cli-options';
+import { commandCheck, commandMenu, commandRun } from './modules/pages/run';
+import { commandMcp } from './modules/mcp/run';
+import { SafetyError } from './core/safety/gate';
+import { scrub } from './core/util/mask';
+import { setLogLevel } from './core/util/logger';
 
 const USAGE = `AMP permission testing
 

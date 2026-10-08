@@ -5,7 +5,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { classifyServerResponse } from '../src/mcp/classify';
+import { classifyServerResponse } from '../src/modules/mcp/classify';
 
 const run = (error: string, extra: Record<string, unknown> = {}) => classifyServerResponse(200, { error, tools: [], ...extra }, true);
 const P = 'Could not list tools from the MCP server: ';

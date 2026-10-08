@@ -13,10 +13,10 @@ async function main(): Promise<number> {
   // Must be set before Playwright is loaded: no Chromium can be found, so every start attempt fails.
   process.env.PLAYWRIGHT_BROWSERS_PATH = resolve(outputDir, 'no-browsers-here');
 
-  const { commandRun } = await import('../../src/run');
-  const { setLogSink } = await import('../../src/util/logger');
+  const { commandRun } = await import('../../src/modules/pages/run');
+  const { setLogSink } = await import('../../src/core/util/logger');
   const { startFakeAmp, TOKENS } = await import('./fake-amp');
-  const { START_ATTEMPTS } = await import('../../src/probe/launch');
+  const { START_ATTEMPTS } = await import('../../src/core/browser/launch');
 
   const lines: string[] = [];
   setLogSink((l) => void lines.push(l));

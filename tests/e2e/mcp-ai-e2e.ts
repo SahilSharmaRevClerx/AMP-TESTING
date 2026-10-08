@@ -52,7 +52,7 @@ function startGeminiStub(): Promise<{ server: Server; baseUrl: string }> {
 }
 
 async function startServer(port: number, extraEnv: Record<string, string> = {}): Promise<{ ui: ChildProcess; out: () => string; base: string }> {
-  const ui = spawn(process.execPath, ['--import', 'tsx', 'src/server/index.ts', '--no-open'], {
+  const ui = spawn(process.execPath, ['--import', 'tsx', 'src/app/server.ts', '--no-open'], {
     env: { ...process.env, PORT: String(port), ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractMcpNodes } from '../src/mcp/nodes';
+import { extractMcpNodes } from '../src/modules/mcp/nodes';
 
 const literal = (value: unknown) => ({ expression: { type: 'Literal', value } });
 

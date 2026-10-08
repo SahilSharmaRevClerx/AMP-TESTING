@@ -15,7 +15,7 @@ const UI = `http://127.0.0.1:${PORT}`;
 
 async function main(): Promise<number> {
   const { server: amp, baseUrl } = await startFakeAmp();
-  const ui = spawn(process.execPath, ['--import', 'tsx', 'src/server/index.ts', '--no-open'], {
+  const ui = spawn(process.execPath, ['--import', 'tsx', 'src/app/server.ts', '--no-open'], {
     env: { ...process.env, PORT: String(PORT) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -92,6 +92,7 @@ async function main(): Promise<number> {
     await page.click('#view-grid');
     await page.click('#mod-pages');
     await page.waitForSelector('#screen-welcome:not([hidden]) #btn-mods');
+    if (new URL(page.url()).pathname !== '/pages') failures.push('home: Launch on AMP Pages Testing should open /pages');
     await page.click('#btn-mods'); // back to the module picker, then in again
     await page.waitForSelector('#screen-hub:not([hidden])');
     await page.click('#mod-pages');

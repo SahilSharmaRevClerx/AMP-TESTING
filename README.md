@@ -32,7 +32,7 @@ npm start              # or: npm run start:debug  (detailed logs)
 
 This opens `http://127.0.0.1:4545`. After any code update, restart (`Ctrl+C`, `npm start`) and hard-refresh the page (`Ctrl+Shift+R`).
 
-**Home (Testing catalog):** the first screen lists the testing modules as cards (icon, Available / Coming soon, category, description, tags, **Launch**), with a search box and a grid/list toggle (remembered in the browser). **AMP Pages Testing** (this tool) shows its last run and **Launch** opens the welcome page; a "More testing modules" placeholder marks where new modules go (add one entry to `MODULES` in `src/server/ui.html`). The logo, the results page's **Home** button and **All testing modules** on the welcome page lead back here.
+**Home (Testing catalog):** the first screen lists the testing modules as cards (icon, Available / Coming soon, category, description, tags, **Launch**), with a search box and a grid/list toggle (remembered in the browser). **AMP Pages Testing** (this tool) shows its last run and **Launch** opens its welcome page at `/pages`; a "More testing modules" placeholder marks where new modules go (see "Adding a testing module" under Project layout). The logo, the results page's **Home** button and **All testing modules** on the welcome page lead back here.
 
 **Welcome page (AMP Pages Testing):** three full-screen scenes you scroll through: a welcome, a "How it works" flow (Environment → Rulebook → Users & tokens → Run → Report), then **Start new test** / **View past runs**.
 
@@ -257,21 +257,41 @@ Config options include `parallelUsers` (default 3), `delayMs`, `pageTimeoutMs`, 
 
 ## Project layout
 
+Each testing module lives in its own folder and only uses the shared `core/`. Modules never import each other. One server (`npm start`) runs them all.
+
+```
+src/
+  app/            the one server: home catalog, output files, security checks, module registry
+  core/           shared by every module (no module code here)
+  modules/
+    pages/        AMP Pages Testing   → /pages,  /api/plan, /api/runs…
+    setter/       Permission Setter   → /setter, /api/setter/…
+    mcp/          MCP Connector Health → /mcp,   /api/mcp/…
+  cli.ts          command line (npm run check / menu / run / mcp)
+```
+
 | Path | Responsibility |
 |---|---|
-| `src/server/index.ts`, `src/server/ui.html` | Local web server (127.0.0.1:4545) and the tester page (welcome, wizard, past runs) |
-| `src/run.ts` | Run engine shared by UI and CLI: tokens → menus → pages per user (parallel users) → decide → report; CLI commands |
-| `src/rulebook/parse.ts` | `.xlsx`/`.csv` reader, header-row search, value-based user-type detection |
-| `src/probe/browser.ts` | Playwright: cookies, frame snapshot, open each page, wait until stable, collect evidence and screenshots |
-| `src/probe/menu.ts` | Reads the user's menu from AMP's main page |
-| `src/sessions/validate.ts` | Token check ("Who is it?") |
-| `src/verdict/state.ts`, `fingerprint.ts`, `compare.ts` | Page state, AMP frame, reference view, verdict |
-| `src/report/write.ts` | `report.html`, `results.json`, `results.csv` |
-| `src/safety/gate.ts` | Environment guard, tool request gate, browser request gate |
-| `src/util/` | Logger, token masking, audit log, route helpers, `runLimited` (parallel users) |
-| `src/config.ts`, `src/cli.ts` | Settings/defaults, credentials, command line |
-| `src/setter/`, `src/server/setter.html` | Permission Setter: page → module → slider table and plan (`sliders.ts`), Super Admin check (`session.ts`), role editor driver (`editor.ts`), run + check as users + report (`run.ts`), AI review (`ai.ts`) |
+| `src/app/server.ts` | Local web server (127.0.0.1:4545): home catalog, `/output/` files, security headers, Host and UI-header checks, hands each request to the modules |
+| `src/app/registry.ts` | Which modules run, and how they are wired together (the setter's "check as the users" step is given the Pages engine here) |
+| `src/app/home.html` | Testing catalog: cards from `/api/modules` (each module's `card`) |
+| `src/core/module.ts` | The `TestModule` shape every module exports: catalog card, pages, routes, public reads, last run |
+| `src/core/routes.ts` | Routes every module's page uses: saved rulebooks, reading one, jwt check, hand-off |
+| `src/core/rulebook/parse.ts` | `.xlsx`/`.csv` reader, header-row search, value-based user-type detection |
+| `src/core/sessions/validate.ts` | Token check ("Who is it?") |
+| `src/core/safety/gate.ts` | Environment guard, tool request gate, read-only browser request gate |
+| `src/core/browser/launch.ts` | Starts Chromium with retries |
+| `src/core/credentials.ts`, `config-file.ts`, `paths.ts`, `http.ts` | jwt + CSRF credentials, run config site, folders and port, HTTP helpers |
+| `src/core/contracts.ts` | The "check as the users" contract between Setter and Pages |
+| `src/core/handoff.ts`, `rulebooks.ts`, `users.ts` | In-memory hand-offs, loaded rulebooks, user rows |
+| `src/core/ai/gemini.ts` | Gemini key, model and error messages (Setter and MCP AI reviews) |
+| `src/core/util/` | Logger, token masking, audit log, route helpers, `runLimited` (parallel users) |
+| `src/modules/pages/` | `index.ts` routes and card · `ui.html` wizard · `run.ts` engine and CLI commands · `config.ts` run settings · `probe/` browser and menu · `verdict/` state, frame, verdict · `report/write.ts` · `user-check.ts` (the engine offered to the setter) |
+| `src/modules/setter/` | `index.ts` routes and card · `setter.html` wizard · `sliders.ts` page → module → slider table and plan · `session.ts` Super Admin check · `editor.ts` role editor driver · `nav.ts`/`navrun.ts` Navigation Layout · `run.ts` run + report · `ai.ts` AI review · `safety.ts` the setter's extra allowed writes |
+| `src/modules/mcp/` | `index.ts` routes and card · `mcp.html` · `run.ts` engine and CLI command · `classify.ts`, `snapshot.ts`, `nodes.ts`, `ai.ts` |
 | `tests/` | Unit tests; `tests/e2e/fake-amp.ts` simulates AMP for the end-to-end tests |
+
+**Adding a testing module:** create `src/modules/<name>/index.ts` that exports a `TestModule` (its card, page and routes), import only from `src/core/`, and add it to `src/app/registry.ts`. It then shows in the catalog and runs with `npm start`.
 
 ## Development
 

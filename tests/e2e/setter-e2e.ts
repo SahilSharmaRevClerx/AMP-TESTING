@@ -6,9 +6,10 @@
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { rulebookFromRows } from '../../src/rulebook/parse';
-import { makeCredentials } from '../../src/config';
-import { executeSetter } from '../../src/setter/run';
+import { rulebookFromRows } from '../../src/core/rulebook/parse';
+import { makeCredentials } from '../../src/core/credentials';
+import { executeSetter } from '../../src/modules/setter/run';
+import { createUserCheck } from '../../src/modules/pages/user-check';
 import { navSettings, navWrites, resetRoles, roles, saves, SETTER_TOKENS, startFakeGemini, startFakeRolesAmp } from './fake-amp-roles';
 
 const failures: string[] = [];
@@ -69,7 +70,7 @@ try {
     creds: makeCredentials(SETTER_TOKENS.superAdmin),
     apply: true,
     ai: true,
-    verify: { creds: new Map([['user', makeCredentials(SETTER_TOKENS.user)]]), outputDir: root, debugDir: join(root, 'debug'), rulebookSource: { name: 'fake.csv', data: Buffer.from('') }, waitSec: 0, navCacheSec: 0 },
+    verify: { creds: new Map([['user', makeCredentials(SETTER_TOKENS.user)]]), run: createUserCheck({ outputDir: root, debugDir: join(root, 'debug') }), rulebookSource: { name: 'fake.csv', data: Buffer.from('') }, waitSec: 0, navCacheSec: 0 },
   });
   const r = out.roles[0]!;
   check(!out.error, `apply run had no error (${out.error ?? 'ok'})`);

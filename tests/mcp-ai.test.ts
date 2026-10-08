@@ -4,10 +4,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { GoogleGenAI } from '@google/genai';
-import { aiAvailable, aiModelName, buildTriageItems, buildTriagePrompt, sanitizeForPrompt, triage, TRIAGE_BATCH, type TriageItem } from '../src/mcp/ai';
-import { toolSchemasOf } from '../src/mcp/classify';
-import { forgetSecrets, registerSecret } from '../src/util/mask';
-import type { McpResult } from '../src/mcp/types';
+import { aiAvailable, aiModelName, buildTriageItems, buildTriagePrompt, sanitizeForPrompt, triage, TRIAGE_BATCH, type TriageItem } from '../src/modules/mcp/ai';
+import { toolSchemasOf } from '../src/modules/mcp/classify';
+import { forgetSecrets, registerSecret } from '../src/core/util/mask';
+import type { McpResult } from '../src/modules/mcp/types';
 
 const JWT_LIKE = 'eyJhbGciOiJIUzI1NiJ9.planted-secret-payload-0123456789.planted-signature';
 const API_KEY_LINE = 'X-Api-Key: hunter2-unregistered-key-value';

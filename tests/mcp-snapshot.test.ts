@@ -2,8 +2,8 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { combineAccounts, diffSnapshots, loadPrevious, saveSnapshot, type McpSnapshot } from '../src/mcp/snapshot';
-import type { McpServerRow } from '../src/mcp/types';
+import { combineAccounts, diffSnapshots, loadPrevious, saveSnapshot, type McpSnapshot } from '../src/modules/mcp/snapshot';
+import type { McpServerRow } from '../src/modules/mcp/types';
 
 const row = (id: number, state: McpServerRow['state'], bucket: McpServerRow['bucket'], toolNames: string[] = []): McpServerRow => ({
   id, name: `s${id}`, state, bucket, tools: toolNames.length, toolNames, detail: '', hint: '',

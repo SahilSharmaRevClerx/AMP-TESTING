@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Browser, BrowserContext } from 'playwright';
-import { BrowserStartError, startBrowser } from '../src/probe/launch';
-import { setLogSink } from '../src/util/logger';
+import { BrowserStartError, startBrowser } from '../src/core/browser/launch';
+import { setLogSink } from '../src/core/util/logger';
 
 const CLOSED = 'browserType.launch: Target page, context or browser has been closed';
 

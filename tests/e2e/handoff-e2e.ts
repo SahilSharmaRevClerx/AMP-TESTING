@@ -18,7 +18,7 @@ const PORT = 4590 + Math.floor(Math.random() * 8);
 const BASE = `http://127.0.0.1:${PORT}`;
 const amp = await startFakeRolesAmp();
 resetRoles();
-const server = spawn(process.execPath, ['--import', 'tsx', 'src/server/index.ts', '--no-open'], { env: { ...process.env, PORT: String(PORT), GEMINI_API_KEY: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
+const server = spawn(process.execPath, ['--import', 'tsx', 'src/app/server.ts', '--no-open'], { env: { ...process.env, PORT: String(PORT), GEMINI_API_KEY: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
 let serverOut = '';
 server.stdout.on('data', (d) => (serverOut += d));
 server.stderr.on('data', (d) => (serverOut += d));
@@ -67,10 +67,10 @@ try {
   // Like a tester who used Pages Testing before: it remembers their last rulebook and loads it on open.
   await page.goto(`${BASE}/`);
   await page.evaluate(() => localStorage.setItem('amp-rulebook', JSON.stringify('main-dvl.csv')));
-  await page.goto(`${BASE}/?handoff=${hid}`);
+  await page.goto(`${BASE}/pages?handoff=${hid}`);
   await page.waitForTimeout(2500); // let the remembered rulebook finish loading (it must not replace the hand-off)
   await page.waitForSelector('#step-4:not([hidden])', { timeout: 15000 });
-  check(page.url() === `${BASE}/`, 'hand-off id removed from the address bar');
+  check(page.url() === `${BASE}/pages`, 'hand-off id removed from the address bar');
   check((await page.inputValue('#env-url')) === amp.baseUrl, 'site filled in');
   check(/Ready to verify the Permission Setter run/.test(await page.textContent('#run-err') ?? ''), 'Run step says it verifies the setter run');
   check(!(await page.content()).includes(SETTER_TOKENS.user), 'the page never holds the user jwt');

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { rulebookFromRows } from '../src/rulebook/parse';
-import { findModule, planRole, targetFor, type AmpModule } from '../src/setter/sliders';
-import { parseModules } from '../src/setter/session';
-import { matchUser, navChanges, planNavigation } from '../src/setter/nav';
-import { decideSetterRequest } from '../src/safety/gate';
+import { rulebookFromRows } from '../src/core/rulebook/parse';
+import { findModule, planRole, targetFor, type AmpModule } from '../src/modules/setter/sliders';
+import { parseModules } from '../src/modules/setter/session';
+import { matchUser, navChanges, planNavigation } from '../src/modules/setter/nav';
+import { decideSetterRequest } from '../src/modules/setter/safety';
 
 const MODULES: AmpModule[] = [
   { id: 1, name: 'Dashboard', url: 'dashboard' },

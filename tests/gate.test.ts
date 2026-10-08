@@ -2,8 +2,8 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { assertSafeEnvironment, decideBrowserRequest, isReadOnlyApiFunc, RequestGate, SafetyError } from '../src/safety/gate';
-import { AuditLog } from '../src/util/audit';
+import { assertSafeEnvironment, decideBrowserRequest, isReadOnlyApiFunc, RequestGate, SafetyError } from '../src/core/safety/gate';
+import { AuditLog } from '../src/core/util/audit';
 
 const HOST = 'aisb.amp.vg';
 const api = (func: string) => `https://${HOST}/services/api.ashx?func=${func}`;
