@@ -1,7 +1,9 @@
-﻿import { commandCheck, commandMenu, commandRun, type CliOptions as RunOptions } from './run';
-import { SafetyError } from './safety/gate';
-import { scrub } from './util/mask';
-import { setLogLevel } from './util/logger';
+﻿import type { CliOptions as RunOptions } from './core/cli-options';
+import { commandCheck, commandMenu, commandRun } from './modules/pages/run';
+import { commandMcp } from './modules/mcp/run';
+import { SafetyError } from './core/safety/gate';
+import { scrub } from './core/util/mask';
+import { setLogLevel } from './core/util/logger';
 
 const USAGE = `AMP permission testing
 
@@ -9,6 +11,7 @@ Usage:
   npm run check -- [options]     Validate each user type's token and show who it belongs to
   npm run menu  -- [options]     Show each user type's menu links vs the rulebook
   npm run run -- [options]       Full run: tokens → menus → page checks → compare → report
+  npm run mcp -- [options]       MCP connector health: workflows → servers → live tool lists → report (read-only)
 
 Options:
   --config <file>     Run config (default: run.config.json)
@@ -17,6 +20,8 @@ Options:
   --dry-run           Show the plan without making any request (run only)
   --headed            Show the browser window
   --debug             Detailed developer logs (every page, request and blocked call)
+  --account <k=f>     (mcp only, repeatable) account key + file holding its jwt; never a jwt value
+  --delay-ms <n>      (mcp only) pause between AMP calls in ms (default 300)
 `;
 
 function parseArgs(argv: string[]): { command: string; opts: RunOptions } {
@@ -32,6 +37,12 @@ function parseArgs(argv: string[]): { command: string; opts: RunOptions } {
     if (a === '--config') opts.configFile = next();
     else if (a === '--only') opts.only = next().split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--limit') opts.limit = Number(next());
+    else if (a === '--account') opts.account = [...(opts.account ?? []), next()];
+    else if (a === '--delay-ms') {
+      const v = Number(next());
+      if (!Number.isFinite(v)) throw new Error('--delay-ms needs a numeric value in ms');
+      opts.delayMs = v;
+    }
     else if (a === '--dry-run') opts.dryRun = true;
     else if (a === '--headed') opts.headed = true;
     else if (a === '--debug' || a === '--verbose') setLogLevel('debug');
@@ -51,6 +62,8 @@ async function main(): Promise<number> {
       return commandMenu(opts);
     case 'run':
       return commandRun(opts);
+    case 'mcp':
+      return commandMcp(opts);
     default:
       console.log(USAGE);
       return command === 'help' ? 0 : 1;

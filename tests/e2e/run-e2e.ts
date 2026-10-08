@@ -4,8 +4,8 @@
  */
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { commandRun } from '../../src/run';
-import { setLogLevel } from '../../src/util/logger';
+import { commandRun } from '../../src/modules/pages/run';
+import { setLogLevel } from '../../src/core/util/logger';
 
 if (!process.env.LOG_LEVEL) setLogLevel('warn');
 import { PARTNER_SUB_LINK, received, startFakeAmp, TOKENS } from './fake-amp';

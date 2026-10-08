@@ -1,0 +1,1338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MCP Connector Health</title>
+<style>
+:root{
+  --bg:#f4f6fa;--fg:#161a22;--muted:#5d6472;--card:#fff;--line:#e1e5ec;--input:#fff;--code:#eef1f6;
+  --accent:#2f5bd3;--accent-2:#6a4bd8;--accent-fg:#fff;--accent-soft:#e9efff;
+  --ok:#1b7a4b;--ok-bg:#e2f5ea;--bad:#b42318;--bad-bg:#fde8e6;--warn:#94590a;--warn-bg:#fdf1dc;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 8px 24px rgba(16,24,40,.06);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12141a;--fg:#e9ebf0;--muted:#9aa1ad;--card:#1b1e25;--line:#2b2f39;--input:#14161c;--code:#232733;
+  --accent:#7d9bff;--accent-2:#a58bff;--accent-fg:#0e1120;--accent-soft:#222a4a;
+  --ok:#6fd39c;--ok-bg:#173526;--bad:#ff8a80;--bad-bg:#3d1c1a;--warn:#f5c26b;--warn-bg:#3a2d12;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+}}
+:root[data-theme="dark"]{
+  --bg:#12141a;--fg:#e9ebf0;--muted:#9aa1ad;--card:#1b1e25;--line:#2b2f39;--input:#14161c;--code:#232733;
+  --accent:#7d9bff;--accent-2:#a58bff;--accent-fg:#0e1120;--accent-soft:#222a4a;
+  --ok:#6fd39c;--ok-bg:#173526;--bad:#ff8a80;--bad-bg:#3d1c1a;--warn:#f5c26b;--warn-bg:#3a2d12;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box}[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+a{color:var(--accent)}
+code{font:12.5px ui-monospace,Consolas,monospace;background:var(--code);padding:1px 5px;border-radius:4px}
+
+/* top bar (same as the testing catalog) */
+.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--card) 88%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top .in{max-width:1060px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:12px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;color:var(--fg);font-size:15px;text-decoration:none;white-space:nowrap}
+.logo{width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:grid;place-items:center;color:#fff}
+.top .sp{flex:1}
+.link{color:var(--muted);text-decoration:none;padding:6px 10px;border-radius:6px;white-space:nowrap;font-size:15px}
+.link:hover{background:var(--code);color:var(--fg)}
+.safe{font-size:12.5px;color:var(--muted);display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.safe svg{color:var(--ok)}
+@media (max-width:640px){.safe{display:none}}
+
+main{max-width:1060px;margin:0 auto;padding:24px 16px 80px}
+.intro{display:flex;gap:14px;align-items:center;margin-bottom:18px}
+.intro .mic{flex:0 0 44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 12px 28px -12px color-mix(in srgb,var(--accent) 70%,transparent)}
+.intro h1{margin:0;font-size:clamp(22px,2.6vw,26px);letter-spacing:-.02em;line-height:1.2}
+.intro p{margin:2px 0 0;color:var(--muted);font-size:14.5px}
+
+/* buttons */
+button{font:inherit}
+.btn{border-radius:8px;padding:9px 16px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:8px;text-decoration:none;font-size:15px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:600}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.danger{background:var(--bad);border-color:var(--bad);color:#fff;font-weight:600}
+.btn.danger:hover{filter:brightness(1.08)}
+.btn:disabled{opacity:.5;cursor:not-allowed;filter:none}
+.btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+/* stepper (same as the Pages wizard) */
+.stepper{display:flex;margin:4px 0 22px}
+.stp{flex:1;display:flex;align-items:center;gap:10px;background:none;border:0;padding:0;text-align:left;color:var(--muted);cursor:default;min-width:0}
+.stp .dot{flex:0 0 32px;height:32px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:14px;border:2px solid var(--line);background:var(--card);color:var(--muted)}
+.stp .t{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stp:not(:last-child)::after{content:"";flex:1;height:2px;background:var(--line);margin:0 10px;min-width:12px}
+.stp.done,.stp.reach{color:var(--fg);cursor:pointer}
+.stp.done .dot{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.stp.reach .dot{border-color:var(--accent);color:var(--accent)}
+.stp.done:not(:last-child)::after{background:var(--accent)}
+.stp.cur{color:var(--fg)}
+.stp.cur .dot{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+body.running .stp{cursor:default}
+@media (max-width:760px){.stp .t{display:none}.stp.cur .t{display:block}}
+
+/* panels: one step at a time */
+.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+.panel .head{padding:22px 26px 6px;display:flex;gap:14px;align-items:flex-start}
+.panel .head .ic{flex:0 0 42px;height:42px;border-radius:11px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.panel h2{margin:0;font-size:20px}
+.panel .head p{margin:3px 0 0;color:var(--muted);font-size:14.5px}
+.panel .body{padding:14px 26px 22px}
+.panel .foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 26px;border-top:1px solid var(--line);background:color-mix(in srgb,var(--bg) 55%,var(--card))}
+@media (max-width:640px){.panel .head,.panel .body,.panel .foot{padding-left:16px;padding-right:16px}}
+
+/* form fields: label, input, one line of help that turns green/red */
+input[type=text],input[type=url],select{font:inherit;color:var(--fg);background:var(--input);border:1px solid var(--line);border-radius:8px;padding:9px 11px;width:100%}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.form{display:flex;flex-direction:column;gap:22px;padding-top:6px}
+.form>div:empty{display:none}
+.fld{display:flex;flex-direction:column;gap:6px;min-width:0}
+.lbl{font-size:14px;font-weight:600;color:var(--fg)}
+.lbl .opt{font-weight:500;font-size:11.5px;color:var(--muted);background:var(--code);padding:1px 8px;border-radius:999px;margin-left:6px;vertical-align:1px}
+.help{font-size:13px;color:var(--muted);line-height:1.45}
+.help.ok{color:var(--ok)}.help.bad{color:var(--bad)}
+.inp-ic{position:relative}
+.inp-ic>svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none}
+.inp-ic>input{padding-left:40px}
+.inp-ic.ok>svg{color:var(--ok)}.inp-ic.ok>input{border-color:var(--ok)}
+.inp-ic.bad>svg{color:var(--bad)}.inp-ic.bad>input{border-color:var(--bad)}
+input.lg{padding:12px 14px 12px 40px;font-size:16px;border-radius:10px}
+.fld.half{max-width:420px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px 18px}
+.sub-h{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.msg{border-radius:8px;padding:10px 14px;margin-top:14px;font-size:14px}
+.form .msg{margin-top:0}
+.msg.ok{background:var(--ok-bg);color:var(--ok)}.msg.bad{background:var(--bad-bg);color:var(--bad)}.msg.warn{background:var(--warn-bg);color:var(--warn)}
+.hint{color:var(--muted);font-size:13.5px}
+
+/* recent sites (shared with the Pages module) */
+.envs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.envc{position:relative;display:flex;align-items:center;gap:10px;min-height:56px;padding:10px 36px 10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--card);cursor:pointer;min-width:0;transition:border-color .15s,background .15s}
+.envc:hover{border-color:color-mix(in srgb,var(--accent) 60%,var(--line))}
+.envc:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.envc.on{border-color:var(--accent);background:var(--accent-soft)}
+.envc .av{flex:0 0 32px;height:32px;border-radius:8px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent);font-weight:700;font-size:14px}
+.envc.on .av{background:var(--accent);color:var(--accent-fg)}
+.envc .tx{min-width:0;display:flex;flex-direction:column;line-height:1.3}
+.envc .n{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.envc .h{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.envc .pb{font-size:10.5px;font-weight:700;color:var(--bad);background:var(--bad-bg);padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:1px}
+.envc .x{position:absolute;top:50%;right:7px;transform:translateY(-50%);width:24px;height:24px;border-radius:6px;display:grid;place-items:center;border:0;background:none;color:var(--muted);cursor:pointer;font-size:16px;line-height:1}
+.envc .x:hover{background:var(--code);color:var(--bad)}
+
+/* switch: a checkbox drawn as a toggle */
+input.sw{-webkit-appearance:none;appearance:none;flex:0 0 40px;width:40px;height:22px;margin:1px 0 0;border-radius:999px;background:color-mix(in srgb,var(--muted) 45%,var(--line));position:relative;cursor:pointer;transition:background .2s}
+input.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .2s}
+input.sw:checked{background:var(--accent)}
+input.sw:checked::after{transform:translateX(18px)}
+input.sw:focus{outline:none}input.sw:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.toggle{display:flex;gap:12px;align-items:flex-start;cursor:pointer}
+.toggle .tt{display:flex;flex-direction:column;gap:1px}
+.toggle .tt b{font-size:14px;font-weight:600}
+.toggle .tt span{font-size:13px;color:var(--muted)}
+.prod{border:1px solid var(--line);border-radius:10px;padding:14px 16px;transition:border-color .2s,background .2s}
+.prod:has(#env-prod:checked){border-color:color-mix(in srgb,var(--bad) 55%,var(--line));background:var(--bad-bg)}
+.prod input.sw:checked{background:var(--bad)}
+.prod .appr{display:flex;gap:10px;align-items:flex-start;margin:12px 0 0 52px;font-size:14px;font-weight:500;color:var(--bad);cursor:pointer}
+.prod .appr input{width:16px;height:16px;margin:2px 0 0;flex:0 0 auto}
+@media (max-width:640px){.prod .appr{margin-left:0}}
+
+/* step 3: what to change */
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:700px){.choices{grid-template-columns:1fr}}
+.choice{position:relative;display:flex;flex-direction:column;gap:8px;padding:20px 20px 18px;border:1.5px solid var(--line);border-radius:12px;cursor:pointer;background:var(--card);transition:border-color .15s,background .15s,box-shadow .15s}
+.choice:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
+.choice:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent-soft) 60%,var(--card));box-shadow:0 10px 26px -16px color-mix(in srgb,var(--accent) 70%,transparent)}
+.choice:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.choice input{position:absolute;opacity:0;pointer-events:none}
+.choice .cic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent)}
+.choice:has(input:checked) .cic{background:var(--accent);color:var(--accent-fg)}
+.choice .tick{position:absolute;top:16px;right:16px;width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;color:transparent}
+.choice:has(input:checked) .tick{border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
+.choice h3{margin:4px 0 0;font-size:16.5px}
+.choice p{margin:0;color:var(--muted);font-size:14px}
+.choice .ctags{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.choice .ctags span{font-size:12px;color:var(--muted);background:var(--code);border-radius:6px;padding:2px 8px}
+
+/* rulebook: saved list or drop zone */
+.pick{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:center}
+.pick .or{color:var(--muted);font-size:13px;font-weight:600}
+.drop{border:1.5px dashed var(--line);border-radius:10px;padding:14px;text-align:center;cursor:pointer;color:var(--muted);font-size:14px;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--fg)}
+.drop b{color:var(--accent)}
+@media (max-width:640px){.pick{grid-template-columns:1fr}.pick .or{text-align:center}}
+.sec{border-top:1px solid var(--line);padding-top:20px}
+.sec h3{margin:0 0 2px;font-size:15.5px}
+.sec>p{margin:0 0 14px;color:var(--muted);font-size:13.5px}
+
+/* jwt */
+.secret{-webkit-text-security:disc;text-security:disc}
+.pw{display:flex;gap:6px}.pw .show{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:8px;padding:0 12px;cursor:pointer}
+.pw .show:hover{color:var(--fg);border-color:var(--muted)}
+details.help-box{background:var(--code);border-radius:8px;padding:8px 12px}
+details.help-box summary{cursor:pointer;color:var(--accent);font-size:14px;font-weight:500}
+details.help-box ol{margin:8px 0 2px;padding-left:20px;color:var(--muted);font-size:14px}
+
+/* role mapping */
+.role-f .lbl{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.role-f .arrow{color:var(--muted);font-weight:500}
+.empty{color:var(--muted);font-size:14px;text-align:center;padding:22px;border:1px dashed var(--line);border-radius:10px}
+
+/* review, plan, progress, results */
+.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.sbox{background:var(--code);border-radius:10px;padding:12px 14px;min-width:0}
+.sbox .v{font-size:17px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sbox .l{font-size:12.5px;color:var(--muted)}
+@media (max-width:760px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.opts{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.opts{display:flex;flex-direction:column;gap:16px}
+.handoff{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:14px;padding:14px 16px;border:1px solid var(--accent);border-radius:10px;background:var(--accent-soft)}
+#review>.sec{margin-top:18px}
+.sec h3 .opt{font-weight:500;font-size:11.5px;color:var(--muted);background:var(--code);padding:1px 8px;border-radius:999px;margin-left:6px;vertical-align:1px}
+#verify-users .arrow{color:var(--muted);font-weight:500}
+#verify-users{margin-top:12px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.wrap{overflow-x:auto}
+.plan-h{margin:22px 0 8px;font-size:16px}
+.plan-h .role{color:var(--accent)}
+ul.sliders{margin:0 0 10px;padding-left:20px;color:var(--muted);font-size:14px}
+.tag{font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.tag.planned{background:var(--accent-soft);color:var(--accent)}.tag.cannot{background:var(--warn-bg);color:var(--warn)}.tag.not_specified{background:var(--code);color:var(--muted)}
+.tag.saved,.tag.no_changes{background:var(--ok-bg);color:var(--ok)}.tag.failed{background:var(--bad-bg);color:var(--bad)}.tag.previewed{background:var(--warn-bg);color:var(--warn)}
+.bulk-plan{margin-top:18px;border:1px solid var(--line);border-radius:10px;padding:14px 16px;font-size:14.5px}
+.progress{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+.progress h3{margin:0 0 4px;font-size:16px}
+details.logbox{margin-top:14px}
+details.logbox summary{cursor:pointer;font-size:14px;color:var(--accent)}
+pre{background:var(--code);border-radius:8px;padding:10px 12px;max-height:320px;overflow:auto;font:12px/1.45 ui-monospace,Consolas,monospace;white-space:pre-wrap;margin:8px 0 0}
+.spin{width:16px;height:16px;border:2px solid var(--accent-soft);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;display:inline-block;vertical-align:-3px;margin-right:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+/* ---- MCP Connector Health: new components (no equivalent in setter.html) ----
+   Built only from the tokens above. Modelled on: .btn (.btn.sm), .tag
+   (.tag.ok/.tag.bad/.tag.warn), .stepper (.tabs), .envc (.pill), .choice/.sbox
+   (.sc cards), .hint (p.sumline, .note), Pages .live/.phase/.bar/.phases/.ph
+   (run progress), results mockup (.fbar/.chip/.tbl-wrap/.grp/.nrow/.toolchips/
+   .change/.toast). The filter bar is .fbar (not .bar) so it never clashes with
+   the Pages progress .bar. */
+.btn.sm{padding:5px 11px;font-size:13.5px}
+.tag.mute{background:var(--code);color:var(--muted)}.tag.ok{background:var(--ok-bg);color:var(--ok)}.tag.bad{background:var(--bad-bg);color:var(--bad)}.tag.warn{background:var(--warn-bg);color:var(--warn)}
+.sumline{font-size:15px;font-weight:600;margin:0 0 10px}
+.live{margin-top:6px}
+.phase{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px}
+.phase b{font-weight:600}
+.bar{height:10px;background:var(--code);border-radius:999px;overflow:hidden}
+.bar>div{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .35s}
+.phases{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 4px}
+.ph{font-size:12.5px;padding:4px 10px;border-radius:999px;background:var(--code);color:var(--muted)}
+.ph.cur{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.ph.done{background:var(--ok-bg);color:var(--ok)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 0 14px;overflow-x:auto}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 14px;color:var(--muted);font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap}
+.tabs button:hover{color:var(--fg)}
+.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px}
+.tabs button.on{color:var(--accent);border-bottom-color:var(--accent)}
+.tabs .n{font-weight:500;color:var(--muted);margin-left:5px;font-size:12.5px}
+.acct{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.acct .lbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-right:4px}
+.pill{border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:999px;padding:5px 14px;font-size:14px;font-weight:500;cursor:pointer}
+.pill:hover{border-color:var(--muted)}
+.pill.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:600}
+.pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* account rows (one per account: key + jwt). Modelled on .role-f/.fld. */
+.acct-row{border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:minmax(150px,220px) minmax(220px,1fr) auto;gap:12px;align-items:start}
+@media (max-width:760px){.acct-row{grid-template-columns:1fr}}
+.acct-row .who{grid-column:1/-1;font-size:13.5px;margin-top:-2px}
+.acct-row .who.ok{color:var(--ok)}.acct-row .who.bad{color:var(--bad)}
+.chartrow{display:grid;grid-template-columns:230px 1fr;gap:20px;align-items:center;margin:6px 0 14px}
+.chartrow .cards{grid-template-columns:repeat(2,minmax(0,1fr));margin:0}
+@media (max-width:760px){.chartrow{grid-template-columns:1fr;justify-items:center}.chartrow .cards{width:100%}}
+.donut{position:relative;width:210px;height:210px}
+.donut svg{display:block;width:100%;height:100%}
+.donut .seg{fill:none;stroke-width:30;cursor:pointer;transition:opacity .15s}
+.donut .seg.ok{stroke:var(--ok)}.donut .seg.bad{stroke:var(--bad)}.donut .seg.warn{stroke:var(--warn)}.donut .seg.mute{stroke:var(--muted)}
+.donut.sel .seg:not(.on){opacity:.3}
+.donut .seg,.donut .seg:focus{outline:none;-webkit-tap-highlight-color:transparent}
+.donut .seg:focus-visible{outline:none;stroke-width:34}
+.donut .ctr{position:absolute;inset:0;display:grid;place-content:center;text-align:center;pointer-events:none}
+.donut .ctr-reset{pointer-events:auto;cursor:pointer;border:0;background:none;color:inherit;font:inherit;inset:46px;border-radius:50%}
+.donut .ctr-reset:hover{background:var(--code)}
+.donut .ctr-reset:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.donut .ctr-reset span{color:var(--accent);font-weight:600}
+.donut .ctr b{font-size:28px;letter-spacing:-.02em;line-height:1.1}.donut .ctr span{font-size:12.5px;color:var(--muted)}
+.donut .tip{position:absolute;z-index:3;pointer-events:none;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:13px;box-shadow:var(--shadow);white-space:nowrap}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:6px 0 14px}
+@media (max-width:760px){.cards{grid-template-columns:repeat(2,1fr)}}
+.sc{border:1.5px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--card);cursor:pointer;text-align:left;color:var(--fg);display:flex;flex-direction:column;gap:2px}
+.sc:hover{border-color:color-mix(in srgb,var(--accent) 50%,var(--line))}
+.sc:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sc .num{font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.sc .nm{font-size:14px;font-weight:600}
+.sc .who{font-size:12.5px;color:var(--muted)}
+.sc.bad .num,.sc.bad .nm{color:var(--bad)}.sc.warn .num,.sc.warn .nm{color:var(--warn)}.sc.ok .num,.sc.ok .nm{color:var(--ok)}.sc.mute .num{color:var(--muted)}
+.sc.on.bad{background:var(--bad-bg);border-color:var(--bad)}.sc.on.warn{background:var(--warn-bg);border-color:var(--warn)}
+.sc.on.ok{background:var(--ok-bg);border-color:var(--ok)}.sc.on.mute{background:var(--code);border-color:var(--muted)}
+.fbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+.fbar input[type=text]{flex:1 1 220px;min-width:0}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;padding:3px 11px;font-size:12.5px;font-weight:600;cursor:pointer}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tbl-wrap{border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+tr.row{cursor:pointer}tr.row:hover td{background:color-mix(in srgb,var(--accent-soft) 45%,transparent)}
+tr.row:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+tr.exp td{background:var(--code);font-size:13.5px}
+.nm-cell{font-weight:600}
+.dim{color:var(--muted)}
+.what{max-width:420px}
+.pager{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;font-size:13.5px;color:var(--muted)}
+.grp{border:1px solid var(--line);border-radius:10px;margin-bottom:10px;overflow:hidden}
+.grp>summary{list-style:none;cursor:pointer;display:flex;gap:10px;align-items:center;padding:11px 14px;background:color-mix(in srgb,var(--bg) 55%,var(--card))}
+.grp>summary::-webkit-details-marker{display:none}
+.grp>summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.grp .gt{font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grp .gb{padding:4px 14px 10px}
+.nrow{padding:8px 0;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.nrow:last-child{border-bottom:0}
+.nrow .wf{font-weight:600;flex:1 1 220px}
+.nrow .tl{font:12.5px ui-monospace,Consolas,monospace;color:var(--muted)}
+.nrow .wh{flex:1 1 100%;font-size:13.5px;color:var(--muted)}
+.toolhd{font-weight:600;margin:12px 0 4px}
+.toolchips{display:flex;gap:5px;flex-wrap:wrap}
+.change{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);align-items:center;flex-wrap:wrap}
+.change:last-child{border-bottom:0}
+.change .arrow{color:var(--muted)}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:14px;box-shadow:var(--shadow)}
+.note{font-size:13px;color:var(--muted);margin-top:14px}
+/* AI note block inside an expanded row: separated from AMP's own answer above it. */
+.ainote{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+
+/* ===== Run screen + tool lists (tokens only; modelled on .sbox, .choice, .grp, .chip) ===== */
+.runbar{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+.runhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+.runhead b{font-size:16px}
+.runclock{font-size:13.5px;color:var(--muted);text-align:right}
+.stlist{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.st{display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.st:last-child{border-bottom:0}
+.st .mk{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;border:2px solid var(--line);color:var(--muted)}
+.st.done .mk{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+.st.now{background:color-mix(in srgb,var(--accent-soft) 55%,var(--card))}
+.st.now .mk{border-color:var(--accent);color:var(--accent)}
+.st.now .mk .spin{margin:0}
+.st b{font-size:14.5px}
+.st .hint{display:block;margin-top:1px}
+.st .stt{font-size:13px;color:var(--muted);white-space:nowrap}
+.st.next b{color:var(--muted)}
+.stbar{height:6px;background:var(--code);border-radius:999px;overflow:hidden;margin-top:8px}
+.stbar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .35s}
+.stbar.ind>i{animation:stslide 1.3s ease-in-out infinite}
+@keyframes stslide{0%{margin-left:-35%}100%{margin-left:100%}}
+@media (prefers-reduced-motion:reduce){.stbar.ind>i{animation:none;width:100%;opacity:.5}}
+.tallyrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:12px 0 0}
+.beat{font-size:13px;color:var(--muted);margin-top:10px}
+.beat.warn{color:var(--warn)}
+.logv{background:var(--code);border-radius:8px;padding:8px 10px;max-height:300px;overflow:auto;margin-top:8px;font:12px/1.55 ui-monospace,Consolas,monospace}
+.ll{white-space:pre-wrap;word-break:break-word}
+.ll .ts{color:var(--muted);margin-right:10px}
+.ll.warn{color:var(--warn)}
+@media (max-width:640px){.runhead{flex-direction:column}.runclock{text-align:left}}
+
+.car{display:inline-block;width:14px;color:var(--muted)}
+.tl-prev{display:flex;gap:4px;font:12px ui-monospace,Consolas,monospace;color:var(--muted);max-width:210px}
+.tl-prev .tn{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-prev .tm{flex:none}
+tr.row.open td{background:color-mix(in srgb,var(--accent-soft) 40%,transparent)}
+tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
+.toolsblock{margin-top:12px}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 8px}
+.toolbar b{margin-right:4px}
+.toolbar input[type=text]{flex:1 1 200px;min-width:0;padding:6px 10px}
+.tg{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;overflow:hidden}
+.tg>summary{cursor:pointer;list-style:none;padding:8px 12px;background:color-mix(in srgb,var(--bg) 55%,var(--card));display:flex;gap:8px;align-items:center;font-weight:600;font-size:13.5px}
+.tg>summary::-webkit-details-marker{display:none}
+.tg>summary::before{content:'▸';color:var(--muted)}
+.tg[open]>summary::before{content:'▾'}
+.tg>summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.tg>summary .n{margin-left:auto;font-weight:500;color:var(--muted)}
+.tr2{display:grid;grid-template-columns:minmax(150px,260px) 1fr;gap:4px 14px;padding:7px 12px;border-top:1px solid var(--line);font-size:13.5px}
+.tr2 code{align-self:start;word-break:break-all;background:none;padding:0;font-size:13px}
+.tr2 .td{color:var(--muted)}
+@media (max-width:640px){.tr2{grid-template-columns:1fr}}
+.tcat{display:grid;grid-template-columns:260px 1fr;gap:16px;align-items:start}
+@media (max-width:820px){.tcat{grid-template-columns:1fr}}
+.tlist{border:1px solid var(--line);border-radius:10px;max-height:560px;overflow:auto}
+.titem{display:flex;justify-content:space-between;gap:8px;width:100%;text-align:left;padding:9px 12px;border:0;border-bottom:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;font-size:14px}
+.titem:last-child{border-bottom:0}
+.titem:hover{background:var(--accent-soft)}
+.titem.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.titem:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.titem .n{color:var(--muted);font-weight:500}
+.tpane h3{margin:0 0 4px;font-size:16px}
+.found{padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+.found:last-child{border-bottom:0}
+.found .who2{color:var(--muted)}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);cursor:pointer;font:inherit;text-decoration:underline}
+.linkbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tmiss{display:block;margin-top:6px;font-size:13.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="brand" href="/" title="Testing catalog">
+    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></span>
+    QA Studio
+  </a>
+  <span class="sp"></span>
+  <span class="safe"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>Runs on this machine · jwt kept in memory only</span>
+  <button class="link" id="theme" type="button" title="Switch light or dark theme">Theme</button>
+  <button class="link" id="go-past" type="button">Past runs</button>
+  <a class="link" href="/">← Catalog</a>
+</div></header>
+
+<main>
+  <div class="intro">
+    <span class="mic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4M15 3v4M7 7h10v4a5 5 0 01-10 0zM12 16v5"/></svg></span>
+    <div><h1>MCP Connector Health</h1><p>Which connectors are broken, which just need a reconnect, and which workflow nodes call a tool that does not exist.</p></div>
+  </div>
+
+  <nav class="stepper" id="stepper" aria-label="Progress">
+    <button class="stp" data-step="1"><span class="dot">1</span><span class="t">Site</span></button>
+    <button class="stp" data-step="2"><span class="dot">2</span><span class="t">Accounts</span></button>
+    <button class="stp" data-step="3"><span class="dot">3</span><span class="t">Plan</span></button>
+    <button class="stp" data-step="4"><span class="dot">4</span><span class="t">Run</span></button>
+    <button class="stp" data-step="5"><span class="dot">5</span><span class="t">Results</span></button>
+  </nav>
+
+  <!-- 1 site -->
+  <section class="panel" id="step-1">
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg></div>
+      <div><h2>Which site?</h2><p>The AMP site whose connectors to check. Use the sandbox or a QA site.</p></div></div>
+    <div class="body form">
+      <div id="env-recent-wrap" hidden>
+        <div class="sub-h">Recently used</div>
+        <div class="envs" id="env-recent"></div>
+      </div>
+      <div class="fld">
+        <label class="lbl" for="env-url">Site address</label>
+        <div class="inp-ic" id="env-url-box">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg>
+          <input type="url" class="lg" id="env-url" placeholder="https://ai.sb.amp.vg" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="help" id="env-url-help"></div>
+      </div>
+      <div class="fld half">
+        <label class="lbl" for="env-name">Display name <span class="opt">optional</span></label>
+        <input type="text" id="env-name" placeholder="e.g. sandbox" autocomplete="off" spellcheck="false">
+        <div class="help">Shown in history and reports. Left empty, the site address is used.</div>
+      </div>
+      <div class="prod">
+        <label class="toggle"><input type="checkbox" class="sw" id="env-prod">
+          <span class="tt"><b>This is a production site</b><span>Real client data. The check only reads connectors, but go easy.</span></span></label>
+        <label class="appr" id="env-allow-wrap" hidden><input type="checkbox" id="env-allow"> I approve read-only checks on this production site</label>
+      </div>
+      <div id="env-msg"></div>
+    </div>
+    <div class="foot"><a class="btn" href="/">← Catalog</a><button class="btn primary" id="next-1">Next: Accounts →</button></div>
+  </section>
+
+  <!-- 2 accounts -->
+  <section class="panel" id="step-2" hidden>
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M15 8l2 2"/></svg></div>
+      <div><h2>Whose connections?</h2><p>One row per account. Connections are per person, so a second account usually shows more. jwts stay in memory for this run only.</p></div></div>
+    <div class="body form">
+      <details class="help-box">
+        <summary>How do I get the jwt?</summary>
+        <ol>
+          <li>Open an incognito window (one per account, so logins don't mix) and log in to the site as that account.</li>
+          <li>Press <b>F12</b> → <b>Application</b> → <b>Cookies</b> → select the site.</li>
+          <li>Copy the <b>Value</b> of the <code>jwt</code> cookie into that account's row. Pasting <code>jwt=…</code> also works.</li>
+        </ol>
+      </details>
+      <div id="users"></div>
+      <div class="btns"><button class="btn" id="btn-check" type="button">Check tokens</button><button class="btn" id="btn-add" type="button">Add another account</button><button class="btn" id="btn-clear" type="button">Clear jwts</button></div>
+      <div id="users-msg"></div>
+    </div>
+    <div class="foot"><button class="btn" data-back>← Back</button><button class="btn primary" id="next-2">Next: Plan →</button></div>
+  </section>
+
+  <!-- 3 plan -->
+  <section class="panel" id="step-3" hidden>
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div>
+      <div><h2>What will happen?</h2><p>Read-only. Nothing is changed in AMP.</p></div></div>
+    <div class="body">
+      <div class="summary" id="plan-sum"></div>
+      <p class="hint" id="plan-words" style="margin-top:14px"></p>
+      <div class="msg warn" id="plan-side">Listing tools can refresh an expired OAuth login. That is normal AMP behaviour, not something this check does on purpose.</div>
+      <div class="toggle" style="margin-top:14px;opacity:.55"><input type="checkbox" class="sw" disabled><span class="tt"><b>Safe live calls</b><span>Coming later. Off for now.</span></span></div>
+      <label class="toggle" id="ai-toggle" style="margin-top:10px"><input type="checkbox" class="sw" id="opt-ai"><span class="tt"><b>AI review of the results</b><span id="ai-help">Checking whether this machine has a Gemini key…</span></span></label>
+      <div id="plan-msg"></div>
+    </div>
+    <div class="foot"><button class="btn" data-back>← Back</button><button class="btn primary" id="next-3">Next: Run →</button></div>
+  </section>
+
+  <!-- 4 run -->
+  <section class="panel" id="step-4" hidden>
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 001.5.86l10.5-6.5a1 1 0 000-1.72L9.5 4.64A1 1 0 008 5.5z"/></svg></div>
+      <div><h2>Checking connectors</h2><p>Asking AMP to connect to each connector and list its tools. You can leave this page open; closing it does not stop the run.</p></div></div>
+    <div class="body">
+      <div class="runbar" id="runbar"></div>
+      <div class="runhead">
+        <div><b id="run-title">Ready to start</b><div class="hint" id="run-sub">Press Start run. Nothing is checked in AMP until you do.</div></div>
+        <div class="runclock" id="runclock" aria-live="off"></div>
+      </div>
+      <ol class="stlist" id="stlist" aria-label="Progress by stage"></ol>
+      <div class="tallyrow" id="tally" hidden></div>
+      <div class="beat" id="beat" hidden role="status"></div>
+      <details class="logbox" id="logbox"><summary>Show log (<span id="log-n">0</span> lines)</summary>
+        <div class="btns" style="margin:8px 0 0"><button type="button" class="btn sm" id="copy-log">Copy log</button></div>
+        <div class="logv" id="log"></div></details>
+      <div id="run-err"></div>
+    </div>
+    <div class="foot"><button class="btn" data-back id="back-4">← Back</button><span class="btns"><button class="btn danger" id="btn-cancel" hidden>Cancel run</button><button class="btn primary" id="btn-run">Start run</button></span></div>
+  </section>
+
+  <!-- 5 results -->
+  <section class="panel" id="step-5" hidden>
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6"/></svg></div>
+      <div><h2>Results</h2><p id="meta"></p></div></div>
+    <div class="body">
+      <div class="acct" id="acct" role="tablist" aria-label="Account"></div>
+      <div id="limited"></div>
+      <p class="sumline" id="summary"></p>
+      <div id="filter-pill"></div>
+      <div class="chartrow"><div class="donut" id="donut"></div><div class="cards" id="cards"></div></div>
+      <div id="changes-banner"></div>
+      <div class="tabs" id="tabs" role="tablist"></div>
+      <div id="view"></div>
+      <p class="hint" id="notcovered" hidden></p>
+      <p class="note">Screenshots and raw answers stay on this machine in <code>output/</code> and may contain customer names. Reports never contain tokens. Listing tools can refresh an expired OAuth login. Log out of the AMP sessions when done.</p>
+    </div>
+    <div class="foot">
+      <span class="btns"><button class="btn" id="btn-past" type="button">Past runs</button><span class="hint" id="run-when"></span></span>
+      <span class="btns">
+        <button class="btn" id="copy-all" type="button">Copy ticket text</button>
+        <button class="btn" id="dl-csv" type="button">Download CSV</button>
+        <button class="btn" id="dl-json" type="button">Download JSON</button>
+        <button class="btn primary" id="btn-again" type="button">Test again</button>
+      </span>
+    </div>
+  </section>
+
+  <!-- past runs -->
+  <section class="panel" id="past" hidden>
+    <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+      <div><h2>Past runs</h2><p>Newest first. Open one to see its results again.</p></div></div>
+    <div class="body"><div class="wrap"><table>
+      <thead><tr><th>Started</th><th>Site</th><th>Accounts</th><th>Result</th><th></th></tr></thead>
+      <tbody id="history"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table></div></div>
+    <div class="foot"><button class="btn" id="past-back">← Back to results</button></div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { step: 1, maxStep: 1, running: false, from: 0, runId: null };
+  var DATA = null; // the contract's Result
+  var KEY_RE = /^[a-z0-9_]{1,40}$/;
+
+  function api(method, path, body) {
+    return fetch(path, {
+      method: method,
+      headers: body ? { 'Content-Type': 'application/json', 'X-Amp-Ui': '1' } : { 'X-Amp-Ui': '1' },
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+        return j;
+      });
+    });
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function msg(el, kind, text) { $(el).innerHTML = text ? '<div class="msg ' + kind + '">' + text + '</div>' : ''; }
+  function load(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  var SPIN = '<span class="spin"></span>';
+
+  // ---- wizard: one step at a time (same as the Permission Setter)
+  function paintStepper() {
+    document.querySelectorAll('.stp').forEach(function (b) {
+      var s = +b.getAttribute('data-step');
+      b.classList.toggle('cur', s === state.step);
+      b.classList.toggle('done', s < state.step);
+      b.classList.toggle('reach', s > state.step && s <= state.maxStep);
+    });
+  }
+  function showOnly(id) {
+    ['step-1', 'step-2', 'step-3', 'step-4', 'step-5', 'past'].forEach(function (x) { $(x).hidden = x !== id; });
+  }
+  function goStep(n) {
+    state.step = n; state.maxStep = Math.max(state.maxStep, n);
+    showOnly('step-' + n);
+    paintStepper();
+    if (n === 3) loadPlan();
+    if (n === 4 && !state.running) idleRun();
+    window.scrollTo(0, 0);
+    if (n < 4) setTimeout(function () { var f = $('step-' + n).querySelector('input[type=url],input[type=text]:not([hidden])'); if (f) f.focus(); }, 30);
+  }
+  /** Run step before a run starts: a preview of what will happen, with every stage still to come. */
+  function idleRun() {
+    run.last = null; stopClock();
+    $('run-title').textContent = 'Ready to start'; $('run-sub').textContent = 'Press Start run. Nothing is checked in AMP until you do.'; $('runclock').textContent = '';
+    paintRunBar(aiPlanned()); renderStages(null); $('tally').hidden = true; $('beat').hidden = true;
+  }
+  function limitTo(n) { if (state.maxStep > n) { state.maxStep = n; paintStepper(); } }
+  $('stepper').addEventListener('click', function (e) {
+    var b = e.target.closest('.stp'); if (!b || state.running) return;
+    var s = +b.getAttribute('data-step');
+    if (s !== state.step && s <= state.maxStep) goStep(s);
+  });
+  document.querySelectorAll('[data-back]').forEach(function (b) {
+    b.addEventListener('click', function () { if (!state.running && state.step > 1) goStep(state.step - 1); });
+  });
+
+  // ---- 1 site (same form as the other modules; recent sites are shared)
+  function siteUrl(v) {
+    v = String(v || '').trim(); if (!v) return null;
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) v = 'https://' + v;
+    var u; try { u = new URL(v); } catch (x) { return null; }
+    if (!/^https?:$/.test(u.protocol) || !u.hostname) return null;
+    return { origin: u.origin, host: u.host, name: u.host };
+  }
+  function cleanName(v) { return String(v || '').trim().slice(0, 80); }
+  function urlFeedback() {
+    var u = siteUrl($('env-url').value);
+    $('env-url-box').classList.toggle('ok', !!u);
+    $('env-url-box').classList.toggle('bad', !$('env-url').value.trim() || !u ? false : false);
+    $('env-url-help').textContent = u ? 'Will check ' + u.origin : ($('env-url').value.trim() ? 'That does not look like a site address.' : '');
+    $('env-url-help').className = 'help' + (u ? ' ok' : ($('env-url').value.trim() ? ' bad' : ''));
+  }
+  function environment() {
+    var u = siteUrl($('env-url').value);
+    if (!u) throw new Error('Enter the site address first.');
+    var prod = $('env-prod').checked;
+    if (prod && !$('env-allow').checked) throw new Error('This is marked as production: tick the approval box to continue.');
+    return { name: cleanName($('env-name').value) || u.host, baseUrl: u.origin, isProduction: prod, allowProduction: prod && $('env-allow').checked };
+  }
+  function recentEnvs() { return load('amp-envs', []); }
+  function renderRecent() {
+    var list = recentEnvs().slice(0, 6);
+    $('env-recent-wrap').hidden = !list.length;
+    $('env-recent').innerHTML = list.map(function (e, i) {
+      return '<div class="envc" tabindex="0" role="button" data-env="' + i + '"><span class="av">' + esc((e.name || e.baseUrl || '?').slice(0, 1).toUpperCase()) + '</span><span class="tx"><span class="n">' + esc(e.name || e.baseUrl) + (e.isProduction ? '<span class="pb">PROD</span>' : '') + '</span><span class="h">' + esc(e.baseUrl) + '</span></span><button class="x" data-del="' + i + '" title="Forget">×</button></div>';
+    }).join('');
+  }
+  function rememberEnv(e) {
+    var list = recentEnvs().filter(function (x) { return x.baseUrl !== e.baseUrl; });
+    list.unshift({ name: e.name, baseUrl: e.baseUrl, isProduction: !!e.isProduction, at: Date.now() });
+    save('amp-envs', list.slice(0, 12));
+  }
+  function toggleProd() { $('env-allow-wrap').hidden = !$('env-prod').checked; if (!$('env-prod').checked) $('env-allow').checked = false; }
+  function siteChanged() { msg('env-msg'); limitTo(1); }
+  $('env-recent').addEventListener('click', function (ev) {
+    var del = ev.target.closest('[data-del]');
+    if (del) { ev.stopPropagation(); var l = recentEnvs(); l.splice(+del.getAttribute('data-del'), 1); save('amp-envs', l); renderRecent(); return; }
+    var card = ev.target.closest('[data-env]');
+    if (!card) return;
+    var e = recentEnvs()[+card.getAttribute('data-env')]; if (!e) return;
+    $('env-url').value = e.baseUrl; $('env-name').value = e.name === new URL(e.baseUrl).host ? '' : e.name;
+    $('env-prod').checked = !!e.isProduction; toggleProd(); urlFeedback(); siteChanged();
+  });
+  $('env-prod').addEventListener('change', function () { toggleProd(); siteChanged(); });
+  $('env-allow').addEventListener('change', function () { msg('env-msg'); });
+  $('env-url').addEventListener('input', function () { urlFeedback(); siteChanged(); });
+  $('env-name').addEventListener('blur', function () { $('env-name').value = cleanName($('env-name').value); });
+  $('next-1').addEventListener('click', function () {
+    try {
+      var e = environment();
+      rememberEnv(e); renderRecent(); goStep(2);
+    } catch (err) { msg('env-msg', 'bad', esc(err.message)); }
+  });
+
+  // ---- 2 accounts (one row per account = key + masked jwt)
+  var userSeq = 0;
+  function addUser(key, jwt) {
+    userSeq += 1;
+    var n = userSeq;
+    var div = document.createElement('div');
+    div.className = 'acct-row';
+    div.id = 'user-' + n;
+    div.innerHTML = '<div class="fld"><label class="lbl" for="key-' + n + '">Account key</label>' +
+      '<input type="text" id="key-' + n + '" placeholder="your username" autocomplete="off" autocapitalize="off" spellcheck="false" value="' + esc(key || '') + '">' +
+      '<div class="help">Letters, digits and _ only, max 40.</div></div>' +
+      '<div class="fld"><label class="lbl" for="jwt-' + n + '">jwt cookie</label>' +
+      '<div class="pw"><input type="text" id="jwt-' + n + '" class="secret" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" placeholder="paste this account\u2019s jwt">' +
+      '<button type="button" class="show" data-show="' + n + '" title="Show/hide">Show</button></div></div>' +
+      '<div class="fld"><label class="lbl">&nbsp;</label><button type="button" class="btn sm" data-rm="' + n + '">Remove</button></div>' +
+      '<div class="who" id="who-' + n + '"></div>';
+    $('users').appendChild(div);
+    if (jwt) div.querySelector('#jwt-' + n).value = jwt;
+    div.querySelector('#key-' + n).addEventListener('input', function () { whoMsg(n, '', ''); limitTo(2); });
+    div.querySelector('#jwt-' + n).addEventListener('input', function () { whoMsg(n, '', ''); limitTo(2); });
+    return n;
+  }
+  function userRows() { return Array.prototype.slice.call($('users').querySelectorAll('.acct-row')); }
+  function users() {
+    return userRows().map(function (row) {
+      var n = row.id.replace('user-', '');
+      return { n: n, key: row.querySelector('#key-' + n).value.trim(), jwt: row.querySelector('#jwt-' + n).value.trim() };
+    });
+  }
+  function whoMsg(n, kind, text) { var el = $('who-' + n); if (el) el.innerHTML = text ? '<span class="' + kind + '">' + text + '</span>' : ''; }
+  $('users').addEventListener('click', function (e) {
+    var sh = e.target.closest('[data-show]');
+    if (sh) { var inp = $('jwt-' + sh.getAttribute('data-show')); if (inp) inp.classList.toggle('secret'); return; }
+    var rm = e.target.closest('[data-rm]');
+    if (rm) { var row = $('user-' + rm.getAttribute('data-rm')); if (row) row.remove(); if (!userRows().length) addUser('', ''); limitTo(2); }
+  });
+  $('btn-add').addEventListener('click', function () { addUser('', ''); });
+  $('btn-clear').addEventListener('click', function () {
+    users().forEach(function (u) { $('jwt-' + u.n).value = ''; whoMsg(u.n, '', ''); });
+    msg('users-msg', '', ''); limitTo(2);
+  });
+  function checkTokens() {
+    if (users().some(function (u) { return u.jwt && !u.key; })) { msg('users-msg', 'bad', 'Give each account a name first, for example your username. It labels that account in the results.'); return Promise.resolve(null); }
+    var list = users().filter(function (u) { return u.key && u.jwt; });
+    if (!list.length) { msg('users-msg', 'bad', 'Paste a jwt for at least one account first (the key tells the runs apart).'); return Promise.resolve(null); }
+    var bad = list.filter(function (u) { return !KEY_RE.test(u.key); });
+    if (bad.length) { msg('users-msg', 'bad', 'Account keys use letters, digits and _ only (max 40): ' + bad.map(function (u) { return u.key; }).map(esc).join(', ')); return Promise.resolve(null); }
+    msg('users-msg', 'warn', SPIN + 'Checking tokens…');
+    var body;
+    try { body = { environment: environment(), users: list.map(function (u) { return { key: u.key, jwt: u.jwt }; }) }; }
+    catch (err) { msg('users-msg', 'bad', esc(err.message)); return Promise.resolve(null); }
+    return api('POST', '/api/mcp/check', body).then(function (r) {
+      (r.users || []).forEach(function (x) {
+        var u = list.filter(function (y) { return y.key === x.key; })[0];
+        if (!u) return;
+        if (x.ok && x.identity) whoMsg(u.n, 'ok', '✓ Logged in as ' + esc(x.identity.name) + (x.identity.persona ? ' · ' + esc(x.identity.persona) : '') + (x.identity.company ? ' · ' + esc(x.identity.company) : ''));
+        else whoMsg(u.n, 'bad', esc(x.error || 'That jwt did not work.'));
+      });
+      var ok = (r.users || []).filter(function (x) { return x.ok; }).length;
+      msg('users-msg', ok ? 'ok' : 'bad', ok ? '✓ ' + ok + ' of ' + list.length + ' token(s) work.' : 'None of the pasted tokens work.');
+      return r;
+    }).catch(function (e) { msg('users-msg', 'bad', esc(e.message)); return null; });
+  }
+  $('btn-check').addEventListener('click', function () { checkTokens(); });
+  $('next-2').addEventListener('click', function () {
+    checkTokens().then(function (r) {
+      if (!r) return;
+      if (!(r.users || []).some(function (x) { return x.ok; })) { msg('users-msg', 'bad', 'At least one working token is needed to continue.'); return; }
+      goStep(3);
+    });
+  });
+
+  // ---- 3 plan
+  function fmtSecs(s) { s = Math.round(s); return s < 60 ? 'about ' + s + ' seconds' : 'about ' + Math.floor(s / 60) + ' min ' + (s % 60) + ' s'; }
+  function loadPlan() {
+    var list = users().filter(function (u) { return u.key && u.jwt && KEY_RE.test(u.key); });
+    if (!list.length) { msg('plan-msg', 'bad', 'Go back and paste at least one account jwt first.'); return; }
+    $('plan-sum').innerHTML = '';
+    $('plan-words').textContent = '';
+    msg('plan-msg', 'warn', SPIN + 'Working out what will be checked…');
+    var body;
+    try { body = { environment: environment(), users: list.map(function (u) { return { key: u.key, jwt: u.jwt }; }) }; }
+    catch (err) { msg('plan-msg', 'bad', esc(err.message)); return; }
+    api('POST', '/api/mcp/plan', body).then(function (r) {
+      var w = r.workflows || {};
+      $('plan-sum').innerHTML =
+        '<div class="sbox"><div class="v">' + list.length + '</div><div class="l">account' + (list.length === 1 ? '' : 's') + '</div></div>' +
+        '<div class="sbox"><div class="v">' + (w.reachable ? esc(String(w.count || 0)) : '?') + '</div><div class="l">workflows</div></div>' +
+        '<div class="sbox"><div class="v">' + esc(fmtSecs(r.estimateSeconds || 0)) + '</div><div class="l">estimated time</div></div>' +
+        '<div class="sbox"><div class="v">Read-only</div><div class="l">changes nothing</div></div>';
+      $('plan-words').textContent = 'Read ' + (w.reachable ? w.count + ' workflows' : 'workflows') + ', list every connector each account can see, ask AMP to connect to each and list its tools.';
+      var ai = r.ai || {};
+      if (ai.available) $('ai-help').innerHTML = 'Gemini (<code>' + esc(ai.model || 'gemini') + '</code>) reads the connector names, our plain-words verdict, what AMP answered, and tool names with their input field names, and writes one-line notes. This sends those to Google. Never tokens, keys, addresses, or people.';
+      else { $('ai-help').textContent = 'No Gemini key on this machine, so the toggle stays off. Set GEMINI_API_KEY and restart the server to use it.'; $('opt-ai').checked = false; $('opt-ai').disabled = true; }
+      if (!w.reachable) msg('plan-msg', 'bad', 'The workflow list is unreachable' + (w.error ? ': ' + esc(w.error) : '') + '. The connector checks still run, but workflow nodes are then not checked.');
+      else msg('plan-msg', '', '');
+    }).catch(function (e) { msg('plan-msg', 'bad', esc(e.message)); });
+  }
+  $('next-3').addEventListener('click', function () { goStep(4); });
+
+  // ---- 4 run: stage list, live tally, clock, heartbeat and a timestamped log (poll every 1 s like the setter)
+  var STAGE_DEFS = [['workflows', 'Read the workflow list'], ['servers', 'Find the connectors'], ['tools', 'Ask AMP to connect to each connector'], ['report', 'Sort the results']];
+  var STAGE_TITLE = { workflows: 'Reading workflows', servers: 'Listing connectors', tools: 'Asking AMP to connect', report: 'Sorting the results', ai: 'Writing AI notes' };
+  var AI_CAP = 60, AI_BATCH = 20, BATCH_SECS = 60;
+  var run = { last: null, lastChange: 0, sig: '', timer: null, logLines: [] };
+
+  function fmtDur(ms) { var s = Math.max(0, Math.round(ms / 1000)); if (s < 60) return s + ' s'; var m = Math.floor(s / 60); return m + ' min' + (s % 60 ? ' ' + (s % 60) + ' s' : ''); }
+  function clockText(ms) { var s = Math.max(0, Math.floor(ms / 1000)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+  function aiPlanned() { return !!(!$('opt-ai').disabled && $('opt-ai').checked); }
+
+  /** The settings that matter, always visible: read-only, whether anything goes to Google, site and accounts. */
+  function paintRunBar(aiOn) {
+    var site = '', names = [];
+    try { var env = environment(); site = env.name || env.baseUrl || ''; } catch (e) { site = ''; }
+    try { names = users().map(function (u) { return u.key; }).filter(Boolean); } catch (e) { names = []; }
+    $('runbar').innerHTML =
+      '<span class="tag ok" title="This check only reads. It changes nothing in AMP.">Read-only</span>' +
+      '<span class="tag' + (aiOn ? ' warn' : '') + '" title="' + (aiOn ? 'Connector names, our verdict, AMP\'s error text and tool names go to Google (Gemini). Never tokens or keys.' : 'Nothing is sent to Google.') + '">' + (aiOn ? 'AI review: on · up to ' + AI_CAP + ' notes, sent to Google' : 'AI review: off') + '</span>' +
+      (site ? '<span class="tag mute">' + esc(site) + '</span>' : '') + (names.length ? '<span class="tag mute">' + esc(names.join(', ')) + '</span>' : '');
+  }
+
+  function stageDetail(id, state, r, f) {
+    if (id === 'workflows') {
+      if (state === 'next') return 'About half a minute';
+      return f.workflows != null ? esc(f.workflows + ' workflows · ' + (f.nodes != null ? f.nodes + ' connector steps' : 'reading each one…')) : 'Reading the list…';
+    }
+    if (id === 'servers') return state === 'next' ? 'Every connector this account can see' : (f.servers != null ? esc(f.servers + ' connectors found') : 'Asking AMP…');
+    if (id === 'tools') {
+      if (state === 'next') return 'The slowest part: a few minutes';
+      if (state === 'now' && r) return esc(r.done + ' of ' + r.total + ' answered');
+      return r && r.tally ? esc(r.tally.checked + ' connectors answered') : '';
+    }
+    if (id === 'report') return state === 'next' ? 'Group by what needs fixing' : (state === 'now' ? 'Sorting and saving…' : 'Saved');
+    if (id === 'ai') {
+      if (state === 'next') return 'Up to ' + AI_CAP + ' notes · about a minute per batch of ' + AI_BATCH;
+      if (state === 'now' && r) return esc((r.current || '') + ' · Gemini can take up to a minute per batch');
+      return f.aiItems != null ? esc(f.aiItems + ' items written up') : '';
+    }
+    return '';
+  }
+
+  /** r = the server's progress object, or null for the "ready" preview (every stage still to come). */
+  function renderStages(r) {
+    var ai = r ? !!r.ai : aiPlanned(), times = (r && r.stageTimes) || {}, facts = (r && r.facts) || {}, now = Date.now();
+    var defs = STAGE_DEFS.concat(ai ? [['ai', 'Write AI notes']] : []);
+    var curIdx = r ? defs.map(function (d) { return d[0]; }).indexOf(r.stage) : -1;
+    var over = !!(r && r.status && r.status !== 'running');
+    var h = '';
+    defs.forEach(function (d, i) {
+      var id = d[0], tm = times[id], state = 'next';
+      if (r) { if (tm && tm.endedAt) state = 'done'; else if (i < curIdx) state = 'done'; else if (i === curIdx) state = over ? 'done' : 'now'; }
+      var dur = tm ? fmtDur((tm.endedAt || now) - tm.startedAt) : '';
+      var bar = '';
+      if (state === 'now') {
+        var pct = r && r.total > 1 && (id === 'tools' || id === 'workflows' || id === 'ai') ? Math.round(100 * r.done / r.total) : -1;
+        bar = '<div class="stbar' + (pct < 0 ? ' ind' : '') + '"><i style="width:' + (pct < 0 ? 35 : pct) + '%"></i></div>';
+      }
+      h += '<li class="st ' + state + '"><span class="mk">' + (state === 'done' ? '✓' : state === 'now' ? SPIN : '') + '</span><div class="stx"><b>' + esc(d[1]) + '</b><span class="hint">' + stageDetail(id, state, r, facts) + '</span>' + bar + '</div><span class="stt">' + esc(dur) + '</span></li>';
+    });
+    $('stlist').innerHTML = h;
+  }
+
+  function renderTally(t) {
+    var el = $('tally');
+    if (!t || !t.checked) { el.hidden = true; return; }
+    el.hidden = false;
+    el.innerHTML = '<span class="hint">So far:</span> <span class="tag ok">' + t.working + ' working</span> <span class="tag bad">' + t.fix + ' need a fix</span> <span class="tag warn">' + t.reconnect + ' to reconnect</span> <span class="tag mute">' + t.cantCheck + " can't be checked</span>";
+  }
+
+  /** A rough time left: the tools stage by its speed so far, the AI stage by batches (an upper bound). */
+  function etaMs(r, now) {
+    var t = r.stageTimes || {}, batches = r.ai ? Math.ceil(Math.min((r.facts && r.facts.aiItems) || AI_CAP, AI_CAP) / AI_BATCH) : 0;
+    if (r.stage === 'tools' && t.tools && r.done >= 10) return (r.total - r.done) * ((now - t.tools.startedAt) / r.done) + 5000 + batches * BATCH_SECS * 1000;
+    if (r.stage === 'ai') return Math.max(0, r.total - r.done) * BATCH_SECS * 1000;
+    return null;
+  }
+
+  function tick() {
+    var r = run.last;
+    if (!r || !state.running) return;
+    var now = Date.now(), eta = etaMs(r, now);
+    $('runclock').textContent = clockText(now - (r.startedAt || now)) + ' elapsed' + (eta == null ? '' : ' · ' + (eta < 60000 ? 'under 1 min left' : 'about ' + Math.round(eta / 60000) + ' min left'));
+    var quiet = now - run.lastChange, beat = $('beat');
+    beat.hidden = false;
+    if (quiet > 60000) { beat.className = 'beat warn'; beat.textContent = 'No new progress for ' + fmtDur(quiet) + '. AMP' + (r.stage === 'ai' ? ' or Gemini' : '') + ' may be slow to answer. Keep waiting, or press Cancel.'; }
+    else { beat.className = 'beat'; beat.textContent = quiet < 3000 ? 'Updating live.' : 'Last progress ' + fmtDur(quiet) + ' ago.'; }
+    renderStages(r);
+  }
+  function startClock() { stopClock(); run.timer = setInterval(tick, 1000); }
+  function stopClock() { if (run.timer) { clearInterval(run.timer); run.timer = null; } }
+
+  function appendLog(lines) {
+    if (!lines || !lines.length) return;
+    var box = $('log');
+    lines.forEach(function (l) {
+      run.logLines.push(l);
+      var m = /^(\d+:\d{2}) {2}(.*)$/.exec(l), d = document.createElement('div');
+      d.className = 'll' + (/WARNING|failed|unreachable|HTTP [45]\d\d/i.test(l) ? ' warn' : '');
+      if (m) { var ts = document.createElement('span'); ts.className = 'ts'; ts.textContent = m[1]; d.appendChild(ts); d.appendChild(document.createTextNode(m[2])); }
+      else d.textContent = l;
+      box.appendChild(d);
+    });
+    box.scrollTop = box.scrollHeight;
+    $('log-n').textContent = String(run.logLines.length);
+  }
+  function resetRunUi() {
+    $('log').innerHTML = ''; run.logLines = []; $('log-n').textContent = '0';
+    run.sig = ''; run.lastChange = Date.now(); run.last = null; state.from = 0; state.runId = null;
+    $('tally').hidden = true; $('beat').hidden = true; $('runclock').textContent = '';
+  }
+  $('copy-log').addEventListener('click', function () { copy(run.logLines.join('\n') || '(no log lines yet)'); });
+
+  function busy(on) {
+    state.running = on; document.body.classList.toggle('running', on);
+    $('btn-run').hidden = on; $('btn-run').disabled = on; $('btn-cancel').hidden = !on; $('back-4').hidden = on; $('back-4').disabled = on;
+  }
+  $('btn-run').addEventListener('click', function () {
+    var list = users().filter(function (u) { return u.key && u.jwt && KEY_RE.test(u.key); });
+    if (!list.length) { msg('run-err', 'bad', 'Go back and paste at least one account jwt first.'); return; }
+    var body;
+    try { body = { environment: environment(), users: list.map(function (u) { return { key: u.key, jwt: u.jwt }; }), ai: aiPlanned() }; }
+    catch (err) { msg('run-err', 'bad', esc(err.message)); return; }
+    rememberEnv(body.environment);
+    resetRunUi();
+    msg('run-err', '', ''); busy(true);
+    // Show the first stage as running at once, so the screen never looks idle while the server starts.
+    var first = { stage: 'workflows', status: 'running', ai: body.ai, stageTimes: { workflows: { startedAt: Date.now() } }, facts: {}, done: 0, total: 1, startedAt: Date.now() };
+    run.last = first; paintRunBar(body.ai); $('run-title').innerHTML = SPIN + 'Starting…'; $('run-sub').textContent = ''; renderStages(first); startClock(); tick();
+    api('POST', '/api/mcp/runs', body).then(function (r) {
+      state.runId = r.run && r.run.id;
+      poll();
+    }).catch(function (e) { stopClock(); busy(false); idleRun(); msg('run-err', 'bad', esc(e.message)); });
+  });
+  $('btn-cancel').addEventListener('click', function () {
+    if (!state.runId) return;
+    api('POST', '/api/mcp/runs/' + encodeURIComponent(state.runId) + '/cancel', {}).catch(function (e) { msg('run-err', 'bad', esc(e.message)); });
+  });
+  function poll() {
+    api('GET', '/api/mcp/runs/current?from=' + state.from).then(function (r) {
+      var cur = r.run;
+      if (!cur) { stopClock(); busy(false); idleRun(); return; }
+      state.runId = cur.id;
+      var sig = [cur.stage, cur.done, cur.lineCount].join('|');
+      if (sig !== run.sig) { run.sig = sig; run.lastChange = Date.now(); }
+      run.last = cur;
+      appendLog(cur.lines || []); state.from = cur.lineCount || 0;
+      var acct = cur.account;
+      $('run-title').textContent = STAGE_TITLE[cur.stage] || 'Working…';
+      $('run-sub').textContent = acct && acct.key ? (acct.count > 1 ? 'Account ' + acct.index + ' of ' + acct.count + ': ' : 'Account: ') + acct.key : '';
+      paintRunBar(!!cur.ai); renderTally(cur.tally); renderStages(cur); tick();
+      if (cur.status === 'running') { setTimeout(poll, 1000); return; }
+      stopClock(); busy(false);
+      if (cur.status === 'cancelled') { msg('run-err', 'warn', 'Run cancelled. Nothing was changed in AMP.'); $('beat').hidden = true; return; }
+      var o = cur.outcome || {};
+      if (o.error || !o.result) { msg('run-err', 'bad', esc(o.error || 'The run failed.')); $('beat').hidden = true; return; }
+      setResult(o.result);
+    }).catch(function () { setTimeout(poll, 2000); });
+  }
+  // Reconnect to a run that is still going (e.g. after a refresh).
+  api('GET', '/api/mcp/runs/current?from=0').then(function (r) {
+    if (!r.run || r.run.status !== 'running') return;
+    state.runId = r.run.id; state.from = 0;
+    goStep(4); busy(true); resetRunUi(); state.runId = r.run.id; startClock(); poll();
+  }).catch(function () {});
+  function setResult(result) {
+    DATA = result;
+    buildCombined();
+    st.acct = (DATA.order || []).filter(function (k) { return k !== 'combined'; })[0] || 'combined';
+    st.tab = 'servers'; st.group = 'ALL'; st.q = ''; st.page = 0; st.open = {};
+    draw();
+    goStep(5);
+  }
+
+  // ---- 5 results (markup and wording lifted from notes/mockups/mcp-results.template.html)
+  /* Plain wording (plan 5c): internal states never reach the screen. */
+  var GROUP = { BROKEN: { n: 'Fix needed', c: 'bad', who: 'Connector owner' }, MAYBE: { n: 'Reconnect, then recheck', c: 'warn', who: 'You' }, NEEDS_YOU: { n: "Can't check with this account", c: 'mute', who: 'You, or a user who has it' }, HEALTHY: { n: 'Working', c: 'ok', who: 'Nobody' } };
+  var REASON = { UNKNOWN_ERROR: 'Unrecognised error', KEY_REJECTED: 'API key rejected', DEAD_HOST: 'Server address no longer exists', URL_404: 'Address not found (404)', REDIRECT: 'Address redirects elsewhere', HTML_NOT_MCP: 'Address is a web page, not an MCP server', UNREACHABLE: 'Server not responding', NO_TOOLS: 'Connected but offers no tools', OAUTH_EXPIRED: 'Login expired or refused', FORBIDDEN: 'Login lacks permission', RATE_LIMITED: 'Too many requests, retry later', API_ERROR: 'AMP call failed', MISCONFIGURED: 'Connector is misconfigured', NOT_CONNECTED: "You haven't connected this one", NOT_VISIBLE: "This account can't see this connector", OK: 'Connected, tools came back', NOT_CHECKED: 'Workflow picks its connector at run time, not checked' };
+  var ORDER = ['BROKEN', 'MAYBE', 'NEEDS_YOU', 'HEALTHY'];
+  var BEST = ['HEALTHY', 'BROKEN', 'MAYBE', 'NEEDS_YOU']; // best verdict first
+  function esc2(s) { return esc(s); }
+  /** How sure the rule was, in plain words (older runs carry no certainty). */
+  var SURE = { high: 'sure', medium: 'likely', low: 'best guess' };
+  function sureOf(s) { return s && SURE[s.certainty] ? SURE[s.certainty] : ''; }
+  function sureTag(s) { var w = sureOf(s); return w ? ' <span class="dim" title="How sure this rule is about the cause">· ' + esc(w) + '</span>' : ''; }
+  function reasonOf(stt) {
+    if (stt.indexOf('TOOL_MISSING') === 0) return "Workflow calls a tool this connector doesn't have";
+    if (stt.indexOf('SERVER_') === 0) return 'Its connector: ' + (REASON[stt.slice(7)] || 'not checked').toLowerCase();
+    return REASON[stt] || 'Not checked';
+  }
+  function toolOf(stt) { var i = stt.indexOf(': '); return i > 0 ? stt.slice(i + 2) : ''; }
+  var st = { acct: 'combined', tab: 'servers', group: 'ALL', q: '', page: 0, open: {} };
+  var PAGE = 40;
+  // The Combined tab is computed here in the browser: best bucket per server and per node.
+  function buildCombined() {
+    if (!DATA || !DATA.accounts) return;
+    var keys = (DATA.order || []).filter(function (k) { return k !== 'combined' && DATA.accounts[k]; });
+    var bs = {}, bn = {};
+    keys.forEach(function (k) {
+      var a = DATA.accounts[k];
+      (a.servers || []).forEach(function (s) {
+        var p = bs[s.id];
+        if (!p || BEST.indexOf(s.bucket) < BEST.indexOf(p.bucket) || (s.bucket === p.bucket && (s.tools || 0) > (p.tools || 0))) bs[s.id] = s;
+      });
+      (a.nodes || []).forEach(function (n) {
+        var key = n.workflow + '|' + n.server + '|' + n.tool;
+        var p = bn[key];
+        if (!p || BEST.indexOf(n.bucket) < BEST.indexOf(p.bucket)) bn[key] = n;
+      });
+    });
+    var list = keys.map(function (k) { return DATA.accounts[k].title || k; }).join(', ');
+    DATA.accounts.combined = { title: 'Combined', sub: 'best of ' + list, servers: Object.keys(bs).map(function (k) { return bs[k]; }).sort(function (x, y) { return x.id - y.id; }), nodes: Object.keys(bn).map(function (k) { return bn[k]; }) };
+    if ((DATA.order || []).indexOf('combined') < 0) DATA.order.push('combined');
+  }
+  function cur() { return DATA.accounts[st.acct]; }
+  function counts(list) { var c = { BROKEN: 0, MAYBE: 0, NEEDS_YOU: 0, HEALTHY: 0 }; list.forEach(function (x) { if (c[x.bucket] !== undefined) c[x.bucket]++; }); return c; }
+  function drawAcct() {
+    var h = '<span class="lbl">Account</span>';
+    (DATA.order || []).forEach(function (k) {
+      var a = DATA.accounts[k]; if (!a) return;
+      h += '<button type="button" class="pill' + (k === st.acct ? ' on' : '') + '" data-acct="' + esc(k) + '" role="tab" aria-selected="' + (k === st.acct) + '">' + esc(a.title || k) + '</button>';
+    });
+    $('acct').innerHTML = h;
+    var a = cur();
+    $('meta').textContent = DATA.host + ' · ' + (a.sub || '');
+    var healthy = counts(a.servers || []).HEALTHY;
+    $('limited').innerHTML = (a.limitedNote && healthy < (a.servers || []).length * 0.25) ? '<div class="msg warn">' + esc(a.limitedNote) + '</div>' : '';
+  }
+  function drawSummary() {
+    var a = cur(), c = counts(a.servers || []);
+    $('summary').textContent = c.BROKEN + ' need a fix · ' + c.MAYBE + ' need reconnecting · ' + c.NEEDS_YOU + " can't be checked with this account · " + c.HEALTHY + ' working';
+    var h = '';
+    ORDER.forEach(function (g) {
+      var d = GROUP[g];
+      h += '<button type="button" class="sc ' + d.c + (st.group === g ? ' on' : '') + '" data-group="' + g + '" aria-pressed="' + (st.group === g) + '"><span class="num">' + c[g] + '</span><span class="nm">' + esc(d.n) + '</span><span class="who">Who acts: ' + esc(d.who) + '</span></button>';
+    });
+    $('cards').innerHTML = h;
+    $('filter-pill').innerHTML = st.group !== 'ALL' && GROUP[st.group]
+      ? '<div class="btns" style="margin:0 0 10px"><span class="hint">Showing only</span><button type="button" class="chip on" data-group="ALL" title="Show all connectors again">' + esc(GROUP[st.group].n) + ' (' + c[st.group] + ') · Show all ✕</button></div>'
+      : '';
+    drawDonut(c);
+    var ch = (DATA.changes || {})[st.acct] || [];
+    var first = (DATA.firstRun || {})[st.acct];
+    $('changes-banner').innerHTML = st.acct === 'combined' ? '' :
+      first ? '<div class="msg warn">First run for this account, nothing to compare yet.</div>' :
+      (DATA.rulesChanged || {})[st.acct] ? '<div class="msg warn">The way results are sorted was updated since the last run, so status changes are not compared this time. New or removed connectors and tool changes are still shown. Run again to compare normally.</div>' :
+      ch.length ? '<div class="msg ok">Changes since last run: ' + ch.length + ' connector' + (ch.length === 1 ? '' : 's') + ' changed. <a href="#" data-tab="changes">See changes</a></div>' :
+      '<div class="msg ok">No changes since the last run.</div>';
+  }
+  /** Donut of all connectors by group. Slices are keyboard-focusable buttons; click filters the connector list. */
+  function arcPath(cx, cy, r, a0, a1) {
+    var p = function (a) { return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+    var s = p(a0), e = p(a1), large = a1 - a0 > Math.PI ? 1 : 0;
+    return 'M' + s[0].toFixed(2) + ' ' + s[1].toFixed(2) + ' A' + r + ' ' + r + ' 0 ' + large + ' 1 ' + e[0].toFixed(2) + ' ' + e[1].toFixed(2);
+  }
+  function drawDonut(c) {
+    var total = ORDER.reduce(function (n, g) { return n + c[g]; }, 0), el = $('donut');
+    if (!total) { el.innerHTML = ''; return; }
+    var parts = ORDER.filter(function (g) { return c[g] > 0; }), a = -Math.PI / 2, gap = parts.length > 1 ? 0.035 : 0, svg = '';
+    parts.forEach(function (g) {
+      var sweep = c[g] / total * Math.PI * 2, a0 = a + gap / 2, a1 = a + sweep - gap / 2;
+      var d = parts.length === 1 ? arcPath(100, 100, 78, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 - 0.001) : arcPath(100, 100, 78, a0, Math.max(a0 + 0.001, a1));
+      svg += '<path class="seg ' + GROUP[g].c + (st.group === g ? ' on' : '') + '" d="' + d + '" data-slice="' + g + '" tabindex="0" role="button" aria-label="' + esc(GROUP[g].n) + ': ' + c[g] + ' of ' + total + ' connectors. Show them in the list."></path>';
+      a += sweep;
+    });
+    el.className = 'donut' + (st.group !== 'ALL' ? ' sel' : '');
+    el.innerHTML = '<svg viewBox="0 0 200 200" role="group" aria-label="Connectors by status: ' + ORDER.map(function (g) { var noted = (cur().servers || []).filter(function (x) { return x.bucket === g && x.ai; }).length; return c[g] + ' ' + GROUP[g].n.toLowerCase() + (noted ? ' (' + noted + ' with AI notes)' : ''); }).join(', ') + '">' + svg + '</svg>' +
+      (st.group !== 'ALL' && c[st.group] !== undefined
+        ? '<button type="button" class="ctr ctr-reset" data-group="ALL" title="Show all connectors again" aria-label="Show all ' + total + ' connectors again"><b>' + c[st.group] + '</b><span>Show all ✕</span></button>'
+        : '<div class="ctr"><b>' + total + '</b><span>connectors</span></div>') + '<div class="tip" hidden></div>';
+  }
+  function sliceGo(g) {
+    st.group = st.group === g ? 'ALL' : g; st.tab = 'servers'; st.q = ''; st.page = 0; draw();
+    var t = $('tabs'); if (t && t.scrollIntoView && t.getBoundingClientRect().top > window.innerHeight - 140) t.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  // A mouse press must not focus the slice (browsers flash a square focus box on SVG shapes); keyboard focus still works.
+  $('donut').addEventListener('mousedown', function (e) { if (e.target.closest && e.target.closest('[data-slice]')) e.preventDefault(); });
+  $('donut').addEventListener('click', function (e) { var s = e.target.closest('[data-slice]'); if (s) sliceGo(s.getAttribute('data-slice')); });
+  $('donut').addEventListener('keydown', function (e) { if ((e.key === 'Enter' || e.key === ' ') && e.target.getAttribute && e.target.getAttribute('data-slice')) { e.preventDefault(); sliceGo(e.target.getAttribute('data-slice')); } });
+  function tipFor(e) {
+    var tip = $('donut').querySelector('.tip'); if (!tip) return;
+    var s = e.target.closest ? e.target.closest('[data-slice]') : null;
+    if (!s) { tip.hidden = true; return; }
+    var g = s.getAttribute('data-slice'), c = counts(cur().servers || []), total = ORDER.reduce(function (n, x) { return n + c[x]; }, 0);
+    var noted = (cur().servers || []).filter(function (x) { return x.bucket === g && x.ai; }).length;
+    tip.textContent = GROUP[g].n + ': ' + c[g] + ' (' + Math.round(100 * c[g] / total) + '%)' + (noted ? ', ' + noted + ' with AI notes' : '');
+    var r = $('donut').getBoundingClientRect(); tip.hidden = false;
+    tip.style.left = Math.min(Math.max(0, e.clientX - r.left + 12), r.width - tip.offsetWidth) + 'px'; tip.style.top = Math.max(0, e.clientY - r.top + 12) + 'px';
+  }
+  $('donut').addEventListener('mousemove', tipFor);
+  $('donut').addEventListener('mouseleave', function () { var tip = $('donut').querySelector('.tip'); if (tip) tip.hidden = true; });
+  function drawTabs() {
+    var a = cur();
+    var tabs = [['servers', 'Servers', (a.servers || []).length], ['nodes', 'Workflow nodes', (a.nodes || []).length], ['tools', 'Tools', (a.servers || []).filter(function (s) { return s.tools > 0; }).length], ['changes', 'Changes', ((DATA.changes || {})[st.acct] || []).length]];
+    $('tabs').innerHTML = tabs.map(function (t) { return '<button type="button" role="tab" data-tab="' + t[0] + '" class="' + (st.tab === t[0] ? 'on' : '') + '" aria-selected="' + (st.tab === t[0]) + '">' + t[1] + '<span class="n">' + t[2] + '</span></button>'; }).join('');
+  }
+  function aiNote(x) {
+    if (!x.ai) return '';
+    return '<div class="ainote"><b>AI note</b> <span class="tag">AI-written, check before acting</span> <span class="dim">' + esc(x.ai.confidence) + ' confidence</span><div>' + esc(x.ai.diagnosis) + '</div><div>Next step: ' + esc(x.ai.nextStep) + '</div></div>';
+  }
+  function tagFor(bucket) {
+    var d = GROUP[bucket];
+    if (!d) return '<span class="tag">' + esc2(bucket) + '</span>';
+    return '<span class="tag ' + d.c + '">' + esc(d.n) + '</span>';
+  }
+  // ---- tool lists: grouped by the start of the name, with AMP's own descriptions when the run saved them.
+  // Grouping is only for scanning. It says nothing about what a tool does or whether it is safe to call.
+  function toolItems(s) {
+    if (s.toolInfo && s.toolInfo.length) return s.toolInfo;
+    return (s.toolNames || []).map(function (n) { return { name: n }; });
+  }
+  function toolPrefix(n) {
+    var m = /^([A-Za-z0-9]+?)(?:[_\-.\/:]|(?=[A-Z][a-z]))/.exec(String(n));
+    return m ? m[1].toLowerCase() : 'other';
+  }
+  function toolGroups(items) {
+    var map = {}, order = [];
+    items.forEach(function (t) { var k = toolPrefix(t.name); if (!map[k]) { map[k] = []; order.push(k); } map[k].push(t); });
+    var other = [];
+    order = order.filter(function (k) { if (map[k].length < 2 && k !== 'other') { other = other.concat(map[k]); delete map[k]; return false; } return true; });
+    if (map.other) other = other.concat(map.other);
+    var groups = order.filter(function (k) { return k !== 'other'; }).map(function (k) { return { key: k, items: map[k] }; });
+    groups.sort(function (a, b) { return b.items.length - a.items.length || a.key.localeCompare(b.key); });
+    if (other.length) groups.push({ key: 'other', items: other });
+    return groups;
+  }
+  /** The Tools column: a count and the first names. */
+  function toolsCell(s) {
+    var n = s.tools || 0;
+    if (!n) return '<span class="dim">—</span>';
+    var names = (s.toolNames || []).slice(0, 2).join(', ');
+    return '<b>' + n + '</b> <span class="dim">tool' + (n === 1 ? '' : 's') + '</span><div class="tl-prev" title="' + esc((s.toolNames || []).slice(0, 12).join(', ')) + '">' + '<span class="tn">' + esc(names) + '</span>' + (n > 2 ? '<span class="tm">+' + (n - 2) + ' more</span>' : '') + '</div>';
+  }
+  /** The expanded tool list of one connector: filter box (long lists), groups, one row per tool with its description. */
+  function toolsBlock(s) {
+    var items = toolItems(s);
+    if (!items.length) return '<div class="dim" style="margin-top:10px">No tools came back.</div>';
+    var groups = toolGroups(items), openAll = items.length <= 24;
+    var h = '<div class="toolsblock"><div class="toolbar"><b><span class="tcount">' + items.length + ' tools</span></b>' +
+      (items.length > 12 ? '<input type="text" class="toolq" placeholder="Filter these tools" aria-label="Filter the tools of ' + esc(s.name) + '">' : '') +
+      '<button type="button" class="btn sm" data-copytools="' + esc(s.id) + '">Copy tool names</button></div>';
+    groups.forEach(function (g, i) {
+      h += '<details class="tg"' + (openAll || i === 0 ? ' open' : '') + '><summary>' + esc(g.key === 'other' ? 'other' : g.key) + '<span class="n">' + g.items.length + '</span></summary>';
+      g.items.forEach(function (t) { h += '<div class="tr2"><code>' + esc(t.name) + '</code><span class="td">' + (t.description ? esc(t.description) : '') + '</span></div>'; });
+      h += '</details>';
+    });
+    return h + '<p class="hint" style="margin:6px 0 0">Grouped by the start of each tool\'s name, for scanning only. It does not say what a tool does or whether it is safe to call.' + (items.some(function (t) { return t.description; }) ? ' Descriptions are AMP\'s own text.' : '') + '</p></div>';
+  }
+  /** One index of tool name -> connectors that have it, for the search and the "who else has it" hints. */
+  function toolIndex(servers) {
+    var idx = {};
+    servers.forEach(function (s) { toolItems(s).forEach(function (t) { (idx[t.name] = idx[t.name] || []).push({ s: s, d: t.description }); }); });
+    return idx;
+  }
+  function editDistance(a, b) {
+    var m = a.length, n = b.length, d = [], i, j;
+    for (i = 0; i <= m; i++) { d[i] = [i]; }
+    for (j = 1; j <= n; j++) { d[0][j] = j; }
+    for (i = 1; i <= m; i++) for (j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    return d[m][n];
+  }
+  /** For a workflow step that calls a tool its connector lacks: who else has that exact tool, and the closest names on its own connector. */
+  function missingHint(n, servers) {
+    var want = toolOf(n.state), idx = toolIndex(servers), out = '';
+    var others = (idx[want] || []).filter(function (x) { return String(x.s.id) !== String(n.server); }).slice(0, 5);
+    if (others.length) out += '<span class="tmiss">Other connectors that have <code>' + esc(want) + '</code>: ' + others.map(function (x) { return '<button type="button" class="linkbtn" data-tsel="' + esc(x.s.id) + '">' + esc(x.s.name) + ' #' + esc(x.s.id) + '</button>'; }).join(', ') + '</span>';
+    var own = servers.filter(function (s) { return String(s.id) === String(n.server); })[0];
+    if (own && own.toolNames && own.toolNames.length) {
+      var close = own.toolNames.map(function (t) { return { t: t, d: editDistance(want.toLowerCase(), t.toLowerCase()) }; }).filter(function (x) { return x.d <= Math.max(3, Math.floor(want.length / 3)); }).sort(function (a, b) { return a.d - b.d; }).slice(0, 3);
+      if (close.length) out += '<span class="tmiss">Closest tools on this connector: ' + close.map(function (x) { return '<code>' + esc(x.t) + '</code>'; }).join(', ') + '</span>';
+    }
+    return out;
+  }
+  // Filter a long tool list in place (no redraw, so typing keeps its focus).
+  document.addEventListener('input', function (e) {
+    var t = e.target;
+    if (!t || !t.classList || !t.classList.contains('toolq')) return;
+    var box = t.closest('.toolsblock'), q = t.value.trim().toLowerCase(), shown = 0, total = 0;
+    if (!box) return;
+    box.querySelectorAll('.tg').forEach(function (g) {
+      var any = 0;
+      g.querySelectorAll('.tr2').forEach(function (r) { total += 1; var ok = !q || r.textContent.toLowerCase().indexOf(q) >= 0; r.hidden = !ok; if (ok) { any += 1; shown += 1; } });
+      g.hidden = !any; if (q && any) g.open = true;
+    });
+    var c = box.querySelector('.tcount'); if (c) c.textContent = q ? shown + ' of ' + total + ' tools' : total + ' tools';
+  });
+
+  function viewServers() {
+    var a = cur(), q = st.q.toLowerCase();
+    var list = (a.servers || []).filter(function (s) {
+      if (st.group !== 'ALL' && s.bucket !== st.group) return false;
+      if (q && (s.name + ' ' + s.id + ' ' + reasonOf(s.state) + ' ' + s.hint).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+    list.sort(function (x, y) { return ORDER.indexOf(x.bucket) - ORDER.indexOf(y.bucket) || String(x.name).localeCompare(String(y.name)); });
+    var pages = Math.max(1, Math.ceil(list.length / PAGE)); if (st.page >= pages) st.page = 0;
+    var slice = list.slice(st.page * PAGE, st.page * PAGE + PAGE);
+    var h = '<div class="fbar"><input type="text" id="q" placeholder="Search connector, reason or fix" value="' + esc(st.q) + '" aria-label="Search connectors"><div class="chips">';
+    h += '<button type="button" class="chip' + (st.group === 'ALL' ? ' on' : '') + '" data-group="ALL">All ' + (a.servers || []).length + '</button>';
+    var c = counts(a.servers || []); ORDER.forEach(function (g) { h += '<button type="button" class="chip' + (st.group === g ? ' on' : '') + '" data-group="' + g + '">' + esc(GROUP[g].n) + ' ' + c[g] + '</button>'; });
+    h += '</div></div>';
+    if (!slice.length) return h + '<div class="empty">No connectors match.</div>';
+    h += '<div class="tbl-wrap"><table><thead><tr><th>Connector</th><th>Status</th><th>What is wrong</th><th>Tools</th><th>What to do</th><th>Who acts</th></tr></thead><tbody>';
+    slice.forEach(function (s) {
+      var k = a.title + '|' + s.id, open = !!st.open[k];
+      h += '<tr class="row' + (open ? ' open' : '') + '" tabindex="0" data-open="' + esc(k) + '" aria-expanded="' + open + '"><td class="nm-cell"><span class="car">' + (open ? '▾' : '▸') + '</span>' + esc(s.name) + ' <span class="dim">#' + esc(s.id) + '</span></td><td>' + tagFor(s.bucket) + '</td><td>' + esc(reasonOf(s.state)) + sureTag(s) + '</td><td>' + toolsCell(s) + '</td><td class="what">' + (s.bucket === 'HEALTHY' ? '<span class="dim">Nothing to do</span>' : esc(s.hint)) + '</td><td>' + esc(GROUP[s.bucket].who) + '</td></tr>';
+      if (open) {
+        h += '<tr class="exp"><td colspan="6">' + (s.detail ? '<div><b>AMP said:</b> ' + esc(s.detail) + '</div>' : '') +
+          toolsBlock(s) +
+          (s.rawUrl ? '<div style="margin-top:8px"><a href="' + esc(s.rawUrl) + '" target="_blank" rel="noopener">Raw answer file</a></div>' : '') +
+          aiNote(s) +
+          (s.bucket !== 'HEALTHY' ? '<div style="margin-top:10px"><button type="button" class="btn sm" data-ticket="' + esc(s.id) + '">Copy ticket text</button></div>' : '') + '</td></tr>';
+      }
+    });
+    h += '</tbody></table></div><div class="pager"><span>' + list.length + ' connector' + (list.length === 1 ? '' : 's') + ' · page ' + (st.page + 1) + ' of ' + pages + '</span><span class="btns"><button type="button" class="btn sm" data-page="-1"' + (st.page === 0 ? ' disabled' : '') + '>Previous</button><button type="button" class="btn sm" data-page="1"' + (st.page >= pages - 1 ? ' disabled' : '') + '>Next</button></span></div>';
+    h += unrecognisedBox(a);
+    return h;
+  }
+  /** AMP errors no rule recognises yet: listed once each so a new kind of error is noticed and a rule can be added. */
+  function unrecognisedBox(a) {
+    var seen = {}, order = [];
+    (a.servers || []).forEach(function (s) { if (s.state !== 'UNKNOWN_ERROR') return; var k = s.detail || '(no text)'; if (!seen[k]) { seen[k] = []; order.push(k); } seen[k].push(s.name); });
+    if (!order.length) return '';
+    return '<details class="help-box" style="margin-top:14px" open><summary>Errors this tool does not recognise yet (' + order.length + ')</summary>' +
+      '<p class="hint">These connectors are marked Fix needed as a best guess. Read what AMP said; if it is a new kind of error, ask for a rule to be added.</p>' +
+      order.map(function (k) { return '<div class="nrow"><span class="wh"><b>' + seen[k].length + ' connector' + (seen[k].length === 1 ? '' : 's') + '</b> (' + esc(seen[k].slice(0, 5).join(', ')) + (seen[k].length > 5 ? ', …' : '') + '): ' + esc(k) + '</span></div>'; }).join('') +
+      '</details>';
+  }
+  function viewNodes() {
+    var a = cur(), g = {};
+    (a.nodes || []).forEach(function (n) { if (st.group !== 'ALL' && n.bucket !== st.group) return; (g[n.server] = g[n.server] || []).push(n); });
+    var keys = Object.keys(g).sort(function (x, y) {
+      var wx = Math.min.apply(null, g[x].map(function (n) { return ORDER.indexOf(n.bucket); })), wy = Math.min.apply(null, g[y].map(function (n) { return ORDER.indexOf(n.bucket); }));
+      return wx - wy || g[y].length - g[x].length;
+    });
+    var h = '<div class="fbar"><div class="chips"><button type="button" class="chip' + (st.group === 'ALL' ? ' on' : '') + '" data-group="ALL">All</button>';
+    var c = counts(a.nodes || []); ORDER.forEach(function (x) { h += '<button type="button" class="chip' + (st.group === x ? ' on' : '') + '" data-group="' + x + '">' + esc(GROUP[x].n) + ' ' + c[x] + '</button>'; });
+    h += '</div></div><p class="hint">Each workflow step that calls a connector, grouped by the connector it uses.</p>';
+    if (!keys.length) return h + '<div class="empty">No workflow nodes match.</div>';
+    keys.forEach(function (k) {
+      var arr = g[k], worst = arr.reduce(function (w, n) { return ORDER.indexOf(n.bucket) < ORDER.indexOf(w) ? n.bucket : w; }, 'HEALTHY');
+      h += '<details class="grp"' + (worst === 'BROKEN' ? ' open' : '') + '><summary><span class="gt">' + esc(k === '(none)' ? 'Picked at run time (no fixed connector)' : ('Connector #' + k)) + '</span><span class="dim">' + arr.length + ' node' + (arr.length === 1 ? '' : 's') + '</span>' + tagFor(worst) + '</summary><div class="gb">';
+      arr.forEach(function (n) {
+        var miss = n.state.indexOf('TOOL_MISSING') === 0;
+        h += '<div class="nrow"><span class="wf">' + esc(n.workflow) + '</span><span class="tl">' + esc(n.tool) + '</span>' + tagFor(n.bucket) + '<span class="wh">' + (miss ? '<b>Tool "' + esc(toolOf(n.state)) + '" does not exist on this connector.</b> ' : esc(reasonOf(n.state)) + '. ') + (n.bucket === 'HEALTHY' ? '' : esc(n.hint)) + (miss ? missingHint(n, a.servers || []) : '') + (n.ai ? ' <b>AI note (check before acting):</b> ' + esc(n.ai.diagnosis) + ' Next step: ' + esc(n.ai.nextStep) : '') + '</span></div>';
+      });
+      h += '</div></details>';
+    });
+    return h;
+  }
+  /** Tools tab: search every tool across the connectors, or browse one connector at a time. */
+  function viewTools() {
+    var a = cur(), servers = (a.servers || []).filter(function (s) { return (s.tools || 0) > 0; }), q = st.q.trim().toLowerCase();
+    servers.sort(function (x, y) { return String(x.name).localeCompare(String(y.name)); });
+    var h = '<div class="fbar"><input type="text" id="q" placeholder="Search every tool or connector name" value="' + esc(st.q) + '" aria-label="Search tools and connectors"></div>';
+    if (!servers.length) return h + '<div class="empty">No connector returned tools for this account.</div>';
+    if (q) {
+      var idx = toolIndex(servers), names = Object.keys(idx).filter(function (n) { return n.toLowerCase().indexOf(q) >= 0; }).sort();
+      var conns = servers.filter(function (s) { return String(s.name).toLowerCase().indexOf(q) >= 0; });
+      h += '<p class="hint">' + names.length + ' tool name' + (names.length === 1 ? '' : 's') + ' and ' + conns.length + ' connector' + (conns.length === 1 ? '' : 's') + ' match. Click a connector to see all its tools.</p>';
+      if (conns.length) h += '<div class="found"><b>Connectors:</b> ' + conns.slice(0, 12).map(function (s) { return '<button type="button" class="linkbtn" data-tsel="' + esc(s.id) + '">' + esc(s.name) + ' #' + esc(s.id) + '</button>'; }).join(', ') + (conns.length > 12 ? ', …' : '') + '</div>';
+      names.slice(0, 50).forEach(function (n) {
+        var who = idx[n], d = (who.filter(function (x) { return x.d; })[0] || {}).d || '';
+        h += '<div class="found"><code>' + esc(n) + '</code>' + (d ? ' <span class="dim">· ' + esc(d) + '</span>' : '') + '<div class="who2">on ' + who.slice(0, 6).map(function (x) { return '<button type="button" class="linkbtn" data-tsel="' + esc(x.s.id) + '">' + esc(x.s.name) + ' #' + esc(x.s.id) + '</button>'; }).join(', ') + (who.length > 6 ? ' and ' + (who.length - 6) + ' more' : '') + '</div></div>';
+      });
+      if (names.length > 50) h += '<p class="hint">Showing 50 of ' + names.length + '. Type more to narrow it.</p>';
+      return h;
+    }
+    var sel = servers.filter(function (s) { return String(s.id) === String(st.tsel); })[0] || servers[0];
+    st.tsel = sel.id;
+    h += '<div class="tcat"><div class="tlist" role="listbox" aria-label="Connectors with tools">' + servers.map(function (s) {
+      return '<button type="button" class="titem' + (s.id === sel.id ? ' on' : '') + '" data-tsel="' + esc(s.id) + '" role="option" aria-selected="' + (s.id === sel.id) + '"><span>' + esc(s.name) + '</span><span class="n">' + s.tools + '</span></button>';
+    }).join('') + '</div><div class="tpane"><h3>' + esc(sel.name) + ' <span class="dim">#' + esc(sel.id) + '</span></h3><div>' + tagFor(sel.bucket) + sureTag(sel) + '</div>' + toolsBlock(sel) + '</div></div>';
+    return h;
+  }
+  function viewChanges() {
+    var ch = ((DATA.changes || {})[st.acct] || []);
+    if (st.acct === 'combined') return '<div class="empty">Changes are shown per account. Pick an account tab above.</div>';
+    if ((DATA.firstRun || {})[st.acct]) return '<div class="empty">First run for this account, nothing to compare yet.</div>';
+    var rc = (DATA.rulesChanged || {})[st.acct] ? '<p class="hint">The way results are sorted was updated since the last run, so status changes are not compared this time. Only new or removed connectors and tool changes are shown.</p>' : '';
+    if (!ch.length) return rc + '<div class="empty">Nothing changed since the previous run of this account.</div>';
+    var h = rc + '<p class="hint">Compared with the previous saved run of this account on this site.</p><div>';
+    ch.forEach(function (c) {
+      h += '<div class="change"><span class="nm-cell">' + esc(c.name) + ' <span class="dim">#' + esc(c.id) + '</span></span><span>' + tagFor(c.from) + '</span><span class="arrow">→</span><span>' + tagFor(c.to) + '</span>' + (c.added && c.added.length ? '<span class="tag ok">+' + c.added.length + ' tools</span>' : '') + (c.removed && c.removed.length ? '<span class="tag bad">−' + c.removed.length + ' tools</span>' : '') + '</div>';
+    });
+    return h + '</div>';
+  }
+  function draw() {
+    if (!DATA) return;
+    drawAcct(); drawSummary(); drawTabs();
+    $('view').innerHTML = { servers: viewServers, nodes: viewNodes, tools: viewTools, changes: viewChanges }[st.tab]();
+    var nc = DATA.notCovered && DATA.notCovered.webRequestNodes;
+    $('notcovered').hidden = !(nc > 0);
+    if (nc > 0) $('notcovered').textContent = nc + ' WebRequest node' + (nc === 1 ? '' : 's') + (nc === 1 ? ' is' : ' are') + ' not covered by this module.';
+    $('run-when').textContent = DATA.when ? 'Run finished · ' + DATA.when : '';
+  }
+  function toast(t) { var e = $('toast'); e.textContent = t; e.hidden = false; setTimeout(function () { e.hidden = true; }, 1800); }
+  function ticket(s) {
+    var a = cur();
+    return 'Connector: ' + s.name + ' (#' + s.id + ')\nSite: ' + DATA.host + '\nChecked as: ' + (a.title || st.acct) + ' on ' + DATA.when + '\nStatus: ' + GROUP[s.bucket].n + ' — ' + reasonOf(s.state) + (sureOf(s) ? ' (' + sureOf(s) + ')' : '') + '\nAMP said: ' + (s.detail || '(nothing)') + '\nSuggested action: ' + (s.hint || 'Nothing to do') + '\nWho acts: ' + GROUP[s.bucket].who + (s.ai ? '\nAI note (check before acting): ' + s.ai.diagnosis + ' Next step: ' + s.ai.nextStep : '');
+  }
+  function copy(t) {
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { toast('Copied'); }, function () { toast('Copy failed'); });
+    else toast('Copy not available');
+  }
+  function download(name, type, text) { var b = new Blob([text], { type: type }), u = URL.createObjectURL(b), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 500); }
+  function csvCell(v) { v = String(v == null ? '' : v); if (/^[=+\-@]/.test(v)) v = "'" + v; return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-acct],[data-group],[data-tab],[data-open],[data-page],[data-ticket],#copy-all,#dl-csv,#dl-json,[data-tsel],[data-copytools]'); if (!t) return;
+    if (!DATA) return;
+    if (t.dataset.tsel) { st.tsel = t.dataset.tsel; st.tab = 'tools'; st.q = ''; draw(); }
+    else if (t.dataset.copytools) { var cs = cur().servers.filter(function (x) { return String(x.id) === t.dataset.copytools; })[0]; if (cs) copy(toolItems(cs).map(function (x) { return x.name; }).join('\n')); }
+    else if (t.dataset.acct) { st.acct = t.dataset.acct; st.page = 0; draw(); }
+    else if (t.dataset.group) { st.group = (t.classList.contains('sc') && st.group === t.dataset.group) ? 'ALL' : t.dataset.group; st.page = 0; draw(); }
+    else if (t.dataset.tab) { e.preventDefault(); st.tab = t.dataset.tab; st.q = ''; draw(); }
+    else if (t.dataset.open) { st.open[t.dataset.open] = !st.open[t.dataset.open]; draw(); }
+    else if (t.dataset.page) { st.page += +t.dataset.page; draw(); }
+    else if (t.dataset.ticket) { var s = cur().servers.filter(function (x) { return String(x.id) === t.dataset.ticket; })[0]; if (s) copy(ticket(s)); }
+    else if (t.id === 'copy-all') { copy(cur().servers.filter(function (s) { return s.bucket === 'BROKEN'; }).map(ticket).join('\n\n---\n\n')); }
+    else if (t.id === 'dl-csv') {
+      var rows = [['Connector', 'Id', 'Status', 'What is wrong', 'How sure', 'What to do', 'Who acts']];
+      cur().servers.forEach(function (s) { rows.push([s.name, s.id, GROUP[s.bucket].n, reasonOf(s.state), sureOf(s), s.bucket === 'HEALTHY' ? 'Nothing to do' : s.hint, GROUP[s.bucket].who]); });
+      download('mcp-health-' + st.acct + '.csv', 'text/csv', rows.map(function (r) { return r.map(csvCell).join(','); }).join('\n'));
+    }
+    else if (t.id === 'dl-json') { download('mcp-health-' + st.acct + '.json', 'application/json', JSON.stringify(cur(), null, 2)); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && DATA && st.group !== 'ALL' && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || '')) { st.group = 'ALL'; st.page = 0; draw(); return; }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('tr.row')) { e.preventDefault(); e.target.click(); }
+  });
+  document.addEventListener('input', function (e) {
+    if (e.target.id === 'q' && DATA) { st.q = e.target.value; st.page = 0; var p = e.target.selectionStart; draw(); var n = $('q'); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (x) {} } }
+  });
+
+  // ---- past runs
+  function openPast() {
+    showOnly('past');
+    $('history').innerHTML = '<tr><td colspan="5" class="empty">Loading…</td></tr>';
+    api('GET', '/api/mcp/runs').then(function (r) {
+      var runs = r.runs || [];
+      if (!runs.length) { $('history').innerHTML = '<tr><td colspan="5" class="empty">No runs yet.</td></tr>'; return; }
+      $('history').innerHTML = runs.map(function (x) {
+        var s = x.summary || {};
+        var badges = '<span class="tag bad">' + (s.fix || 0) + ' fix</span> <span class="tag warn">' + (s.reconnect || 0) + ' reconnect</span> <span class="tag ok">' + (s.working || 0) + ' working</span>';
+        return '<tr><td>' + esc(x.startedAt || x.id) + '</td><td>' + esc(x.host || '') + '</td><td>' + esc((x.accounts || []).join(', ')) + '</td><td>' + badges + '</td>' +
+          '<td><button type="button" class="btn sm" data-run="' + esc(x.id) + '">Open</button></td></tr>';
+      }).join('');
+    }).catch(function (e) { $('history').innerHTML = '<tr><td colspan="5" class="empty">' + esc(e.message) + '</td></tr>'; });
+  }
+  $('history').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-run]'); if (!b) return;
+    api('GET', '/api/mcp/runs/' + encodeURIComponent(b.getAttribute('data-run'))).then(function (r) {
+      if (!r.result) throw new Error('That run has no result.');
+      setResult(r.result);
+    }).catch(function (err) { $('history').innerHTML = '<tr><td colspan="5" class="empty">' + esc(err.message) + '</td></tr>'; });
+  });
+  $('go-past').addEventListener('click', openPast);
+  $('btn-past').addEventListener('click', openPast);
+  $('past-back').addEventListener('click', function () { showOnly(DATA ? 'step-5' : 'step-1'); });
+  $('btn-again').addEventListener('click', function () {
+    var keys = users().map(function (u) { return u.key; });
+    $('users').innerHTML = ''; userSeq = 0;
+    (keys.length ? keys : ['admin']).forEach(function (k) { addUser(k, ''); });
+    $('opt-ai').checked = false; // a new run asks again; the AI choice does not carry over
+    msg('users-msg', '', ''); limitTo(2); goStep(2);
+  });
+
+  // ---- theme (light/dark only; same key shape as the mockup)
+  function paintTheme() { var th = null; try { th = localStorage.getItem('amp-theme'); } catch (x) {} if (th) document.documentElement.setAttribute('data-theme', th); }
+  $('theme').addEventListener('click', function () {
+    var dark = document.documentElement.getAttribute('data-theme') === 'dark' || (!document.documentElement.getAttribute('data-theme') && matchMedia('(prefers-color-scheme:dark)').matches);
+    document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+    try { localStorage.setItem('amp-theme', dark ? 'light' : 'dark'); } catch (x) {}
+  });
+
+  addUser('', '');
+  renderRecent(); paintStepper(); paintTheme();
+})();
+</script>
+</body>
+</html>

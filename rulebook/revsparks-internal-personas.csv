@@ -1,0 +1,28 @@
+type,parent,label,route,Channel Manager,Corporate PRM Admin,Partner Sales,notes
+page,,Dashboard,dashboard/sales,Yes,Yes,Yes,No link in the client sheet; #dashboard does not exist on main.dvl - dashboard/sales does
+page,,Start Onboarding,journeys,Yes,Yes,Yes,
+page,,Get Certified,coursecatalog,,,,No values in the sheet
+external,,Register Deals,,No,No,Yes,Link to the client's IFT: not an AMP page
+group,,Deal Management,,,,,
+page,Deal Management,Deal Registration Requests,manage/leads/leadregistered,Yes,Yes,No,
+page,Deal Management,Deal Registration Approval,setup/leads/leadrequests,Yes,Yes,No,
+page,Deal Management,Opportunities,manage/opportunity-records,Yes,Yes,Yes,
+page,,Request MDF,manage/mdf/funds,No,No,No,
+group,,MDF Management,,No,No,No,
+page,MDF Management,MDF Approval Plans,manage/mdf/fundplans,No,No,No,
+page,MDF Management,MDF Approval Requests,manage/mdf/viewrequests,No,No,No,
+page,,Asset Library,asset-overview,Yes,Yes,Yes,
+page,,Rewards Catalog,reward/catalog,No,No,No,
+group,,To Partner Campaigns,,Yes,Yes,Yes,
+group,To Partner Campaigns,Contacts & Lists,,Yes,Yes,Yes,
+page,Contacts & Lists,Import Contacts,connections/import,No,Yes,No,
+page,Contacts & Lists,Manage Contacts,connections/contacts,Yes,Yes,No,
+page,Contacts & Lists,Manage Lists,connections/lists,Yes,Yes,No,
+page,Contacts & Lists,Accounts,connections/accounts,Yes,Yes,Yes,
+page,Contacts & Lists,Exports,connections/export/status,Yes,Yes,Yes,
+group,To Partner Campaigns,Email,,Yes,Yes,Yes,
+page,Email,Send an Email,communicate/email,Yes,Yes,No,
+page,Email,Email Drip Campaigns,manage/campaigns/drip,Yes,Yes,No,
+group,To Partner Campaigns,Social,,No,No,No,
+page,Social,Post to Social,communicate/social,No,No,No,
+page,Social,Social Drip Campaigns,manage/campaigns/socialdrip,No,No,No,

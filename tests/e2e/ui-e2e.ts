@@ -15,7 +15,7 @@ const UI = `http://127.0.0.1:${PORT}`;
 
 async function main(): Promise<number> {
   const { server: amp, baseUrl } = await startFakeAmp();
-  const ui = spawn(process.execPath, ['--import', 'tsx', 'src/server/index.ts', '--no-open'], {
+  const ui = spawn(process.execPath, ['--import', 'tsx', 'src/app/server.ts', '--no-open'], {
     env: { ...process.env, PORT: String(PORT) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -84,14 +84,15 @@ async function main(): Promise<number> {
     // Search filters the catalog; list view switches layout.
     await page.fill('#mod-search', 'no-such-module');
     if (!(await page.isVisible('#mods .cat-empty'))) failures.push('home: search for an unknown module should show "No modules match"');
-    await page.fill('#mod-search', 'rulebook');
-    if ((await page.locator('#mods .mod').count()) !== 1) failures.push('home: search "rulebook" should leave only AMP Pages Testing');
+    await page.fill('#mod-search', 'screenshots');
+    if ((await page.locator('#mods .mod').count()) !== 1) failures.push('home: search "screenshots" should leave only AMP Pages Testing');
     await page.fill('#mod-search', '');
     await page.click('#view-list');
     if (!(await page.locator('#mods.list').count())) failures.push('home: list view did not switch');
     await page.click('#view-grid');
     await page.click('#mod-pages');
     await page.waitForSelector('#screen-welcome:not([hidden]) #btn-mods');
+    if (new URL(page.url()).pathname !== '/pages') failures.push('home: Launch on AMP Pages Testing should open /pages');
     await page.click('#btn-mods'); // back to the module picker, then in again
     await page.waitForSelector('#screen-hub:not([hidden])');
     await page.click('#mod-pages');

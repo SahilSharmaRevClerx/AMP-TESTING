@@ -1,9 +1,11 @@
-# AMP Permission Testing
+# AMP QA Studio
 
 A standalone tool that checks, for every user type, which AMP pages **actually open**, compares that with an expected-access rulebook, and produces a report with screenshot evidence for tester review.
 
 A tester enters the client's site, uploads the client's rulebook (page + Yes/No per user type) and pastes a **jwt** per user type. The tool opens every page **as each user** in a real (headless) browser, decides whether that user got a usable page, and flags every mismatch.
 
+- **All features of both modules:** [docs/FEATURES.md](docs/FEATURES.md)
+- **Ideas to make it better:** [docs/IMPROVEMENT-SUGGESTIONS.md](docs/IMPROVEMENT-SUGGESTIONS.md)
 - Handoff / full context for developers: [docs/chat1_Context.md](docs/chat1_Context.md)
 - How it works (flow, files, diagrams; open in a browser): [docs/how-it-works.html](docs/how-it-works.html). Its judging tables are partly outdated; this README is current.
 - Original spec: [docs/PRD.md](docs/PRD.md)
@@ -11,7 +13,7 @@ A tester enters the client's site, uploads the client's rulebook (page + Yes/No 
 
 **Status:** v1 (page-level access) with a tester web UI. Used on real environments (`ai.sb.amp.vg`, `itbydesign.sb.amp.vg`, jwt-only confirmed). Verified end to end against a simulated AMP. API data-leak testing is a planned v2.
 
-No LLM and no third-party services: every verdict is decided by code, and nothing leaves the tester's machine except requests to the AMP environment being tested.
+Every verdict is decided by code. Nothing leaves the tester's machine except requests to the AMP environment being tested. The one exception is the Permission Setter's optional **AI review** (Google Gemini): it is off by default, asks for confirmation, and never sends jwts.
 
 ## Setup (once per machine)
 
@@ -30,7 +32,7 @@ npm start              # or: npm run start:debug  (detailed logs)
 
 This opens `http://127.0.0.1:4545`. After any code update, restart (`Ctrl+C`, `npm start`) and hard-refresh the page (`Ctrl+Shift+R`).
 
-**Home (Testing catalog):** the first screen lists the testing modules as cards (icon, Available / Coming soon, category, description, tags, **Launch**), with a search box and a grid/list toggle (remembered in the browser). **AMP Pages Testing** (this tool) shows its last run and **Launch** opens the welcome page; a "More testing modules" placeholder marks where new modules go (add one entry to `MODULES` in `src/server/ui.html`). The logo, the results page's **Home** button and **All testing modules** on the welcome page lead back here.
+**Home (Testing catalog):** the first screen lists the testing modules as cards (icon, Available / Coming soon, category, description, tags, **Launch**), with a search box and a grid/list toggle (remembered in the browser). **AMP Pages Testing** (this tool) shows its last run and **Launch** opens its welcome page at `/pages`; a "More testing modules" placeholder marks where new modules go (see "Adding a testing module" under Project layout). The logo, the results page's **Home** button and **All testing modules** on the welcome page lead back here.
 
 **Welcome page (AMP Pages Testing):** three full-screen scenes you scroll through: a welcome, a "How it works" flow (Environment → Rulebook → Users & tokens → Run → Report), then **Start new test** / **View past runs**.
 
@@ -155,6 +157,52 @@ Delete old run folders when you no longer need them. Like `output/`, they contai
 - Pages are opened one at a time per user, with `delayMs` between them (AMP rate-limits and alerts on bursts). Users run in parallel, each in its own session.
 - Opening pages still writes AMP's normal usage-tracking rows; use test users on QA/staging.
 
+## Permission Setter (changes AMP)
+
+A second module on the home screen (`/setter`). It sets the role sliders in AMP to match a rulebook, logged in as the **Super Admin** (jwt only, same as the page tests).
+
+- **Why roles:** AMP has no per-user sliders. Sliders live on a role (Setup → Roles → role → Permissions), and a user gets the highest level of every role linked to them (their own, user groups, organization, company-wide). So for each rulebook column you name the AMP role that column's user has. Use a role only that user has.
+- **Steps:** site URL → rulebook → Super Admin jwt (**Check jwt** confirms it is a Super Admin) → a role name per column → **Show plan** → **Preview in AMP (no save)** → **Apply to AMP**.
+- **What it moves:** each page is mapped to its AMP module (from the company's Navigation Layout list), then to the role sliders that open it (the `Module.HasModuleAccess` rules in AMP, table in `src/setter/sliders.ts`).
+  - **Yes** raises the slider(s) to at least View (and ticks *Setup menu* where the module needs it).
+  - **No** sets the module's slider to NA.
+  - Sliders are never lowered for a Yes, and features are never turned off.
+- **Can't be set with sliders** (reported, never guessed):
+  - Dashboard: always visible.
+  - Contacts/Accounts/Lists: AMP forces Contacts to full on every role.
+  - Roles and other Site/Super-Admin-only pages.
+  - Pages not in the module list.
+  - A No page whose slider a Yes page also needs (a conflict).
+- **How:** a real browser opens Setup → Roles, opens the role and moves the sliders on screen, then clicks Save.
+  - **Speed:** it works slowly on purpose, pausing after every tab switch, slider move and save. *Speed in AMP* sets the pause: 0.8 s, 1.5 s (default) or 3 s.
+  - **Checks:** it confirms each slider actually moved (retrying once), and confirms AMP answered the `SaveRole` call.
+  - **Screenshots:** 2–3 per role, each showing a whole tab of the role editor (Marketing Functions, Operations, and Advanced when a checkbox is involved) in its final state, with changed rows outlined in orange.
+  - **After saving:** it **reopens the role** and reads every changed permission back, so a change AMP didn't keep shows as a failure.
+  - **Preview** does everything except Save.
+- **Navigation Layout step (on by default):** some pages AMP gives every role, so role sliders can't hide them: Contacts, Lists, Import, and company menu modules. For a "No" on one of these, the tool sets the module's Navigation Layout setting to **Shown to: specific users** and links **everyone in the company except** the users who must not see it. AMP then hides the menu item and redirects the page to `/noaccess`.
+  - **Who each column is:** taken from the user's jwt, if pasted, or from the email typed under the column's role.
+  - **Process:** current links are read first and only the needed toggles are made. Afterwards the links are read back, and a screenshot of the module's settings is saved.
+  - **Waiting:** before the check as the users, it waits ~70 s, because AMP caches module settings.
+  - **Caveats:** this affects the whole company. Users added later won't see those modules until they are linked. A user can still see a module through a persona, group or organization link; the check as the users shows that.
+- **Check as the users (optional, after Apply):** paste a jwt for each rulebook column's user. After saving, the tool logs in as each of them (the same jwt method) and runs the page test on the rulebook pages.
+  - The results show per role ("2 / 3 pages OK"), and the full page-test report appears in Past runs.
+  - A user jwt that is the Super Admin's is refused.
+- **AI review (optional):** sends each role's results and screenshots to Google Gemini (default model `gemini-2.5-pro`, via the `@google/genai` SDK). Gemini checks the role's tab screenshots and every user-page screenshot against the rulebook and returns pass / fail / unsure with a check per item.
+  - **It is only a suggestion:** the tool's own checks still decide.
+  - **It sends data to Google:** this is the only feature that does. It is off by default and asks for confirmation.
+  - **Setup:** put `GEMINI_API_KEY=<your key>` in `.env` or `.env.local` (both git-ignored; only the Gemini settings are read from them), or set it in the terminal. Restart `npm start` after.
+  - **Other model:** set `GEMINI_MODEL`, e.g. `gemini-2.5-flash`.
+- **Output:** `output/_setter/<run>/report.html` is one simple page.
+  - **Top:** a banner saying ✓ Done, Done but some pages don't match, Preview only, or Finished with problems.
+  - **Per rulebook column:** a table of **Page · Rulebook says · Result now · Match** (✓ / ✗ / ? Check). "Result now" is what the user actually got when they were checked by logging in, otherwise what the tool set.
+  - **Below that:** the permissions changed (before → after, ✓ saved), the 2–3 tab screenshots, and the AI review (one line; details fold open).
+  - **Also in the folder:** `results.json`, `audit.jsonl` and `shots/`.
+- **Step 2, Pages Testing:** after a rulebook **Apply**, the finished screen shows **Verify in Pages Testing →**.
+  - **Pre-filled:** it opens the page test with the site, the rulebook and the columns whose roles were saved already filled in.
+  - **jwts:** if you pasted user jwts in the setter, they are kept **in server memory for 15 minutes** and used directly, so you can go straight to Run. The page never receives them; it refers to them by a hand-off id. After 15 minutes, or a server restart, paste them again.
+  - **Home screen:** shows the two modules in this order: Step 1 · Permission Setter, Step 2 · Pages Testing.
+- **Test:** `npm run e2e:setter` runs preview, apply + reopen, the check as the user, every-slider mode and the AI review against a fake AMP role editor and a fake Gemini API. `npm run e2e:handoff` runs Apply → Verify in Pages Testing through the real server and a browser.
+
 ## Keeping jwts safe
 
 A jwt is a live AMP session: whoever holds it is logged in as that user until it expires or the user logs out.
@@ -209,27 +257,50 @@ Config options include `parallelUsers` (default 3), `delayMs`, `pageTimeoutMs`, 
 
 ## Project layout
 
+Each testing module lives in its own folder and only uses the shared `core/`. Modules never import each other. One server (`npm start`) runs them all.
+
+```
+src/
+  app/            the one server: home catalog, output files, security checks, module registry
+  core/           shared by every module (no module code here)
+  modules/
+    pages/        AMP Pages Testing   → /pages,  /api/plan, /api/runs…
+    setter/       Permission Setter   → /setter, /api/setter/…
+    mcp/          MCP Connector Health → /mcp,   /api/mcp/…
+  cli.ts          command line (npm run check / menu / run / mcp)
+```
+
 | Path | Responsibility |
 |---|---|
-| `src/server/index.ts`, `src/server/ui.html` | Local web server (127.0.0.1:4545) and the tester page (welcome, wizard, past runs) |
-| `src/run.ts` | Run engine shared by UI and CLI: tokens → menus → pages per user (parallel users) → decide → report; CLI commands |
-| `src/rulebook/parse.ts` | `.xlsx`/`.csv` reader, header-row search, value-based user-type detection |
-| `src/probe/browser.ts` | Playwright: cookies, frame snapshot, open each page, wait until stable, collect evidence and screenshots |
-| `src/probe/menu.ts` | Reads the user's menu from AMP's main page |
-| `src/sessions/validate.ts` | Token check ("Who is it?") |
-| `src/verdict/state.ts`, `fingerprint.ts`, `compare.ts` | Page state, AMP frame, reference view, verdict |
-| `src/report/write.ts` | `report.html`, `results.json`, `results.csv` |
-| `src/safety/gate.ts` | Environment guard, tool request gate, browser request gate |
-| `src/util/` | Logger, token masking, audit log, route helpers, `runLimited` (parallel users) |
-| `src/config.ts`, `src/cli.ts` | Settings/defaults, credentials, command line |
+| `src/app/server.ts` | Local web server (127.0.0.1:4545): home catalog, `/output/` files, security headers, Host and UI-header checks, hands each request to the modules |
+| `src/app/registry.ts` | Which modules run, and how they are wired together (the setter's "check as the users" step is given the Pages engine here) |
+| `src/app/home.html` | Testing catalog: cards from `/api/modules` (each module's `card`) |
+| `src/core/module.ts` | The `TestModule` shape every module exports: catalog card, pages, routes, public reads, last run |
+| `src/core/routes.ts` | Routes every module's page uses: saved rulebooks, reading one, jwt check, hand-off |
+| `src/core/rulebook/parse.ts` | `.xlsx`/`.csv` reader, header-row search, value-based user-type detection |
+| `src/core/sessions/validate.ts` | Token check ("Who is it?") |
+| `src/core/safety/gate.ts` | Environment guard, tool request gate, read-only browser request gate |
+| `src/core/browser/launch.ts` | Starts Chromium with retries |
+| `src/core/credentials.ts`, `config-file.ts`, `paths.ts`, `http.ts` | jwt + CSRF credentials, run config site, folders and port, HTTP helpers |
+| `src/core/contracts.ts` | The "check as the users" contract between Setter and Pages |
+| `src/core/handoff.ts`, `rulebooks.ts`, `users.ts` | In-memory hand-offs, loaded rulebooks, user rows |
+| `src/core/ai/gemini.ts` | Gemini key, model and error messages (Setter and MCP AI reviews) |
+| `src/core/util/` | Logger, token masking, audit log, route helpers, `runLimited` (parallel users) |
+| `src/modules/pages/` | `index.ts` routes and card · `ui.html` wizard · `run.ts` engine and CLI commands · `config.ts` run settings · `probe/` browser and menu · `verdict/` state, frame, verdict · `report/write.ts` · `user-check.ts` (the engine offered to the setter) |
+| `src/modules/setter/` | `index.ts` routes and card · `setter.html` wizard · `sliders.ts` page → module → slider table and plan · `session.ts` Super Admin check · `editor.ts` role editor driver · `nav.ts`/`navrun.ts` Navigation Layout · `run.ts` run + report · `ai.ts` AI review · `safety.ts` the setter's extra allowed writes |
+| `src/modules/mcp/` | `index.ts` routes and card · `mcp.html` · `run.ts` engine and CLI command · `classify.ts`, `snapshot.ts`, `nodes.ts`, `ai.ts` |
 | `tests/` | Unit tests; `tests/e2e/fake-amp.ts` simulates AMP for the end-to-end tests |
+
+**Adding a testing module:** create `src/modules/<name>/index.ts` that exports a `TestModule` (its card, page and routes), import only from `src/core/`, and add it to `src/app/registry.ts`. It then shows in the catalog and runs with `npm start`.
 
 ## Development
 
 ```powershell
-npm test          # 91 unit tests
+npm test          # unit tests
 npm run e2e       # full pipeline against a simulated AMP (tests/e2e/fake-amp.ts), incl. proof that users run in parallel
 npm run e2e:ui    # the tester web UI driven in a real browser against the simulated AMP
+npm run e2e:setter   # Permission Setter against a fake AMP role editor + Navigation Layout + fake Gemini
+npm run e2e:handoff  # Setter Apply → Verify in Pages Testing, through the real server and a browser
 npm run typecheck
 ```
 

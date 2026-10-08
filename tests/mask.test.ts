@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { cleanJwt, forgetSecrets, maskToken, registerSecret, scrub } from '../src/util/mask';
-import { makeCredentials } from '../src/config';
+import { cleanJwt, forgetSecrets, maskToken, registerSecret, scrub } from '../src/core/util/mask';
+import { makeCredentials } from '../src/core/credentials';
 
 describe('cleanJwt', () => {
   it.each([

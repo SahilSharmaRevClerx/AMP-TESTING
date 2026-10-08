@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it } from 'vitest';
-import { headerKey, loadRulebook, parseCsv, parseRulebook, rulebookFromRows, rulebookSummary, selectUserTypes } from '../src/rulebook/parse';
+import { headerKey, loadRulebook, parseCsv, parseRulebook, rulebookFromRows, rulebookSummary, selectUserTypes } from '../src/core/rulebook/parse';
 
 describe('parseCsv', () => {
   it('handles quotes, escaped quotes and CRLF', () => {

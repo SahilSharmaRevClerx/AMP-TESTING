@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { collectMenuLinks, extractNavigation, menuHasRoute, menuMatch } from '../src/probe/menu';
-import { normalizeRoute, routeMatches } from '../src/util/route';
+import { collectMenuLinks, extractNavigation, menuHasRoute, menuMatch } from '../src/modules/pages/probe/menu';
+import { normalizeRoute, routeMatches } from '../src/core/util/route';
 
 describe('normalizeRoute', () => {
   it.each([

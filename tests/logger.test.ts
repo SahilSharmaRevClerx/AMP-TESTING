@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createLogger, formatLine, getLogLevel, setLogLevel, setLogSink, type LogLevel } from '../src/util/logger';
-import { registerSecret } from '../src/util/mask';
+import { createLogger, formatLine, getLogLevel, setLogLevel, setLogSink, type LogLevel } from '../src/core/util/logger';
+import { registerSecret } from '../src/core/util/mask';
 
 const lines: { line: string; level: LogLevel }[] = [];
 const capture = () => {

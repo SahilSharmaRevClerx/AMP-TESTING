@@ -1,0 +1,422 @@
+[
+ {
+  "error": "Could not list tools from the MCP server: No such host is known. ([host]:443)",
+  "wasState": "DEAD_HOST",
+  "expectState": "DEAD_HOST",
+  "expectCertainty": "medium",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: No such host is known. ([long-token].trycloudflare.com:443)",
+  "wasState": "DEAD_HOST",
+  "expectState": "DEAD_HOST",
+  "expectCertainty": "medium",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: No such host is known. (my-elasticsearch-project-c4b895.kb.us-east4.gcp.elastic.cloud:443)",
+  "wasState": "DEAD_HOST",
+  "expectState": "DEAD_HOST",
+  "expectCertainty": "medium",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "No such host is known for this tunnel",
+  "wasState": "DEAD_HOST",
+  "expectState": "DEAD_HOST",
+  "expectCertainty": "medium",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: access denied (403). Your account is missing the required permissions/scopes. Reconnect with broader permissions or contact an administrator.",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "FORBIDDEN",
+  "expectCertainty": "high",
+  "groupChangesVsOld": true
+ },
+ {
+  "error": "Could not list tools from the MCP server: access denied (403). Your account is missing the required permissions/scopes. Reconnect with broader permissions or contact an administrator. Server said: {\"message\":\"Authorization header requires 'Credential' parameter. Authorization header requires 'Signature' parameter. Authorization header requires 'SignedHeaders' parameter. Authorization header requires existence of either a 'X-Amz-Date' or a 'Date' header. (Hashed with SHA-256 and encoded with B...",
+  "wasState": "KEY_REJECTED",
+  "expectState": "FORBIDDEN",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: access denied (403). Your account is missing the required permissions/scopes. Reconnect with broader permissions or contact an administrator. Server said: {\"message\":\"Invalid key=value pair (missing equal-sign) in Authorization header (hashed with SHA-256 and encoded with Base64): '[long-token]='.\"}",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "FORBIDDEN",
+  "expectCertainty": "high",
+  "groupChangesVsOld": true
+ },
+ {
+  "error": "Could not list tools from the MCP server: access denied (403). Your account is missing the required permissions/scopes. Reconnect with broader permissions or contact an administrator. Server said: {\"message\":\"Missing Authentication Token\"}",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "FORBIDDEN",
+  "expectCertainty": "high",
+  "groupChangesVsOld": true
+ },
+ {
+  "error": "Could not list tools from the MCP server: MCP server returned non-JSON response (content-type: text/html): \n\n<!DOCTYPE html>\n<html>\n<head>\n    <title>Insightly API v3.1 Help</title>\n    <link rel=\"icon\" href='/v3.1/Areas/v31/Content/helppage/images/favicon.ico' type=\"image/x-icon\"/>\n    <meta name=\"viewport\" content=\"width=device-width, ini...",
+  "wasState": "HTML_NOT_MCP",
+  "expectState": "HTML_NOT_MCP",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: MCP server returned non-JSON response (content-type: text/html): <!DOCTYPE html>\n<html lang=\"en-US\">\n<head>\n  <!-- Google Tag Manager -->\n<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':\n  new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0], \n  j=d.createElemen...",
+  "wasState": "HTML_NOT_MCP",
+  "expectState": "HTML_NOT_MCP",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: MCP server returned non-JSON response (content-type: text/html): <html style=\"height:100%\"><head><META NAME=\"ROBOTS\" CONTENT=\"NOINDEX, NOFOLLOW\"><meta name=\"format-detection\" content=\"telephone=no\"><meta name=\"viewport\" content=\"initial-scale=1.0\"><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge,...",
+  "wasState": "HTML_NOT_MCP",
+  "expectState": "HTML_NOT_MCP",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again.",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: (no body) WWW-Authenticate: Bearer error=\"invalid_token\", resource_metadata=\"https://[host]/[path]\"",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: (no body) WWW-Authenticate: Bearer resource_metadata=\"https://[host]/[path]\"",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: (no body) WWW-Authenticate: Bearer resource_metadata=\"https://[host]/[path]\", scope=\"lead411.mcp.read lead411.mcp.write\"",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"code\":401,\"message\":\"Unauthorized\",\"status\":\"unauthenticated\",\"type\":\"unauthenticated\"}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"detail\":\"Authentication required.\"}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"error\": \"invalid_token\", \"error_description\": \"Authentication required\"}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"error\":\"auth_denied\",\"error_description\":\"Authentication is required to access this MCP server.\"}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"error\":\"invalid_request\",\"error_description\":\"Authentication required. Provide either 'api-key' header or 'Authorization: Bearer <token>' header.\"}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"error\":\"invalid_token\",\"error_description\":\"The access token expired\"}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"error\":\"Unauthorized\",\"message\":\"Missing or invalid OAuth bearer token\"}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"error\":{\"errorCode\":\"unauthorized\",\"code\":\"EACCES\",\"message\":\"Token missing or malformed\"},\"requestId\":\"[long-token]\"}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"errors\":[{\"id\":\"[long-token]\",\"code\":\"ZI0001\",\"detail\":\"The Authorization token is required and cannot be left blank. Please provide a valid token and try again.\",\"title\":\"Unauthorized access\"}]}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"id\":\"[long-token]\",\"error\":{\"code\":-32001,\"message\":\"Access token is required\"},\"jsonrpc\":\"2.0\"}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"id\":\"[long-token]\",\"error\":{\"message\":\"Access token is required\",\"code\":-32001},\"jsonrpc\":\"2.0\"}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"message\":\"Authorization required\"}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"message\":\"Unauthorized\"}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"status\":\"error\",\"message\":\"Unauthorized\"}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: {\"title\":\"Authentication Required\",\"detail\":\"Failed to authenticate MCP request\",\"status\":401}",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it rejected the key in this connector's Headers (401). Check the API key and the server URL, then save and try again. Server said: Unauthorized",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "The server rejected the key in Headers",
+  "wasState": "KEY_REJECTED",
+  "expectState": "KEY_REJECTED",
+  "expectCertainty": "medium",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "This MCP server is not connected to your account. Please authenticate via your profile settings.",
+  "wasState": "NOT_CONNECTED",
+  "expectState": "NOT_CONNECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "this server is not connected to your account",
+  "wasState": "NOT_CONNECTED",
+  "expectState": "NOT_CONNECTED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: (no body) WWW-Authenticate: Bearer authorization_uri=\"https://[host]/[path]\", realm=\"https://[host]/[path]\", scope=\"okta.users.manage okta.users.read okta.groups.manage okta.groups.read okta.apps.read okta.apps.manage okta.policies.manage okta.policies.r...",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: (no body) WWW-Authenticate: Bearer error=\"invalid_token\", error_description=\"The access token is no longer valid.\"",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: (no body) WWW-Authenticate: Bearer error=\"invalid_token\", error_description=\"The access token is not valid.\"",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: (no body) WWW-Authenticate: Bearer resource_metadata=\"https://[host]/[path]\"",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: {\"error\": \"invalid_token\", \"error_description\": \"Authentication failed. The provided bearer token is invalid, expired, or no longer recognized by the server. To resolve: clear authentication tokens in your MCP client and reconnect. Your client should automatically re-register and obtain new tokens.\"...",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: {\"error\": \"invalid_token\", \"error_description\": \"Authentication required\"}",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: {\"error\":\"invalid_token\",\"error_description\":\"Invalid access token\"}",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: {\"id\":\"[long-token]\",\"jsonrpc\":\"2.0\",\"result\":{\"tools\":[{\"annotations\":{\"destructiveHint\":false,\"idempotentHint\":false,\"openWorldHint\":false,\"readOnlyHint\":false,\"title\":\"Create draft email\"},\"description\":\"Creates a new draft email in the authenticated user's Gmail account.\\n\\nT...",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: {\"id\":\"[long-token]\",\"jsonrpc\":\"2.0\",\"result\":{\"tools\":[{\"annotations\":{\"destructiveHint\":false,\"idempotentHint\":false,\"openWorldHint\":true,\"readOnlyHint\":false,\"title\":\"Copy file\"},\"description\":\"Call this tool to copy an existing File in Google Drive.\\nThe tool allows specifyin...",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: {\"id\":\"[long-token]\",\"jsonrpc\":\"2.0\",\"result\":{\"tools\":[{\"annotations\":{\"destructiveHint\":false,\"idempotentHint\":true,\"openWorldHint\":true,\"readOnlyHint\":true,\"title\":\"Returns a range of values from a spreadsheet.\"},\"description\":\"Returns a range of values from a spreadsheet.\\n\\n...",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: {\"jsonrpc\":\"2.0\",\"id\":null,\"error\":{\"code\":-32001,\"message\":\"invalid_token\"}}",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: {\"message\":\"User is not authorized to access this resource with an explicit deny in an identity-based policy\"}",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: {\"msg\":\"Expired access token, please reauthenticate\"}",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: {\"status\":\"failure\",\"data\":{\"error_code\":\"INVALID_TOKEN\",\"message\":\"invalid oauth token\"}}",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: {\"statusCode\":401,\"error\":\"Unauthorized\",\"message\":\"The requesting user did not present an authentication token\",\"status_code\":401}",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: {\"title\":\"This resource is restricted to certain users. Please verify your identity and try again\",\"detail\":\"Authorization Error\",\"status\":401}",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: Invalid or expired token",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: Unauthorized",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: authentication failed (401). Your access token may be expired or not accepted by this server — please reconnect via your profile settings. Server said: Unauthorized: invalid Hunter API key",
+  "wasState": "OAUTH_EXPIRED",
+  "expectState": "OAUTH_EXPIRED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: rate limit exceeded (429). Please wait a moment and try again.",
+  "wasState": "RATE_LIMITED",
+  "expectState": "RATE_LIMITED",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: MCP server returned a 301 redirect to 'https://[host]/[path]'. Redirects are not followed; point the connector at its final URL.",
+  "wasState": "REDIRECT",
+  "expectState": "REDIRECT",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: MCP server returned a 302 redirect to '/session_timeout.do'. Redirects are not followed; point the connector at its final URL.",
+  "wasState": "REDIRECT",
+  "expectState": "REDIRECT",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: MCP server returned a 302 redirect to 'https://[host]/[path]'. Redirects are not followed; point the connector at its final URL.",
+  "wasState": "REDIRECT",
+  "expectState": "REDIRECT",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: MCP server returned a 303 redirect to 'https://[host]/[path]'. Redirects are not followed; point the connector at its final URL.",
+  "wasState": "REDIRECT",
+  "expectState": "REDIRECT",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: it is currently unavailable (502). Please try again later.",
+  "wasState": "UNREACHABLE",
+  "expectState": "UNREACHABLE",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ },
+ {
+  "error": "Could not list tools from the MCP server: endpoint not found (404). The server URL in the connector configuration is incorrect.",
+  "wasState": "URL_404",
+  "expectState": "URL_404",
+  "expectCertainty": "high",
+  "groupChangesVsOld": false
+ }
+]
