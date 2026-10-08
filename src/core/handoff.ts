@@ -41,6 +41,7 @@ export function getHandoff(id: string | undefined): Handoff | null {
   if (Date.now() > h.expiresAt) {
     dropHandoff(h.id);
     return null;
+  }
   return h;
 }
 
