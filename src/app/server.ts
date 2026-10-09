@@ -25,6 +25,7 @@ const httpLog = createLogger('http');
 for (const file of ['.env.local', '.env']) loadLocalEnv(file, ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GEMINI_MODEL']);
 
 const HOME_FILE = fileURLToPath(new URL('./home.html', import.meta.url));
+const ASSET_DIR = fileURLToPath(new URL('./assets', import.meta.url));
 const ALLOWED_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
 
 /** Page path → HTML file, from every module. */
@@ -38,6 +39,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
   if (method === 'GET' && (path === '/' || path === '/index.html')) return send(res, 200, readFileSync(HOME_FILE, 'utf8'), 'text/html');
   if (method === 'GET' && PAGES.has(path)) return send(res, 200, readFileSync(PAGES.get(path)!, 'utf8'), 'text/html');
+  if (method === 'GET' && path.startsWith('/assets/')) return serveAsset(path, res);
   if (method === 'GET' && path.startsWith('/output/')) return serveOutput(path, res);
   if (!path.startsWith('/api/')) return send(res, 404, { error: 'Not found' });
 
@@ -88,6 +90,20 @@ const MIME: Record<string, string> = {
   '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
 
+/**
+ * Read-only UI assets (fonts) for the pages. Only files that already sit in src/app/assets are
+ * served, and only by exact simple file name, so nothing outside it can be reached.
+ */
+function serveAsset(path: string, res: ServerResponse): void {
+  const name = decodeURIComponent(path.slice('/assets/'.length));
+  if (!/^[\w.\-]+$/.test(name)) return send(res, 404, { error: 'Not found' });
+  const file = resolve(ASSET_DIR, name);
+  if (!file.startsWith(ASSET_DIR + sep) || !existsSync(file) || !statSync(file).isFile()) return send(res, 404, { error: 'Not found' });
+  const type = extname(file).toLowerCase() === '.woff2' ? 'font/woff2' : 'application/octet-stream';
+  res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=86400' });
+  res.end(readFileSync(file));
+}
+
 function serveOutput(path: string, res: ServerResponse): void {
   const file = resolve(OUTPUT_DIR, decodeURIComponent(path.slice('/output/'.length)));
   if (!file.startsWith(OUTPUT_DIR + sep) || !existsSync(file) || !statSync(file).isFile()) return send(res, 404, { error: 'Not found' });
@@ -95,9 +111,9 @@ function serveOutput(path: string, res: ServerResponse): void {
   res.end(readFileSync(file));
 }
 
-/** GETs of pages, reports, history and live progress are routine; only shown with --debug. */
+/** GETs of pages, assets, reports, history and live progress are routine; only shown with --debug. */
 function isRoutine(method: string, path: string): boolean {
-  if (method === 'GET' && (path === '/' || PAGES.has(path) || path.startsWith('/output/') || path === '/api/modules')) return true;
+  if (method === 'GET' && (path === '/' || PAGES.has(path) || path.startsWith('/assets/') || path.startsWith('/output/') || path === '/api/modules')) return true;
   return MODULES.some((m) => m.isRoutine?.(method, path));
 }
 

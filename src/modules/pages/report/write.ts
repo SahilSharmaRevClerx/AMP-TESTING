@@ -1,4 +1,4 @@
-ï»¿import { writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import type { Identity } from '../../../core/types';
 import type { CheckResult, MenuResult, RunConfig, Verdict } from '../types';
@@ -150,9 +150,9 @@ function renderHtml(cfg: RunConfig, meta: RunMeta, results: CheckResult[], rel: 
       const tone = fails > 0 ? 'mint' : revs > 0 ? 'mint' : 'mint';
       return `<div class="stat ${tone}">
         <div class="stop"><span class="avatar">${esc(label(ut).charAt(0).toUpperCase())}</span>
-        <span class="num">${fails + revs === 0 ? 'âœ“' : fails}<small>${fails + revs === 0 ? 'CLEAN' : 'NEED ATTENTION'}</small></span></div>
+        <span class="num">${fails + revs === 0 ? '?' : fails}<small>${fails + revs === 0 ? 'CLEAN' : 'NEED ATTENTION'}</small></span></div>
         <h3>${esc(label(ut))}</h3>
-        <p><b>${passes}</b> passed Â· <b>${fails}</b> failed Â· <b>${revs}</b> review</p>
+        <p><b>${passes}</b> passed · <b>${fails}</b> failed · <b>${revs}</b> review</p>
       </div>`;
     })
     .join('');
@@ -173,12 +173,12 @@ function renderHtml(cfg: RunConfig, meta: RunMeta, results: CheckResult[], rel: 
       const pills = userTypes
         .map((ut) => {
           const r = byKey.get(`${id}|${ut}`);
-          if (!r) return `<span class="pill dim">â€”</span>`;
+          if (!r) return `<span class="pill dim">—</span>`;
           const tip = `${r.reason} | state: ${r.state ?? '-'} | expected: ${r.expected ?? '-'} | menu: ${menuText(r)}`;
           const inner = r.verdict !== 'PASS'
             ? `<a href="#i-${esc(id)}-${esc(ut)}" title="${esc(tip)}">${badge(r.verdict)}</a>`
             : `<span title="${esc(tip)}">${badge(r.verdict)}</span>`;
-          return `<span class="cell" data-v="${r.verdict}">${inner}<span class="got">exp <b>${esc(r.expected ?? 'â€“')}</b> Â· ${esc(gotText(r))}</span></span>`;
+          return `<span class="cell" data-v="${r.verdict}">${inner}<span class="got">exp <b>${esc(r.expected ?? '–')}</b> · ${esc(gotText(r))}</span></span>`;
         })
         .join('');
       return `<div class="mcard" data-row><div class="mhead"><b>${esc(first.label)}</b><code>${esc(first.route ? '#' + first.route : '')}</code></div><div class="mcells">${pills}</div></div>`;
@@ -196,7 +196,7 @@ function renderHtml(cfg: RunConfig, meta: RunMeta, results: CheckResult[], rel: 
       const details: string[] = [];
       if (ev) {
         details.push(`<li>Final URL: <code>${esc(ev.finalUrl)}</code></li>`);
-        if (ev.fragmentStatus !== null) details.push(`<li>Page request: HTTP ${ev.fragmentStatus}${ev.fragmentRedirect ? ` â†’ <code>${esc(ev.fragmentRedirect)}</code>` : ''}</li>`);
+        if (ev.fragmentStatus !== null) details.push(`<li>Page request: HTTP ${ev.fragmentStatus}${ev.fragmentRedirect ? ` ? <code>${esc(ev.fragmentRedirect)}</code>` : ''}</li>`);
         if (r.fingerprintScore !== null) details.push(`<li>Fingerprint match: ${Math.round(r.fingerprintScore * 100)}%</li>`);
         const denied = ev.apiCalls.filter((a) => a.denied);
         if (denied.length) details.push(`<li>Denied API calls: ${denied.map((a) => `<code>${esc(a.func)}</code>`).join(', ')}</li>`);
@@ -209,12 +209,12 @@ function renderHtml(cfg: RunConfig, meta: RunMeta, results: CheckResult[], rel: 
       const key = `${r.ruleId}|${r.userType}`;
       const shots =
         calShot || userShot
-          ? `<div class="shots">${calShot ? `<figure><a href="${esc(calShot)}" target="_blank"><img loading="lazy" src="${esc(calShot)}"></a><figcaption>${esc(label(refInfo?.user ?? ''))} â€” reference (saw the most)</figcaption></figure>` : ''}${userShot ? `<figure><a href="${esc(userShot)}" target="_blank"><img loading="lazy" src="${esc(userShot)}"></a><figcaption>${esc(label(r.userType))}</figcaption></figure>` : ''}</div>`
+          ? `<div class="shots">${calShot ? `<figure><a href="${esc(calShot)}" target="_blank"><img loading="lazy" src="${esc(calShot)}"></a><figcaption>${esc(label(refInfo?.user ?? ''))} — reference (saw the most)</figcaption></figure>` : ''}${userShot ? `<figure><a href="${esc(userShot)}" target="_blank"><img loading="lazy" src="${esc(userShot)}"></a><figcaption>${esc(label(r.userType))}</figcaption></figure>` : ''}</div>`
           : '';
       return `<section class="issue" id="i-${esc(r.ruleId)}-${esc(r.userType)}" data-v="${r.verdict}">
-  <header>${badge(r.verdict)} <strong>${esc(r.label)}</strong> <code>${esc(r.route ? '#' + r.route : '(group)')}</code> <span class="dim">â€” ${esc(label(r.userType))}</span></header>
+  <header>${badge(r.verdict)} <strong>${esc(r.label)}</strong> <code>${esc(r.route ? '#' + r.route : '(group)')}</code> <span class="dim">— ${esc(label(r.userType))}</span></header>
   <p>${esc(r.reason)}</p>
-  <p class="facts">Expected: <b>${esc(r.expected ?? 'not specified')}</b> Â· In menu: <b>${esc(menuText(r))}</b>${r.state ? ` Â· Page state: <b>${esc(r.state)}</b>` : ''}</p>
+  <p class="facts">Expected: <b>${esc(r.expected ?? 'not specified')}</b> · In menu: <b>${esc(menuText(r))}</b>${r.state ? ` · Page state: <b>${esc(r.state)}</b>` : ''}</p>
   ${details.length ? `<details class="tech"><summary>Technical evidence (${details.length})</summary><ul>${details.join('')}</ul></details>` : ''}
   ${shots}
   <div class="review" data-key="${esc(key)}">
@@ -230,9 +230,12 @@ function renderHtml(cfg: RunConfig, meta: RunMeta, results: CheckResult[], rel: 
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AMP Permission Report â€” ${esc(cfg.environment.name)}</title>
+<title>AMP Permission Report — ${esc(cfg.environment.name)}</title>
 <style>
-:root{--paper:#F6F6F7;--ink:#0B0B0C;--muted:#5C6470;--card:#fff;--line:#E6E7EA;--line-strong:#D3D5DA;--code:#F2F3F5;
+/* Manrope — self-hosted (Google's CSS is blocked by this app's CSP, so the font is served from
+   the same origin, which default-src 'self' already allows). */
+@font-face{font-family:'Manrope';src:url('/assets/manrope-latin.woff2') format('woff2');font-weight:200 800;font-style:normal;font-display:swap}
+:root{--font:'Manrope','Segoe UI',system-ui,-apple-system,sans-serif;--paper:#F6F6F7;--ink:#0B0B0C;--muted:#5C6470;--card:#fff;--line:#E6E7EA;--line-strong:#D3D5DA;--code:#F2F3F5;
 --accent:#0B0B0C;--accent-hov:#000000;--accent-fg:#fff;--accent-soft:#FDF0EA;--accent-line:#FAD9C8;--accent-ink:#C2410C;--accent-2:#F2501B;
 --fail:#B42318;--fail-bg:#FDECEA;--warn:#9A5B00;--warn-bg:#FDF3E2;--ok:#0F7A44;--ok-bg:#E4F4EA;--info:#3b4a9c;--info-bg:#DDE3FF;
 --shadow:0 1px 2px rgba(11,11,12,.06);--shadow-hover:0 1px 2px rgba(11,11,12,.06),0 10px 24px rgba(11,11,12,.10);
@@ -241,7 +244,7 @@ function renderHtml(cfg: RunConfig, meta: RunMeta, results: CheckResult[], rel: 
 --accent:#FFFFFF;--accent-hov:#E6E6E7;--accent-fg:#0B0B0C;--accent-soft:#241409;--accent-line:#4A2A17;--accent-ink:#FF8A50;--accent-2:#FF7A45;
 --fail:#FF9B92;--fail-bg:#3D1C1A;--warn:#F2C46B;--warn-bg:#3A2D12;--ok:#6FD39C;--ok-bg:#173526;--info:#AAB6FF;--info-bg:#232A4D;
 --shadow:0 1px 2px rgba(0,0,0,.5);--shadow-hover:0 1px 2px rgba(0,0,0,.5),0 10px 28px rgba(0,0,0,.4);color-scheme:dark}}
-*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font:14px/1.6 var(--font);-webkit-font-smoothing:antialiased;letter-spacing:-.005em}
 main{max-width:1080px;margin:0 auto;padding:20px 18px 64px}
 :focus-visible{outline:2px solid var(--accent-2);outline-offset:2px;border-radius:6px}
 ::selection{background:var(--ink);color:var(--card)}
@@ -257,8 +260,8 @@ code,.urow code,.mhead code,.issue code,.tech code{font:12px ui-monospace,Consol
 .topbar nav a{font-size:13px;font-weight:600;padding:7px 13px;border-radius:4px;text-decoration:none;color:var(--muted);transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
 .topbar nav a:hover{background:var(--card);color:var(--ink)}
 /* hero */
-.eyebrow{display:inline-block;font:700 11px/1 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:var(--code);border:1px solid var(--line);padding:6px 12px;border-radius:6px}
-h1{font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;font-weight:700;font-size:clamp(26px,3.4vw,36px);line-height:1.12;letter-spacing:-.03em;margin:14px 0 4px}
+.eyebrow{display:inline-block;font:700 11px/1 var(--font);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:var(--code);border:1px solid var(--line);padding:6px 12px;border-radius:6px}
+h1{font-family:"Manrope","Segoe UI",system-ui,sans-serif;font-weight:700;font-size:clamp(26px,3.4vw,36px);line-height:1.12;letter-spacing:-.03em;margin:14px 0 4px}
 h1 em{font-style:normal;color:var(--accent-2)}
 .lead{color:var(--muted);font-size:15px;margin:0}
 .meta{color:var(--muted);font-size:12.5px;margin-top:10px}
@@ -267,19 +270,19 @@ h2{font-weight:700;font-size:19px;letter-spacing:-.02em;margin:34px 0 10px}
 .hero-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0 6px}
 .hstat{border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center;box-shadow:var(--shadow);transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
 .hstat:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover)}
-.hstat .v{font:700 30px/1 system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-.hstat .l{font:700 11px/1 system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;margin-top:6px}
+.hstat .v{font:700 30px/1 var(--font);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.hstat .l{font:700 11px/1 var(--font);letter-spacing:.1em;text-transform:uppercase;margin-top:6px}
 .hstat.fail{background:var(--fail-bg);color:var(--fail)}.hstat.rev{background:var(--warn-bg);color:var(--warn)}.hstat.pass{background:var(--ok-bg);color:var(--ok)}.hstat.total{background:var(--ink);color:var(--paper)}
-/* user cards â€” uniform */
+/* user cards — uniform */
 .stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin:12px 0}
 .stat{border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--card);box-shadow:var(--shadow);transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
 .stat:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover)}
 .stat .stop{display:flex;justify-content:space-between;align-items:flex-start}
-.avatar{width:40px;height:40px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font:700 15px/1 system-ui,sans-serif;border:1px solid var(--accent-line)}
+.avatar{width:40px;height:40px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font:700 15px/1 var(--font);border:1px solid var(--accent-line)}
 .avatar.sm{width:34px;height:34px;font-size:13px}
-.stat .num{font:700 28px/1 system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em;text-align:right}
-.stat .num small{display:block;font:700 10px/1 system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:6px}
-.stat h3{font:700 15px/1.3 system-ui,sans-serif;letter-spacing:-.015em;margin:12px 0 4px}
+.stat .num{font:700 28px/1 var(--font);font-variant-numeric:tabular-nums;letter-spacing:-.02em;text-align:right}
+.stat .num small{display:block;font:700 10px/1 var(--font);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+.stat h3{font:700 15px/1.3 var(--font);letter-spacing:-.015em;margin:12px 0 4px}
 .stat p{margin:0;font-size:13px;color:var(--muted)}
 .stat p b{color:var(--ink)}
 .users{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
@@ -294,7 +297,7 @@ h2{font-weight:700;font-size:19px;letter-spacing:-.02em;margin:34px 0 10px}
 .btn:hover{border-color:var(--ink);transform:translateY(-1px);box-shadow:var(--shadow-hover)}
 .btn.dark{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .btn.dark:hover{background:var(--accent-hov);border-color:var(--accent-hov)}
-/* matrix cards â€” compact, no giant table */
+/* matrix cards — compact, no giant table */
 .matrix{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}
 .mcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;box-shadow:var(--shadow);content-visibility:auto;contain-intrinsic-size:140px;transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
 .mcard:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover)}
@@ -335,11 +338,11 @@ h2{font-weight:700;font-size:19px;letter-spacing:-.02em;margin:34px 0 10px}
 @media(max-width:720px){.hero-stats{grid-template-columns:repeat(2,1fr)}.topbar nav{display:none}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.hstat,.stat,.mcard{transition:none}}
 </style></head><body><main>
-<div class="topbar"><span class="logo"><i>âœ¦</i> qa studio</span><nav><a href="#overview">Overview</a><a href="#matrix">Matrix</a><a href="#issues">Issues (${issueCount})</a></nav></div>
-<span class="eyebrow">AMP Â· PERMISSION TESTING</span>
-<h1>Permission report â€” <em>${esc(cfg.environment.name)}</em></h1>
+<div class="topbar"><span class="logo"><i>?</i> qa studio</span><nav><a href="#overview">Overview</a><a href="#matrix">Matrix</a><a href="#issues">Issues (${issueCount})</a></nav></div>
+<span class="eyebrow">AMP · PERMISSION TESTING</span>
+<h1>Permission report — <em>${esc(cfg.environment.name)}</em></h1>
 <p class="lead">Every page, every user type, with the evidence needed to confirm each verdict.</p>
-<div class="meta">${esc(cfg.environment.baseUrl)} Â· run ${esc(meta.runId)} Â· ${esc(meta.startedAt)} â†’ ${esc(meta.finishedAt)}${meta.ampVersion ? ` Â· AMP build ${esc(meta.ampVersion)}` : ''} Â· rulebook ${esc(meta.rulebookFile)} Â· threshold ${Math.round(cfg.fingerprintThreshold * 100)}%</div>
+<div class="meta">${esc(cfg.environment.baseUrl)} · run ${esc(meta.runId)} · ${esc(meta.startedAt)} ? ${esc(meta.finishedAt)}${meta.ampVersion ? ` · AMP build ${esc(meta.ampVersion)}` : ''} · rulebook ${esc(meta.rulebookFile)} · threshold ${Math.round(cfg.fingerprintThreshold * 100)}%</div>
 ${warnings}
 <section id="overview">
 <h2>Overview</h2>
@@ -358,16 +361,16 @@ ${renderUncovered(meta, results, label)}
 <section id="matrix">
 <h2>Matrix</h2>
 <p class="meta" style="margin:0 0 10px"><b>Pass</b> means the user got what the rulebook expects, not that the page opened: a page the rulebook says <b>No</b> to that shows AMP's "No Access" page is a Pass. Each card shows what was expected and what the user actually got.</p>
-<div class="filters" id="f"><button class="on" data-f="all">All</button><button data-f="fail">Failures only</button><button data-f="attn">Needs attention</button><span class="dim">${ruleIds.length} pages Â· ${userTypes.length} user types</span></div>
+<div class="filters" id="f"><button class="on" data-f="all">All</button><button data-f="fail">Failures only</button><button data-f="attn">Needs attention</button><span class="dim">${ruleIds.length} pages · ${userTypes.length} user types</span></div>
 <div class="matrix" id="m">${matrixCards}</div>
 </section>
 <section id="issues">
 <h2>Issues (${issueCount})</h2>
-<p class="meta">Mark each issue after checking the screenshots. Reviews are saved in this browser; use the button to export them. ${okAll ? 'No failures â€” everything matches the rulebook.' : ''}</p>
+<p class="meta">Mark each issue after checking the screenshots. Reviews are saved in this browser; use the button to export them. ${okAll ? 'No failures — everything matches the rulebook.' : ''}</p>
 <button class="btn dark" id="dl">Download review CSV</button>
 ${issues || '<p>No issues.</p>'}
 </section>
-<div class="foot"><b>qa studio</b> Â· ${esc(cfg.environment.name)} Â· ${esc(meta.runId)}</div>
+<div class="foot"><b>qa studio</b> · ${esc(cfg.environment.name)} · ${esc(meta.runId)}</div>
 </main>
 <script>
 (function(){

@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>QA Studio — AMP permission testing</title>
 <style>
+/* Manrope — the TestMu AI display/UI face, self-hosted (Google's CSS is blocked by the app's CSP,
+   so it is served from this origin, which default-src 'self' already allows). */
+@font-face{font-family:'Manrope';src:url('/assets/manrope-latin.woff2') format('woff2');font-weight:200 800;font-style:normal;font-display:swap}
 /* ---- design tokens: TestMu-style corporate system — white surfaces, near-black ink,
    black primary actions, one vivid orange reserved for accents and motion.
    Contrast on #fff: ink 19:1 · muted 6.3:1 · orange-ink 5.2:1 · orange accent 3.4:1 (graphics/focus, 3:1 min) */
@@ -16,6 +19,7 @@
   --ok:#0F7A44;--ok-bg:#E4F4EA;--bad:#B42318;--bad-bg:#FDECEA;--warn:#9A5B00;--warn-bg:#FDF3E2;
   --shadow:0 1px 2px rgba(11,11,12,.06);--shadow-hover:0 1px 2px rgba(11,11,12,.06),0 10px 24px rgba(11,11,12,.10);
   --r:12px;--ease:cubic-bezier(.2,.7,.2,1);--dur:140ms;
+  --font:'Manrope','Segoe UI',system-ui,-apple-system,sans-serif;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root{
@@ -30,7 +34,7 @@
 [hidden]{display:none!important}
 html,body{margin:0}
 html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--fg);font:15px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--font);-webkit-font-smoothing:antialiased}
 a{color:inherit}
 code{font:12.5px ui-monospace,Consolas,monospace;background:var(--code);padding:1px 6px;border-radius:5px}
 :focus-visible{outline:2px solid var(--accent-2);outline-offset:2px;border-radius:6px}
@@ -44,7 +48,7 @@ code{font:12.5px ui-monospace,Consolas,monospace;background:var(--code);padding:
 /* ---------- header: logo left, outline + solid CTA right ---------- */
 .top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .top .in{max-width:1240px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:16px}
-.brand{display:flex;align-items:center;gap:10px;font:700 16px/1 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:-.015em;cursor:pointer;background:none;border:0;color:var(--fg);padding:0;white-space:nowrap}
+.brand{display:flex;align-items:center;gap:10px;font:700 16px/1 var(--font);letter-spacing:-.015em;cursor:pointer;background:none;border:0;color:var(--fg);padding:0;white-space:nowrap}
 .brand .logo{width:28px;height:28px;border-radius:6px;background:var(--fg);display:grid;place-items:center;color:var(--bg)}
 .brand .logo svg{color:var(--accent-2)}
 .brand small{display:block;font:600 10px/1 system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:3px}
@@ -66,7 +70,7 @@ main{max-width:1240px;margin:0 auto;padding:0 24px 84px}
 .hero{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:56px;align-items:center;padding:64px 0 56px}
 .hero-copy .eyebrow{display:inline-flex;align-items:center;gap:8px;font:700 11px/1 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:var(--code);border:1px solid var(--line);padding:7px 12px;border-radius:6px}
 .hero-copy .eyebrow i{width:6px;height:6px;border-radius:50%;background:var(--accent-2)}
-.hero h1{font-family:"Segoe UI Variable Display","Segoe UI",system-ui,-apple-system,sans-serif;font-weight:700;font-size:clamp(34px,4.2vw,54px);line-height:1.06;letter-spacing:-.03em;margin:20px 0 16px}
+.hero h1{font-family:"Manrope","Segoe UI",system-ui,sans-serif;font-weight:700;font-size:clamp(34px,4.2vw,54px);line-height:1.06;letter-spacing:-.03em;margin:20px 0 16px}
 .hero h1 em{font-style:normal;color:var(--accent-2)}
 .lead{color:var(--muted);font-size:17px;line-height:1.6;margin:0 0 28px;max-width:520px}
 .hero-cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
@@ -98,7 +102,7 @@ main{max-width:1240px;margin:0 auto;padding:0 24px 84px}
 
 /* ---------- catalog ---------- */
 .cat-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;padding:40px 0 22px}
-.cat-head h2{font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;margin:0;font-weight:700;font-size:26px;letter-spacing:-.025em}
+.cat-head h2{font-family:"Manrope","Segoe UI",system-ui,sans-serif;margin:0;font-weight:700;font-size:26px;letter-spacing:-.025em}
 .cat-head p{margin:8px 0 0;color:var(--muted);font-size:15px;max-width:560px}
 .cat-head p b{color:var(--fg);font-weight:600}
 .cat-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
@@ -124,7 +128,7 @@ main{max-width:1240px;margin:0 auto;padding:0 24px 84px}
 .mod .st.ready{background:var(--ok-bg);color:var(--ok);border-color:transparent}
 .mod .st.soon{background:var(--code);color:var(--muted)}
 .mod .mcat{font:700 11px/1 system-ui,sans-serif;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
-.mod h3{margin:0;font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;font-weight:700;font-size:19px;letter-spacing:-.02em;line-height:1.25}
+.mod h3{margin:0;font-family:"Manrope","Segoe UI",system-ui,sans-serif;font-weight:700;font-size:19px;letter-spacing:-.02em;line-height:1.25}
 .mod p{margin:0;color:var(--muted);font-size:14px;line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .mod .mtags{display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
 .mod .mtags span{font-size:12px;font-weight:600;color:var(--muted);background:var(--code);border:1px solid var(--line);border-radius:5px;padding:3px 9px}

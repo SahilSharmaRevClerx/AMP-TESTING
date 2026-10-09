@@ -1,13 +1,14 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>QA Studio — AMP permission testing</title>
+<title>QA Studio � AMP permission testing</title>
 <style>
-/* ---- design tokens: TestMu-style corporate system — white surfaces, near-black ink,
+@font-face{font-family:'Manrope';src:url('/assets/manrope-latin.woff2') format('woff2');font-weight:200 800;font-style:normal;font-display:swap}
+/* ---- design tokens: TestMu-style corporate system � white surfaces, near-black ink,
    black primary actions, one vivid orange reserved for accents and motion.
-   Contrast on #fff: ink 19:1 · muted 6.3:1 · orange-ink 5.2:1 · orange accent 3.4:1 (graphics/focus) */
+   Contrast on #fff: ink 19:1 � muted 6.3:1 � orange-ink 5.2:1 � orange accent 3.4:1 (graphics/focus) */
 :root{
   --bg:#F6F6F7;--fg:#0B0B0C;--muted:#5C6470;--card:#FFFFFF;--line:#E6E7EA;--line-strong:#D3D5DA;--input:#fff;--code:#F2F3F5;
   --accent:#0B0B0C;--accent-hov:#000000;--accent-fg:#fff;              /* primary actions are ink black */
@@ -16,6 +17,7 @@
   --ok:#0F7A44;--ok-bg:#E4F4EA;--bad:#B42318;--bad-bg:#FDECEA;--warn:#9A5B00;--warn-bg:#FDF3E2;
   --shadow:0 1px 2px rgba(11,11,12,.06);--shadow-hover:0 1px 2px rgba(11,11,12,.06),0 10px 24px rgba(11,11,12,.10);
   --r:12px;--ease:cubic-bezier(.2,.7,.2,1);--dur:140ms;
+  --font:'Manrope','Segoe UI',system-ui,-apple-system,sans-serif;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root{
@@ -29,7 +31,7 @@
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0}
-body{background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--font)}
 a{color:var(--accent)}
 code{font:12.5px ui-monospace,Consolas,monospace;background:var(--code);padding:1px 5px;border-radius:4px}
 
@@ -81,7 +83,7 @@ body:not(.welcome-on) .bg-deco{display:none}
 .scene h2{font-size:clamp(28px,3.8vw,42px);line-height:1.15;margin:14px 0 10px;letter-spacing:-.02em}
 .grad{background:linear-gradient(90deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
 .lead{max-width:660px;margin:0 auto;color:var(--muted);font-size:clamp(15px,1.7vw,19px);line-height:1.6}
-.scroll-cue{position:absolute;bottom:26px;left:0;right:0;margin:0 auto;width:max-content;display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--muted);font:500 13px system-ui,-apple-system,"Segoe UI",sans-serif;background:none;border:0;cursor:pointer;padding:6px 10px;border-radius:10px}
+.scroll-cue{position:absolute;bottom:26px;left:0;right:0;margin:0 auto;width:max-content;display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--muted);font:500 13px var(--font);background:none;border:0;cursor:pointer;padding:6px 10px;border-radius:10px}
 .scroll-cue:hover{color:var(--fg)}
 .mouse{width:24px;height:38px;border:2px solid currentColor;border-radius:14px;position:relative;opacity:.8}
 .mouse::after{content:"";position:absolute;left:50%;top:7px;width:4px;height:8px;margin-left:-2px;border-radius:2px;background:currentColor;animation:wheel 1.7s ease-in-out infinite}
@@ -118,7 +120,7 @@ body:not(.welcome-on) .scene-dots{display:none}
 /* ---------- home: catalog of testing modules */
 main.wide,body.hub-on .top .in{max-width:1240px}
 .cat-tabs{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--line);border-radius:12px;background:var(--card);box-shadow:var(--shadow);margin:6px 0 30px}
-.cat-tabs button{border:0;background:none;color:var(--muted);font:600 14px system-ui,-apple-system,"Segoe UI",sans-serif;padding:8px 16px;border-radius:9px;cursor:pointer}
+.cat-tabs button{border:0;background:none;color:var(--muted);font:600 14px var(--font);padding:8px 16px;border-radius:9px;cursor:pointer}
 .cat-tabs button.on{background:var(--accent);color:var(--accent-fg)}
 .cat-head h1{margin:0;font-size:clamp(28px,3.4vw,38px);letter-spacing:-.02em;line-height:1.15}
 .cat-head p{margin:6px 0 0;color:var(--muted);font-size:15.5px}
@@ -161,7 +163,7 @@ main.wide,body.hub-on .top .in{max-width:1240px}
 .mbody{display:flex;flex-direction:column;gap:7px}
 .mact{margin-top:auto;display:flex;flex-direction:column;gap:10px}
 .cat-empty{color:var(--muted);text-align:center;padding:40px 10px;border:1px dashed var(--line);border-radius:14px}
-.back-mods{position:absolute;top:18px;left:20px;background:none;border:0;color:var(--muted);font:500 14px system-ui,-apple-system,"Segoe UI",sans-serif;cursor:pointer;padding:6px 10px;border-radius:8px;display:inline-flex;gap:6px;align-items:center}
+.back-mods{position:absolute;top:18px;left:20px;background:none;border:0;color:var(--muted);font:500 14px var(--font);cursor:pointer;padding:6px 10px;border-radius:8px;display:inline-flex;gap:6px;align-items:center}
 .back-mods:hover{color:var(--fg);background:color-mix(in srgb,var(--code) 80%,transparent)}
 @media (max-width:760px){.mods.list .mod{grid-template-columns:48px minmax(0,1fr);grid-template-areas:"ic body" "act act";row-gap:12px}}
 @media (max-width:640px){.mods{grid-template-columns:1fr}.cat-tabs{margin-bottom:22px}}
@@ -270,7 +272,7 @@ details.help ol{margin:8px 0 2px;padding-left:20px;color:var(--muted);font-size:
 .user .who{grid-column:2/-1;font-size:13.5px;margin-top:-2px}
 .user .who.ok{color:var(--ok)}.user .who.bad{color:var(--bad)}
 .key{font:12px ui-monospace,Consolas,monospace;color:var(--muted);margin-top:4px}
-.tag{font:600 11px system-ui,sans-serif;padding:1px 6px;border-radius:4px;background:var(--accent-soft);color:var(--accent);margin-left:6px}
+.tag{font:600 11px var(--font);padding:1px 6px;border-radius:4px;background:var(--accent-soft);color:var(--accent);margin-left:6px}
 .secret{-webkit-text-security:disc;text-security:disc}
 .pw{display:flex;gap:4px}.pw .show{flex:0 0 auto;border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:8px;padding:0 10px;cursor:pointer}
 @media (max-width:760px){.user{grid-template-columns:28px 1fr}.user .pwf{grid-column:2}}
@@ -323,19 +325,19 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
 .empty{color:var(--muted);font-size:14px;text-align:center;padding:26px}
 .page-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
 .page-title h2{margin:0;font-size:22px}
-/* ============ corporate polish — white surfaces, ink actions, one orange accent ============ */
+/* ============ corporate polish � white surfaces, ink actions, one orange accent ============ */
 :root{--ink:var(--fg);--paper:var(--bg);--paper-2:var(--code);--coral:var(--accent-ink);
   --pink:var(--accent-soft);--blue:var(--accent-soft);--mint:var(--ok-bg);--butter:var(--accent-soft);
-  --font-display:system-ui,-apple-system,"Segoe UI",sans-serif;--font-cond:system-ui,-apple-system,"Segoe UI",sans-serif;
-  --font-body:system-ui,-apple-system,"Segoe UI",sans-serif;--font-serif:system-ui,-apple-system,"Segoe UI",sans-serif;--shadow-sm:var(--shadow)}
+  --font-display:var(--font);--font-cond:var(--font);
+  --font-body:var(--font);--font-serif:var(--font);--shadow-sm:var(--shadow)}
 :focus-visible{outline:2px solid var(--accent-2);outline-offset:2px;border-radius:6px}
 ::selection{background:var(--fg);color:var(--card)}
-body{-webkit-font-smoothing:antialiased}
+body{-webkit-font-smoothing:antialiased;letter-spacing:-.005em}
 /* top strip + header (TestMu-style: dark one-liner, logo left, outline + ink CTAs) */
 .strip{background:var(--fg);color:var(--bg);text-align:center;font-size:12.5px;font-weight:500;padding:8px 16px}
 .strip .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent-2);margin-right:8px;vertical-align:1px}
 .top .in{max-width:1240px;padding:13px 24px}
-.brand{font:700 16px/1 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:-.015em}
+.brand{font:700 16px/1 var(--font);letter-spacing:-.015em}
 .brand .logo{width:28px;height:28px;border-radius:6px;background:var(--fg);border:0;box-shadow:none}
 .brand .logo svg{color:var(--accent-2)}
 .link{border:1px solid var(--line-strong);border-radius:6px;font-weight:600;font-size:13.5px;padding:8px 14px;background:var(--card);transition:border-color var(--dur) var(--ease),transform var(--dur) var(--ease)}
@@ -355,8 +357,8 @@ input:hover,select:hover{border-color:var(--muted)}
 input:focus,select:focus{outline:none;border-color:var(--fg);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-2) 18%,transparent)}
 input::placeholder,textarea::placeholder{color:var(--muted);opacity:1}
 /* welcome: heavy headline, restrained hero */
-.eyebrow{font:700 11px/1 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;background:var(--code);border:1px solid var(--line);color:var(--muted);padding:7px 12px;border-radius:6px}
-.scene h1,.scene h2{font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;font-weight:700;letter-spacing:-.03em;line-height:1.06}
+.eyebrow{font:700 11px/1 var(--font);letter-spacing:.12em;text-transform:uppercase;background:var(--code);border:1px solid var(--line);color:var(--muted);padding:7px 12px;border-radius:6px}
+.scene h1,.scene h2{font-family:"Manrope","Segoe UI",system-ui,sans-serif;font-weight:700;letter-spacing:-.03em;line-height:1.06}
 .scene h1{font-size:clamp(34px,4.6vw,56px)}
 .scene h2{font-size:clamp(26px,3.4vw,40px)}
 .grad{background:none;color:var(--accent-2);-webkit-text-fill-color:var(--accent-2);-webkit-text-stroke:0}
@@ -380,7 +382,7 @@ input::placeholder,textarea::placeholder{color:var(--muted);opacity:1}
 .panel .head p,.hint,.help,.sub-h,.cat-count,.meta{color:var(--muted)}
 .panel .foot{background:var(--code)}
 .panel h2{font-weight:700;letter-spacing:-.02em}
-.sub-h{font:700 11px/1 system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase}
+.sub-h{font:700 11px/1 var(--font);letter-spacing:.1em;text-transform:uppercase}
 .envc{border-radius:10px;box-shadow:var(--shadow);transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),background var(--dur) var(--ease)}
 .envc:hover{box-shadow:var(--shadow-hover)}
 .envc.on{border-color:var(--fg);background:var(--accent-soft)}
@@ -402,11 +404,11 @@ input.sw::after{transition:transform var(--dur) var(--ease)}
 details.help{background:var(--code);border:1px solid var(--line)}
 details.adv{border-radius:10px}
 details.logbox summary{color:var(--fg);font-weight:600}
-/* plan summary — uniform cards, tabular numbers */
+/* plan summary � uniform cards, tabular numbers */
 .summary{gap:12px}
 .sbox{border:1px solid var(--line);box-shadow:var(--shadow);border-radius:10px;background:var(--card)}
 .sbox:nth-child(1),.sbox:nth-child(2),.sbox:nth-child(3),.sbox:nth-child(4){background:var(--card)}
-.sbox .v{font:700 20px/1.2 system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em;white-space:normal}
+.sbox .v{font:700 20px/1.2 var(--font);font-variant-numeric:tabular-nums;letter-spacing:-.02em;white-space:normal}
 .sbox .l{color:var(--muted)}
 /* live run */
 .bar{background:var(--code);border:1px solid var(--line);height:8px}
@@ -414,16 +416,16 @@ details.logbox summary{color:var(--fg);font-weight:600}
 .ph{border-radius:6px;border:1px solid var(--line);transition:all var(--dur) var(--ease)}
 .ph.cur{background:var(--fg);color:var(--card);border-color:var(--fg)}
 .ph.done{background:var(--ok-bg);color:var(--ok);border-color:transparent}
-/* results — one restrained stat row, then evidence */
+/* results � one restrained stat row, then evidence */
 .result-hero .big{width:64px;height:64px;box-shadow:var(--shadow);border:1px solid var(--line)}
 .result-hero h3{font-weight:700;letter-spacing:-.02em}
 .tile{border-radius:10px;box-shadow:var(--shadow);transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
 .tile:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover)}
-.tile .v{font:700 32px/1 system-ui,sans-serif;font-variant-numeric:tabular-nums}
-.tile .l{font:700 11px/1 system-ui,sans-serif;letter-spacing:.1em}
-/* tables: compact, sticky header, sane density — no endless scrolling */
+.tile .v{font:700 32px/1 var(--font);font-variant-numeric:tabular-nums}
+.tile .l{font:700 11px/1 var(--font);letter-spacing:.1em}
+/* tables: compact, sticky header, sane density � no endless scrolling */
 table{font-size:13.5px}
-th{font:600 11px/1.3 system-ui,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:10px 12px}
+th{font:600 11px/1.3 var(--font);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:10px 12px}
 td{padding:10px 12px}
 thead th{background:var(--code);border-bottom:1px solid var(--line)}
 .scroll{max-height:430px;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);background:var(--card)}
@@ -445,7 +447,7 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
 </head>
 <body>
 
-<div class="strip"><span class="dot"></span>Runs on this machine · <b>read-only</b> — pages are opened, never changed</div>
+<div class="strip"><span class="dot"></span>Runs on this machine � <b>read-only</b> � pages are opened, never changed</div>
 
 <header class="top"><div class="in">
   <button class="brand" id="go-home" title="Home">
@@ -474,9 +476,9 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
     <button class="back-mods" id="btn-mods"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>All testing modules</button>
     <div class="scene-in">
       <div class="reveal"><div class="hero-mark"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></div></div>
-      <span class="eyebrow reveal" style="--d:.12s">AMP · PERMISSION TESTING</span>
+      <span class="eyebrow reveal" style="--d:.12s">AMP � PERMISSION TESTING</span>
       <h1 class="reveal" style="--d:.24s">Verify who can open <span class="grad">what</span>.</h1>
-      <p class="lead reveal" style="--d:.38s">Every rulebook page opened as every user type — read-only, with screenshot evidence for each verdict.</p>
+      <p class="lead reveal" style="--d:.38s">Every rulebook page opened as every user type � read-only, with screenshot evidence for each verdict.</p>
     </div>
     <button class="scroll-cue reveal" style="--d:.7s" data-go="scene-2"><span class="mouse"></span>Scroll to see how it works</button>
   </div>
@@ -514,7 +516,7 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
         <button class="btn ghost-big" id="btn-welcome-history">View past runs</button>
       </div>
       <div class="trust reveal" style="--d:.45s">
-        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>Read-only — pages are opened, never changed</span>
+        <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>Read-only � pages are opened, never changed</span>
         <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>Tokens never saved</span>
         <span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 12l5 5 9-10"/></svg>Runs on your machine</span>
       </div>
@@ -561,7 +563,7 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
       </div>
       <div id="env-msg"></div>
     </div>
-    <div class="foot"><button class="btn" data-back>Back</button><button class="btn primary" id="next-1">Next: Rulebook →</button></div>
+    <div class="foot"><button class="btn" data-back>Back</button><button class="btn primary" id="next-1">Next: Rulebook ?</button></div>
   </div>
 
   <!-- step 2 -->
@@ -570,14 +572,14 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
       <div><h2>Choose the rulebook</h2><p>A sheet with a <code>page</code> column and one Yes/No column per user type (e.g. <code>site_admin</code>, <code>super_admin</code>, <code>normal_user</code>).</p></div></div>
     <div class="body">
       <div class="pick">
-        <div class="field"><label class="lbl" for="rb-select">Saved rulebook</label><select id="rb-select"><option value="">— choose —</option></select></div>
+        <div class="field"><label class="lbl" for="rb-select">Saved rulebook</label><select id="rb-select"><option value="">� choose �</option></select></div>
         <div class="or">OR</div>
         <label class="drop" id="rb-drop"><input type="file" id="rb-file" accept=".xlsx,.csv" hidden><b>Upload .xlsx / .csv</b><br><span id="rb-drop-t">click or drop a file here</span></label>
       </div>
       <div id="rb-msg"></div>
       <div class="rbsum" id="rb-sum"></div>
     </div>
-    <div class="foot"><button class="btn" data-back>← Back</button><button class="btn primary" id="next-2">Next: Users &amp; tokens →</button></div>
+    <div class="foot"><button class="btn" data-back>? Back</button><button class="btn primary" id="next-2">Next: Users &amp; tokens ?</button></div>
   </div>
 
   <!-- step 3 -->
@@ -589,9 +591,9 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
         <summary>How do I get the jwt?</summary>
         <ol>
           <li>Open an incognito window (one per user, so logins don't mix) and log in to the environment as that user.</li>
-          <li>Press <b>F12</b> → <b>Application</b> → <b>Cookies</b> → select the site.</li>
+          <li>Press <b>F12</b> ? <b>Application</b> ? <b>Cookies</b> ? select the site.</li>
           <li>Copy the <b>Value</b> of the <code>jwt</code> cookie into that user's row. That's the only thing needed.</li>
-          <li>The row names come from your rulebook and are only labels: the tool does not force a row to be that role. After checking, each row shows <b>who the jwt really belongs to</b> — make sure it matches.</li>
+          <li>The row names come from your rulebook and are only labels: the tool does not force a row to be that role. After checking, each row shows <b>who the jwt really belongs to</b> � make sure it matches.</li>
           <li>For each page, the user who sees the most of it (often the highest-access type, e.g. a Super Admin) is used as the <b>reference</b> for what the page looks like when it really opens. Testing at least one high-access user type alongside the others gives the most precise results.</li>
         </ol>
       </details>
@@ -599,13 +601,13 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
       <div class="chips"><button class="btn" id="btn-check">Check tokens</button><button class="btn" id="btn-clear">Clear jwts</button><span class="hint">Next checks them automatically</span></div>
       <div id="users-msg"></div>
     </div>
-    <div class="foot"><button class="btn" data-back>← Back</button><button class="btn primary" id="next-3">Next: Review &amp; run →</button></div>
+    <div class="foot"><button class="btn" data-back>? Back</button><button class="btn primary" id="next-3">Next: Review &amp; run ?</button></div>
   </div>
 
   <!-- step 4 -->
   <div class="panel" id="step-4" hidden>
     <div class="head"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 001.5.86l10.5-6.5a1 1 0 000-1.72L9.5 4.64A1 1 0 008 5.5z"/></svg></div>
-      <div><h2 id="run-title">Ready to run</h2><p id="run-sub">Check the plan, then start. The browser only opens pages — it never clicks or changes anything.</p></div></div>
+      <div><h2 id="run-title">Ready to run</h2><p id="run-sub">Check the plan, then start. The browser only opens pages � it never clicks or changes anything.</p></div></div>
     <div class="body">
       <div id="plan-box">
         <div class="summary" id="plan-sum"></div>
@@ -614,9 +616,9 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
           <summary>Advanced options</summary>
           <div class="ogrid">
             <div class="fld"><label class="lbl" for="opt-limit">Only the first N pages</label><input type="number" id="opt-limit" min="1" placeholder="all pages"><div class="help">For a quick trial run.</div></div>
-            <div class="fld"><label class="lbl" for="opt-par">Users at the same time</label><input type="number" id="opt-par" min="1" max="5" value="3"><div class="help">1–5. Production always uses 1.</div></div>
+            <div class="fld"><label class="lbl" for="opt-par">Users at the same time</label><input type="number" id="opt-par" min="1" max="5" value="3"><div class="help">1�5. Production always uses 1.</div></div>
             <div class="fld"><label class="lbl" for="opt-delay">Pause between pages <span class="unit">ms</span></label><input type="number" id="opt-delay" min="200" max="5000" value="500"><div class="help">Higher is gentler on the server.</div></div>
-            <div class="fld"><label class="lbl" for="opt-wait">Longest wait per page <span class="unit">s</span></label><input type="number" id="opt-wait" min="10" max="120" value="30"><div class="help">Raise for slow servers. Fast pages still take 1–2 s.</div></div>
+            <div class="fld"><label class="lbl" for="opt-wait">Longest wait per page <span class="unit">s</span></label><input type="number" id="opt-wait" min="10" max="120" value="30"><div class="help">Raise for slow servers. Fast pages still take 1�2 s.</div></div>
             <div class="fld"><label class="lbl" for="opt-th">Match threshold <span class="unit">%</span></label><input type="number" id="opt-th" min="20" max="100" value="60"><div class="help">How similar to the reference view a page must be.</div></div>
           </div>
           <div class="otoggles">
@@ -626,7 +628,7 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
         </details>
       </div>
       <div id="run-live" class="live" hidden>
-        <div class="phase"><b id="phase"><span class="spin"></span>Starting…</b><span id="phase-n" class="hint"></span></div>
+        <div class="phase"><b id="phase"><span class="spin"></span>Starting�</b><span id="phase-n" class="hint"></span></div>
         <div class="bar"><div id="bar"></div></div>
         <div class="phases" id="phases"></div>
         <p class="hint">You can leave this page open; closing or refreshing it does not stop the run.</p>
@@ -635,7 +637,7 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
       <div id="run-err"></div>
     </div>
     <div class="foot">
-      <button class="btn" data-back id="back-4">← Back</button>
+      <button class="btn" data-back id="back-4">? Back</button>
       <span>
         <button class="btn danger" id="btn-cancel" hidden>Cancel run</button>
         <button class="btn primary" id="btn-run">Start run</button>
@@ -650,7 +652,7 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
     </div>
     <div class="foot">
       <button class="btn" id="btn-home">Home</button>
-      <span><button class="btn" id="btn-again">Test again</button> <a id="btn-report" target="_blank" hidden><button class="btn primary">Open full report ↗</button></a></span>
+      <span><button class="btn" id="btn-again">Test again</button> <a id="btn-report" target="_blank" hidden><button class="btn primary">Open full report ?</button></a></span>
     </div>
   </div>
 </section>
@@ -660,7 +662,7 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
   <div class="page-title"><h2>Past runs</h2><button class="btn primary" id="btn-history-new">Start new test</button></div>
   <div class="panel"><div class="scroll"><table>
     <thead><tr><th>Started</th><th>Environment</th><th>Result</th><th></th></tr></thead>
-    <tbody id="history"><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+    <tbody id="history"><tr><td colspan="4" class="empty">Loading�</td></tr></tbody>
   </table></div></div>
 </section>
 
@@ -786,15 +788,15 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
       isProduction: $('env-prod').checked, allowProduction: $('env-allow').checked
     };
   }
-  var URL_HELP = 'Paste any link from the site — only the address part is kept.';
+  var URL_HELP = 'Paste any link from the site � only the address part is kept.';
   /** Live feedback under the address. Errors only show once the tester leaves the field (or presses Next). */
   function urlFeedback(strict) {
     var raw = $('env-url').value.trim(), u = siteUrl(raw), box = $('env-url-box'), help = $('env-url-help');
     var state_ = !raw ? '' : !u ? (strict ? 'bad' : '') : (u.protocol === 'http:' && !isLocal(u)) ? 'bad' : 'ok';
     box.className = 'inp-ic' + (state_ ? ' ' + state_ : '');
     help.className = 'help' + (state_ ? ' ' + state_ : '');
-    if (state_ === 'ok') help.innerHTML = '✓ Will test <b>' + esc(u.origin) + '</b>';
-    else if (state_ === 'bad' && u) help.textContent = 'Remote sites must use https:// — try https://' + u.host;
+    if (state_ === 'ok') help.innerHTML = '? Will test <b>' + esc(u.origin) + '</b>';
+    else if (state_ === 'bad' && u) help.textContent = 'Remote sites must use https:// � try https://' + u.host;
     else if (state_ === 'bad') help.textContent = 'That is not a site address yet. Example: https://client.sb.amp.vg';
     else help.textContent = URL_HELP;
     $('env-name').placeholder = u ? u.host : 'e.g. ITBD QA';
@@ -821,11 +823,11 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
     $('env-recent-wrap').hidden = !list.length;
     $('env-recent').innerHTML = list.map(function (e) {
       var host = new URL(e.baseUrl).host, when = ago(e.usedAt);
-      var sub = e.name !== host ? host + (when ? ' · ' + when : '') : (when ? 'Last used ' + when : '');
+      var sub = e.name !== host ? host + (when ? ' � ' + when : '') : (when ? 'Last used ' + when : '');
       return '<div class="envc" role="button" tabindex="0" data-url="' + esc(e.baseUrl) + '" title="' + esc(e.baseUrl) + '">' +
         '<span class="av">' + esc(e.name.charAt(0).toUpperCase()) + '</span>' +
         '<span class="tx"><span class="n">' + esc(e.name) + (e.isProduction ? '<span class="pb">PROD</span>' : '') + '</span>' + (sub ? '<span class="h">' + esc(sub) + '</span>' : '') + '</span>' +
-        '<button type="button" class="x" data-del="' + esc(e.baseUrl) + '" title="Forget this site" aria-label="Forget ' + esc(e.name) + '">×</button></div>';
+        '<button type="button" class="x" data-del="' + esc(e.baseUrl) + '" title="Forget this site" aria-label="Forget ' + esc(e.name) + '">�</button></div>';
     }).join('');
     markRecent();
   }
@@ -871,7 +873,7 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
       msg('env-msg', 'bad', siteUrl($('env-url').value) ? 'Remote sites must use <code>https://</code>.' : 'Enter the site address, e.g. <code>https://client.sb.amp.vg</code>');
       $('env-url').focus(); return;
     }
-    if (e.isProduction && !e.allowProduction) { msg('env-msg', 'bad', 'This is marked as production — tick the approval box, or switch production off.'); return; }
+    if (e.isProduction && !e.allowProduction) { msg('env-msg', 'bad', 'This is marked as production � tick the approval box, or switch production off.'); return; }
     $('env-url').value = u.origin;
     $('env-name').value = cleanName($('env-name').value);
     msg('env-msg', '', ''); rememberEnv(); goStep(2);
@@ -901,12 +903,12 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
   drop.addEventListener('drop', function (e) { e.preventDefault(); readFile(e.dataTransfer.files && e.dataTransfer.files[0]); });
 
   function parseRulebook(body) {
-    msg('rb-msg', 'warn', '<span class="spin"></span>Reading rulebook…'); $('rb-sum').innerHTML = '';
+    msg('rb-msg', 'warn', '<span class="spin"></span>Reading rulebook�'); $('rb-sum').innerHTML = '';
     api('POST', '/api/rulebooks/parse', body).then(function (r) {
       state.rulebook = r;
       state.selected = r.summary.userTypes.slice();
       var s = r.summary;
-      msg('rb-msg', 'ok', '✓ <b>' + esc(r.name) + '</b> loaded — <b>' + s.pages + ' pages</b>.' +
+      msg('rb-msg', 'ok', '? <b>' + esc(r.name) + '</b> loaded � <b>' + s.pages + ' pages</b>.' +
         (s.headerRow > 1 ? ' Column headers found on row ' + s.headerRow + '; the title row(s) above were skipped.' : ''));
       renderColumns();
       renderUsers();
@@ -920,14 +922,14 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
     var other = cols.filter(function (c) { return c.role !== 'user'; });
     var roleText = { page: 'page to test', name: 'page name', info: 'ignored' };
     $('rb-sum').innerHTML =
-      '<div class="cols"><div class="cols-h">User types found <span class="hint">— columns with Yes/No values. Untick any that is not a user type.</span></div>' +
+      '<div class="cols"><div class="cols-h">User types found <span class="hint">� columns with Yes/No values. Untick any that is not a user type.</span></div>' +
       users.map(function (c) {
         var miss = s.missingExpectations[c.key];
         return '<label class="colu"><input type="checkbox" class="col-user" value="' + esc(c.key) + '"' + (state.selected.indexOf(c.key) >= 0 ? ' checked' : '') + '>' +
           '<b>' + esc(c.label) + '</b>' + (miss ? '<span class="hint">' + miss + ' empty cell' + (miss > 1 ? 's' : '') + '</span>' : '') + '</label>';
       }).join('') + '</div>' +
       (other.length ? '<div class="cols"><div class="cols-h">Other columns</div>' + other.map(function (c) {
-        return '<div class="colo"><span>' + esc(c.label) + '</span><span class="hint">' + esc(roleText[c.role]) + (c.reason ? ' — ' + esc(c.reason) : '') + '</span></div>';
+        return '<div class="colo"><span>' + esc(c.label) + '</span><span class="hint">' + esc(roleText[c.role]) + (c.reason ? ' � ' + esc(c.reason) : '') + '</span></div>';
       }).join('') + '</div>' : '');
   }
   $('rb-sum').addEventListener('change', function (e) {
@@ -962,15 +964,15 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
         '<input type="checkbox" class="u-test" ' + (ticked ? 'checked' : '') + ' aria-label="Test ' + esc(labelOf(key)) + '">' +
         '<div><label class="lbl">User type</label><div class="uname">' + esc(labelOf(key)) + '</div>' +
           '</div>' +
-        '<div class="pwf"><label class="lbl">jwt</label><div class="pw"><input type="text" class="u-jwt secret" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" placeholder="' + (kept ? 'kept from the Permission Setter (or paste another)' : 'paste the jwt of a ' + esc(labelOf(key)) + ' user') + '" value="' + esc(p.jwt || '') + '"><button type="button" class="show" title="Show/hide">👁</button></div>' +
-          (kept ? '<div class="help ok">✓ Using the jwt pasted in the Permission Setter (kept in memory, not saved). Role set: <b>' + esc((state.handoff.roles || {})[key] || '?') + '</b></div>' : '') + '</div>' +
+        '<div class="pwf"><label class="lbl">jwt</label><div class="pw"><input type="text" class="u-jwt secret" autocomplete="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other" placeholder="' + (kept ? 'kept from the Permission Setter (or paste another)' : 'paste the jwt of a ' + esc(labelOf(key)) + ' user') + '" value="' + esc(p.jwt || '') + '"><button type="button" class="show" title="Show/hide">??</button></div>' +
+          (kept ? '<div class="help ok">? Using the jwt pasted in the Permission Setter (kept in memory, not saved). Role set: <b>' + esc((state.handoff.roles || {})[key] || '?') + '</b></div>' : '') + '</div>' +
         '<div class="who" id="st-' + esc(key) + '"></div></div>';
     }).join('');
     Object.keys(state.identities).forEach(function (k) { showIdentity(k, state.identities[k]); });
   }
   function rowOf(el) { return el.closest('.user'); }
-  var LOGOUT_TIP = '<div class="msg warn">🔒 When you are done, <b>log out</b> of the AMP windows you copied the jwts from. AMP then revokes those sessions on the server, so the pasted jwts stop working everywhere.</div>';
-  /** Accepts "jwt=eyJ…; other=…", quotes or spaces around the value. */
+  var LOGOUT_TIP = '<div class="msg warn">?? When you are done, <b>log out</b> of the AMP windows you copied the jwts from. AMP then revokes those sessions on the server, so the pasted jwts stop working everywhere.</div>';
+  /** Accepts "jwt=eyJ�; other=�", quotes or spaces around the value. */
   function cleanJwt(v) {
     v = v.trim().replace(/^["']|["']$/g, '');
     var m = /(?:^|;\s*)jwt=([^;]+)/i.exec(v);
@@ -1029,10 +1031,10 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
   function showIdentity(key, id) {
     var el = $('st-' + key); if (!el) return;
     if (!id) { el.className = 'who'; el.innerHTML = ''; return; }
-    if (!id.valid) { el.className = 'who bad'; el.textContent = '✗ ' + (id.reason || 'invalid token'); return; }
+    if (!id.valid) { el.className = 'who bad'; el.textContent = '? ' + (id.reason || 'invalid token'); return; }
     var where = id.organizationName ? 'org ' + id.organizationName : (id.companyName ? id.companyName : 'company level');
     el.className = 'who ok';
-    el.innerHTML = '✓ Logged in as <b>' + esc(id.userName || '?') + '</b> · ' + esc((id.persona || 'no persona') + ' · ' + where) + (id.isSiteAdmin ? ' · <b>Site Admin</b>' : '');
+    el.innerHTML = '? Logged in as <b>' + esc(id.userName || '?') + '</b> � ' + esc((id.persona || 'no persona') + ' � ' + where) + (id.isSiteAdmin ? ' � <b>Site Admin</b>' : '');
   }
   /** Returns an error message, or '' when the users are ready. */
   function validateUsers(users) {
@@ -1045,11 +1047,11 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
   function checkTokens() {
     var users = usersList().filter(function (u) { return u.jwt || u.handoff; });
     if (!users.length) return Promise.reject(new Error('Paste a jwt for at least one user first.'));
-    msg('users-msg', 'warn', '<span class="spin"></span>Checking tokens with ' + esc(environment().baseUrl) + '…');
+    msg('users-msg', 'warn', '<span class="spin"></span>Checking tokens with ' + esc(environment().baseUrl) + '�');
     return api('POST', '/api/tokens/check', { environment: environment(), users: users }).then(function (r) {
       var bad = 0;
       r.results.forEach(function (x) { state.identities[x.key] = x.identity; showIdentity(x.key, x.identity); if (!x.identity.valid) bad++; });
-      msg('users-msg', bad ? 'bad' : 'ok', bad ? bad + ' jwt(s) need attention — log in again on this site and copy a fresh jwt.' : '✓ All valid. Check each row shows the user you expect.');
+      msg('users-msg', bad ? 'bad' : 'ok', bad ? bad + ' jwt(s) need attention � log in again on this site and copy a fresh jwt.' : '? All valid. Check each row shows the user you expect.');
       return bad;
     });
   }
@@ -1093,7 +1095,7 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
         '<div class="sbox"><div class="v">' + tested.length + '</div><div class="l">' + esc(tested.join(', ')) + '</div></div>' +
         '<div class="sbox"><div class="v">' + p.pages.length + '</div><div class="l">pages (' + p.pageOpens + ' page opens)</div></div>' +
         '<div class="sbox"><div class="v">~' + p.estimatedMinutes + ' min</div><div class="l">estimated time' + (p.parallelUsers > 1 ? ' (' + p.parallelUsers + ' users at the same time)' : '') + '</div></div>';
-      if (tested.length > 1) msg('plan-msg', 'ok', '✓ For each page, the user who sees the most of it is the reference; everyone else is compared with that view.');
+      if (tested.length > 1) msg('plan-msg', 'ok', '? For each page, the user who sees the most of it is the reference; everyone else is compared with that view.');
       else msg('plan-msg', 'warn', 'Only one user type: pages are judged by that user\'s own view (no-access screens, "no access" messages and redirects are still detected). Add a higher-access user type for the most precise results.');
     }).catch(function (e) { msg('plan-msg', 'bad', esc(e.message)); });
   }
@@ -1115,7 +1117,7 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
     state.runId = run.id; state.running = true;
     goStep(4);
     $('run-title').textContent = 'Running on ' + run.environment.name;
-    $('run-sub').textContent = run.environment.baseUrl + ' — each page is opened as each user, one at a time.';
+    $('run-sub').textContent = run.environment.baseUrl + ' � each page is opened as each user, one at a time.';
     $('plan-box').hidden = true; $('run-live').hidden = false;
     $('btn-run').hidden = true; $('btn-cancel').hidden = false; $('back-4').hidden = true;
     $('log').textContent = ''; $('bar').style.width = '0%';
@@ -1129,14 +1131,14 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
   }
   function renderPhases(cur) {
     var idx = PHASES.map(function (p) { return p[0]; }).indexOf(cur);
-    $('phases').innerHTML = PHASES.map(function (p, i) { return '<span class="ph ' + (i < idx ? 'done' : i === idx ? 'cur' : '') + '">' + (i < idx ? '✓ ' : '') + p[1] + '</span>'; }).join('');
+    $('phases').innerHTML = PHASES.map(function (p, i) { return '<span class="ph ' + (i < idx ? 'done' : i === idx ? 'cur' : '') + '">' + (i < idx ? '? ' : '') + p[1] + '</span>'; }).join('');
   }
   function scrollLog() { var l = $('log'); l.scrollTop = l.scrollHeight; }
   function progress(p) {
     var pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
     $('bar').style.width = pct + '%';
     var name = (PHASES.filter(function (x) { return x[0] === p.phase; })[0] || [0, p.phase])[1];
-    $('phase').innerHTML = '<span class="spin"></span>' + esc(name) + (p.userType ? ' — ' + esc(labelOf(p.userType)) : '');
+    $('phase').innerHTML = '<span class="spin"></span>' + esc(name) + (p.userType ? ' � ' + esc(labelOf(p.userType)) : '');
     $('phase-n').textContent = p.done + ' / ' + p.total;
     renderPhases(p.phase);
   }
@@ -1148,17 +1150,17 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
     if (o.reportUrl) $('btn-report').href = o.reportUrl;
     var html;
     if (s.status === 'cancelled') html = hero('warn', '!', 'Run cancelled', 'No report was written.') + LOGOUT_TIP;
-    else if (s.status === 'failed') html = hero('bad', '✗', 'Run stopped', esc(o.error || 'unknown error')) + LOGOUT_TIP;
+    else if (s.status === 'failed') html = hero('bad', '?', 'Run stopped', esc(o.error || 'unknown error')) + LOGOUT_TIP;
     else {
       var t = totals(o.summary);
-      var title = o.code === 2 ? 'Finished — failures found' : t.rev ? 'Finished — no failures, ' + t.rev + ' to review' : 'Finished — everything matches the rulebook';
-      html = hero(o.code === 2 ? 'bad' : t.rev ? 'warn' : 'ok', o.code === 2 ? '!' : t.rev ? '?' : '✓', title,
-        esc(s.environment.name) + ' · ' + esc(s.environment.baseUrl)) +
+      var title = o.code === 2 ? 'Finished � failures found' : t.rev ? 'Finished � no failures, ' + t.rev + ' to review' : 'Finished � everything matches the rulebook';
+      html = hero(o.code === 2 ? 'bad' : t.rev ? 'warn' : 'ok', o.code === 2 ? '!' : t.rev ? '?' : '?', title,
+        esc(s.environment.name) + ' � ' + esc(s.environment.baseUrl)) +
         '<div class="tiles"><div class="tile fail"><div class="v">' + t.fail + '</div><div class="l">failed</div></div>' +
         '<div class="tile rev"><div class="v">' + t.rev + '</div><div class="l">need review</div></div>' +
         '<div class="tile pass"><div class="v">' + t.pass + '</div><div class="l">passed</div></div></div>' +
         '<span hidden>' + summaryBadges(o.summary) + '</span>' + perUser(o.summary) +
-        (o.reportUrl ? '<p class="hint" style="text-align:center;margin-top:14px">The full report has every page with screenshots and Confirm / False-alarm review. <a href="' + esc(o.reportUrl) + '" target="_blank">Open report ↗</a></p>' + LOGOUT_TIP : '');
+        (o.reportUrl ? '<p class="hint" style="text-align:center;margin-top:14px">The full report has every page with screenshots and Confirm / False-alarm review. <a href="' + esc(o.reportUrl) + '" target="_blank">Open report ?</a></p>' + LOGOUT_TIP : '');
     }
     $('run-msg').innerHTML = html;
     goStep(5);
@@ -1194,7 +1196,7 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
         var when = x.startedAt ? new Date(x.startedAt).toLocaleString() : '';
         var env = x.environment ? '<b>' + esc(x.environment.name) + '</b><div class="key">' + esc(x.environment.baseUrl) + '</div>' : esc(x.runId);
         var result = x.status === 'cancelled' ? '<span class="b rev">cancelled</span>' : x.status === 'failed' ? '<span class="b fail">stopped</span> <span class="hint">' + esc(x.error || '') + '</span>' : summaryBadges(x.summary);
-        return '<tr><td>' + esc(when) + '</td><td>' + env + '</td><td>' + result + '</td><td>' + (x.reportUrl ? '<a href="' + esc(x.reportUrl) + '" target="_blank">Open report ↗</a>' : '') + '</td></tr>';
+        return '<tr><td>' + esc(when) + '</td><td>' + env + '</td><td>' + result + '</td><td>' + (x.reportUrl ? '<a href="' + esc(x.reportUrl) + '" target="_blank">Open report ?</a>' : '') + '</td></tr>';
       }).join('');
     }).catch(function () { $('history').innerHTML = '<tr><td colspan="4" class="empty">Could not load history.</td></tr>'; });
   }
@@ -1207,7 +1209,7 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
       state.rulebook = h.rulebook;
       state.selected = h.columns.slice();
       $('rb-select').value = ''; $('rb-drop-t').textContent = h.rulebook.name;
-      msg('rb-msg', 'ok', '✓ <b>' + esc(h.rulebook.name) + '</b> — the rulebook the Permission Setter just applied.');
+      msg('rb-msg', 'ok', '? <b>' + esc(h.rulebook.name) + '</b> � the rulebook the Permission Setter just applied.');
       renderColumns();
       renderUsers();
       state.maxStep = 4;
@@ -1217,7 +1219,7 @@ thead th{background:var(--code);border-bottom:1px solid var(--line)}
         msg('users-msg', 'warn', 'From the Permission Setter: roles set for ' + esc(h.columns.map(labelOf).join(', ')) + '. Paste a jwt for ' + esc(missing.map(labelOf).join(', ')) + ', then Next.');
       } else {
         goStep(4);
-        msg('run-err', 'ok', '✓ Ready to verify the Permission Setter run: ' + esc(h.columns.map(function (k) { return labelOf(k) + ' (role “' + (h.roles[k] || '?') + '”)'; }).join(', ')) + '. Click Run.');
+        msg('run-err', 'ok', '? Ready to verify the Permission Setter run: ' + esc(h.columns.map(function (k) { return labelOf(k) + ' (role �' + (h.roles[k] || '?') + '�)'; }).join(', ')) + '. Click Run.');
       }
     }).catch(function (e) { show('welcome'); alert(e.message); });
   }

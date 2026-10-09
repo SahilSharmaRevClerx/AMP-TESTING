@@ -24,6 +24,9 @@ test-results/
 playwright-report/
 playwright/.cache/
 
+# Workshop deck screenshots (already embedded in the PPTX)
+presentation/shots/
+
 # Logs
 *.log
 npm-debug.log*
