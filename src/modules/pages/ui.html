@@ -3,19 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>QA Studio</title>
+<title>QA Studio — AMP permission testing</title>
 <style>
+/* ---- design tokens: TestMu-style corporate system — white surfaces, near-black ink,
+   black primary actions, one vivid orange reserved for accents and motion.
+   Contrast on #fff: ink 19:1 · muted 6.3:1 · orange-ink 5.2:1 · orange accent 3.4:1 (graphics/focus) */
 :root{
-  --bg:#f4f6fa;--fg:#161a22;--muted:#5d6472;--card:#fff;--line:#e1e5ec;--input:#fff;--code:#eef1f6;
-  --accent:#2f5bd3;--accent-2:#6a4bd8;--accent-fg:#fff;--accent-soft:#e9efff;
-  --ok:#1b7a4b;--ok-bg:#e2f5ea;--bad:#b42318;--bad-bg:#fde8e6;--warn:#94590a;--warn-bg:#fdf1dc;
-  --shadow:0 1px 2px rgba(16,24,40,.05),0 8px 24px rgba(16,24,40,.06);
+  --bg:#F6F6F7;--fg:#0B0B0C;--muted:#5C6470;--card:#FFFFFF;--line:#E6E7EA;--line-strong:#D3D5DA;--input:#fff;--code:#F2F3F5;
+  --accent:#0B0B0C;--accent-hov:#000000;--accent-fg:#fff;              /* primary actions are ink black */
+  --accent-soft:#FDF0EA;--accent-line:#FAD9C8;--accent-ink:#C2410C;    /* orange: accents only */
+  --accent-2:#F2501B;
+  --ok:#0F7A44;--ok-bg:#E4F4EA;--bad:#B42318;--bad-bg:#FDECEA;--warn:#9A5B00;--warn-bg:#FDF3E2;
+  --shadow:0 1px 2px rgba(11,11,12,.06);--shadow-hover:0 1px 2px rgba(11,11,12,.06),0 10px 24px rgba(11,11,12,.10);
+  --r:12px;--ease:cubic-bezier(.2,.7,.2,1);--dur:140ms;
+  color-scheme:light;
 }
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
-  --bg:#12141a;--fg:#e9ebf0;--muted:#9aa1ad;--card:#1b1e25;--line:#2b2f39;--input:#14161c;--code:#232733;
-  --accent:#7d9bff;--accent-2:#a58bff;--accent-fg:#0e1120;--accent-soft:#222a4a;
-  --ok:#6fd39c;--ok-bg:#173526;--bad:#ff8a80;--bad-bg:#3d1c1a;--warn:#f5c26b;--warn-bg:#3a2d12;
-  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0B0C0E;--fg:#F7F7F8;--muted:#A3AAB5;--card:#131417;--line:#25272B;--line-strong:#34363B;--input:#0E0F11;--code:#191B1E;
+  --accent:#FFFFFF;--accent-hov:#E6E6E7;--accent-fg:#0B0B0C;
+  --accent-soft:#241409;--accent-line:#4A2A17;--accent-ink:#FF8A50;--accent-2:#FF7A45;
+  --ok:#6FD39C;--ok-bg:#173526;--bad:#FF9B92;--bad-bg:#3D1C1A;--warn:#F2C46B;--warn-bg:#3A2D12;
+  --shadow:0 1px 2px rgba(0,0,0,.5);--shadow-hover:0 1px 2px rgba(0,0,0,.5),0 10px 28px rgba(0,0,0,.4);
+  color-scheme:dark;
 }}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -314,13 +323,133 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
 .empty{color:var(--muted);font-size:14px;text-align:center;padding:26px}
 .page-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
 .page-title h2{margin:0;font-size:22px}
+/* ============ corporate polish — white surfaces, ink actions, one orange accent ============ */
+:root{--ink:var(--fg);--paper:var(--bg);--paper-2:var(--code);--coral:var(--accent-ink);
+  --pink:var(--accent-soft);--blue:var(--accent-soft);--mint:var(--ok-bg);--butter:var(--accent-soft);
+  --font-display:system-ui,-apple-system,"Segoe UI",sans-serif;--font-cond:system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-body:system-ui,-apple-system,"Segoe UI",sans-serif;--font-serif:system-ui,-apple-system,"Segoe UI",sans-serif;--shadow-sm:var(--shadow)}
+:focus-visible{outline:2px solid var(--accent-2);outline-offset:2px;border-radius:6px}
+::selection{background:var(--fg);color:var(--card)}
+body{-webkit-font-smoothing:antialiased}
+/* top strip + header (TestMu-style: dark one-liner, logo left, outline + ink CTAs) */
+.strip{background:var(--fg);color:var(--bg);text-align:center;font-size:12.5px;font-weight:500;padding:8px 16px}
+.strip .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent-2);margin-right:8px;vertical-align:1px}
+.top .in{max-width:1240px;padding:13px 24px}
+.brand{font:700 16px/1 system-ui,-apple-system,"Segoe UI",sans-serif;letter-spacing:-.015em}
+.brand .logo{width:28px;height:28px;border-radius:6px;background:var(--fg);border:0;box-shadow:none}
+.brand .logo svg{color:var(--accent-2)}
+.link{border:1px solid var(--line-strong);border-radius:6px;font-weight:600;font-size:13.5px;padding:8px 14px;background:var(--card);transition:border-color var(--dur) var(--ease),transform var(--dur) var(--ease)}
+.link:hover{background:var(--card);color:var(--fg);border-color:var(--fg);transform:translateY(-1px)}
+main{max-width:1240px}
+/* buttons */
+.btn{box-shadow:var(--shadow);border-radius:6px;transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease),color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),transform var(--dur) var(--ease)}
+.btn:hover{box-shadow:var(--shadow-hover);transform:translateY(-1px);border-color:var(--fg)}
+.btn:active{transform:translateY(0);box-shadow:var(--shadow)}
+.btn.primary:hover,.btn.hero-cta:hover{background:var(--accent-hov);border-color:var(--accent-hov);filter:none;box-shadow:var(--shadow-hover)}
+.btn.hero-cta{background:var(--fg);border-color:var(--fg);color:var(--card);box-shadow:var(--shadow)}
+.btn.ghost-big{box-shadow:var(--shadow);background:var(--card)}
+.btn.danger{background:var(--bad);border-color:var(--bad)}
+.btn.danger:hover{background:color-mix(in srgb,var(--bad) 88%,#000);border-color:color-mix(in srgb,var(--bad) 88%,#000)}
+input[type=text],input[type=url],input[type=password],input[type=number],select{border-radius:6px;transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+input:hover,select:hover{border-color:var(--muted)}
+input:focus,select:focus{outline:none;border-color:var(--fg);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-2) 18%,transparent)}
+input::placeholder,textarea::placeholder{color:var(--muted);opacity:1}
+/* welcome: heavy headline, restrained hero */
+.eyebrow{font:700 11px/1 system-ui,sans-serif;letter-spacing:.12em;text-transform:uppercase;background:var(--code);border:1px solid var(--line);color:var(--muted);padding:7px 12px;border-radius:6px}
+.scene h1,.scene h2{font-family:"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;font-weight:700;letter-spacing:-.03em;line-height:1.06}
+.scene h1{font-size:clamp(34px,4.6vw,56px)}
+.scene h2{font-size:clamp(26px,3.4vw,40px)}
+.grad{background:none;color:var(--accent-2);-webkit-text-fill-color:var(--accent-2);-webkit-text-stroke:0}
+.lead{font-style:normal;color:var(--muted);font-size:clamp(15px,1.6vw,17px)}
+.hero-mark{background:var(--fg);border:0;box-shadow:var(--shadow-hover);border-radius:18px}
+.hero-mark svg{color:var(--accent-2)}
+.fstep{border-radius:12px;box-shadow:var(--shadow)}
+.fstep:hover{transform:translateY(-4px);box-shadow:var(--shadow-hover);border-color:var(--fg)}
+.fstep .ic{background:var(--accent-soft);color:var(--accent-ink);border:1px solid var(--accent-line)}
+.fstep .num{background:var(--fg)}
+.fcell:nth-child(1) .fstep,.fcell:nth-child(3) .fstep,.fcell:nth-child(5) .fstep,.fcell:nth-child(7) .fstep,.fcell:nth-child(9) .fstep{background:var(--card)}
+.trust span{border-radius:6px;box-shadow:none}
+.trust svg{color:var(--accent-2)}
+/* wizard */
+.stepper{border-radius:10px;box-shadow:var(--shadow)}
+.stp .dot{transition:all var(--dur) var(--ease)}
+.stp.cur .dot{box-shadow:0 0 0 4px color-mix(in srgb,var(--accent-2) 20%,transparent)}
+.panel{border-radius:12px;box-shadow:var(--shadow);animation:panelIn .3s var(--ease)}
+@keyframes panelIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.panel .head .ic{background:var(--accent-soft);color:var(--accent-ink);border:1px solid var(--accent-line);border-radius:10px}
+.panel .head p,.hint,.help,.sub-h,.cat-count,.meta{color:var(--muted)}
+.panel .foot{background:var(--code)}
+.panel h2{font-weight:700;letter-spacing:-.02em}
+.sub-h{font:700 11px/1 system-ui,sans-serif;letter-spacing:.1em;text-transform:uppercase}
+.envc{border-radius:10px;box-shadow:var(--shadow);transition:border-color var(--dur) var(--ease),box-shadow var(--dur) var(--ease),background var(--dur) var(--ease)}
+.envc:hover{box-shadow:var(--shadow-hover)}
+.envc.on{border-color:var(--fg);background:var(--accent-soft)}
+.envc .av{background:var(--fg);color:var(--card)}
+.envc .av.on{background:var(--fg)}
+.envc .x:hover{background:var(--bad-bg);color:var(--bad)}
+.user{border-radius:12px;box-shadow:var(--shadow);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+.user.on{border-color:var(--fg);background:var(--accent-soft)}
+.colu{border-radius:6px;box-shadow:none}
+.colu:has(input:checked){border-color:var(--fg);background:var(--accent-soft)}
+.cols{border-radius:10px}
+input.sw{transition:background var(--dur) var(--ease)}
+input.sw:checked{background:var(--fg)}
+input.sw::after{transition:transform var(--dur) var(--ease)}
+.prod:has(#env-prod:checked){border-color:var(--bad)}
+.prod{border-radius:10px}
+.drop{border-radius:10px}
+.drop:hover,.drop.over{border-color:var(--fg);background:var(--accent-soft);color:var(--accent-ink)}
+details.help{background:var(--code);border:1px solid var(--line)}
+details.adv{border-radius:10px}
+details.logbox summary{color:var(--fg);font-weight:600}
+/* plan summary — uniform cards, tabular numbers */
+.summary{gap:12px}
+.sbox{border:1px solid var(--line);box-shadow:var(--shadow);border-radius:10px;background:var(--card)}
+.sbox:nth-child(1),.sbox:nth-child(2),.sbox:nth-child(3),.sbox:nth-child(4){background:var(--card)}
+.sbox .v{font:700 20px/1.2 system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:-.02em;white-space:normal}
+.sbox .l{color:var(--muted)}
+/* live run */
+.bar{background:var(--code);border:1px solid var(--line);height:8px}
+.bar>div{background:var(--fg);transition:width .3s var(--ease)}
+.ph{border-radius:6px;border:1px solid var(--line);transition:all var(--dur) var(--ease)}
+.ph.cur{background:var(--fg);color:var(--card);border-color:var(--fg)}
+.ph.done{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+/* results — one restrained stat row, then evidence */
+.result-hero .big{width:64px;height:64px;box-shadow:var(--shadow);border:1px solid var(--line)}
+.result-hero h3{font-weight:700;letter-spacing:-.02em}
+.tile{border-radius:10px;box-shadow:var(--shadow);transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+.tile:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover)}
+.tile .v{font:700 32px/1 system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.tile .l{font:700 11px/1 system-ui,sans-serif;letter-spacing:.1em}
+/* tables: compact, sticky header, sane density — no endless scrolling */
+table{font-size:13.5px}
+th{font:600 11px/1.3 system-ui,sans-serif;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:10px 12px}
+td{padding:10px 12px}
+thead th{background:var(--code);border-bottom:1px solid var(--line)}
+.scroll{max-height:430px;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);background:var(--card)}
+.scroll thead th{background:var(--code);color:var(--muted);position:sticky;top:0;z-index:2}
+.scroll tbody tr:hover{background:var(--accent-soft)}
+.scroll tbody tr{transition:background var(--dur) var(--ease)}
+.b{border-radius:5px;padding:2px 8px;font-size:11.5px;border:1px solid transparent}
+.msg{border-radius:8px;border:1px solid var(--line)}
+.panel .body .scroll:last-child{margin-bottom:0}
+.empty{border:1px dashed var(--line-strong);border-radius:10px}
+.page-title h2{font-weight:700;letter-spacing:-.02em}
+.bg-deco .blob{background:color-mix(in srgb,var(--accent-2) 55%,var(--fg));opacity:.10}
+/* motion: 320ms, staggered, never the only signal */
+.reveal{transition:opacity .4s var(--ease),transform .4s var(--ease)}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.panel{animation:none}.reveal{opacity:1;transform:none;transition:none}.hero-mark,.mouse::after,.bg-deco .blob,.dotlive i{animation:none}}
+
+
 </style>
 </head>
 <body>
 
+<div class="strip"><span class="dot"></span>Runs on this machine · <b>read-only</b> — pages are opened, never changed</div>
+
 <header class="top"><div class="in">
   <button class="brand" id="go-home" title="Home">
-    <span class="logo"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></span>
+    <span class="logo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></span>
     QA Studio
   </button>
   <span class="sp"></span>
@@ -345,9 +474,9 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
     <button class="back-mods" id="btn-mods"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>All testing modules</button>
     <div class="scene-in">
       <div class="reveal"><div class="hero-mark"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></div></div>
-      <span class="eyebrow reveal" style="--d:.12s">AMP · Role-based access</span>
-      <h1 class="reveal" style="--d:.24s">Welcome to <span class="grad">QA Studio</span></h1>
-      <p class="lead reveal" style="--d:.38s">Check which pages each user type can open on any AMP environment — automatically, read-only, with screenshot proof for every result.</p>
+      <span class="eyebrow reveal" style="--d:.12s">AMP · PERMISSION TESTING</span>
+      <h1 class="reveal" style="--d:.24s">Verify who can open <span class="grad">what</span>.</h1>
+      <p class="lead reveal" style="--d:.38s">Every rulebook page opened as every user type — read-only, with screenshot evidence for each verdict.</p>
     </div>
     <button class="scroll-cue reveal" style="--d:.7s" data-go="scene-2"><span class="mouse"></span>Scroll to see how it works</button>
   </div>
@@ -357,7 +486,7 @@ th{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;le
     <div class="scene-in">
       <span class="eyebrow reveal">How it works</span>
       <h2 class="reveal" style="--d:.1s">Five steps, a few minutes</h2>
-      <p class="lead reveal" style="--d:.2s">Give the site, the rulebook and a jwt per user type. The tool opens every page as each user and shows you what doesn't match.</p>
+      <p class="lead reveal" style="--d:.2s">Give the site, the rulebook and a jwt per user type. The tool opens every page as each user and reports anything that doesn't match.</p>
       <div class="flow" aria-label="How it works">
         <div class="fcell reveal" style="--d:.3s"><div class="fstep"><span class="num">1</span><div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18"/></svg></div><h3>Environment</h3><p>Which client site to test</p></div></div>
         <div class="farrow reveal" style="--d:.38s"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
