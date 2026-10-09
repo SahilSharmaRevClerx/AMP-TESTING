@@ -200,8 +200,35 @@ A second module on the home screen (`/setter`). It sets the role sliders in AMP 
 - **Step 2, Pages Testing:** after a rulebook **Apply**, the finished screen shows **Verify in Pages Testing →**.
   - **Pre-filled:** it opens the page test with the site, the rulebook and the columns whose roles were saved already filled in.
   - **jwts:** if you pasted user jwts in the setter, they are kept **in server memory for 15 minutes** and used directly, so you can go straight to Run. The page never receives them; it refers to them by a hand-off id. After 15 minutes, or a server restart, paste them again.
-  - **Home screen:** shows the two modules in this order: Step 1 · Permission Setter, Step 2 · Pages Testing.
+  - **Home screen:** shows the modules in this order: Step 1 · Permission Setter, Step 2 · Pages Testing, Step 3 · MCP Connector Health.
 - **Test:** `npm run e2e:setter` runs preview, apply + reopen, the check as the user, every-slider mode and the AI review against a fake AMP role editor and a fake Gemini API. `npm run e2e:handoff` runs Apply → Verify in Pages Testing through the real server and a browser.
+
+## MCP Connector Health (read-only)
+
+A third module on the home screen (`/mcp`). It checks the **MCP connectors** an AMP site has and tells a tester which are broken, which only need a reconnect, and which this account cannot judge. Optionally it also reads the workflows to find the steps that call a connector tool. It never calls a connector's tools and never changes anything in AMP.
+
+- **How to run it:** Home → **MCP Connector Health** → Site → Accounts (a name and a jwt for each account) → Plan → Run → Results. Connections are per person, so a second account often shows more. Use a sandbox, never production (the safety gate blocks production hosts).
+- **Scope switch (Plan step):** **Also check workflow steps** is **off by default**, so a normal run checks only the connectors: no workflow is read, there is no workflow stage and no Workflow nodes tab. Switch it on to also read the workflows (read-only, nothing is run).
+- **What a run does:**
+  1. *(switch on)* reads the workflow list and each workflow's graph to find the steps that call a connector tool, and reads AMP's own workflow lists (live, draft, template) to label each workflow;
+  2. lists every connector each account can see (company, organisation and user level);
+  3. asks AMP to connect to each connector and list its tools. AMP does the connecting; this tool never talks to a connector. A connector that answers "unreachable" or "rate limited" is asked once more after 5 seconds;
+  4. sorts the answers by fixed rules (no AI decides a status) and, with the switch on, checks each workflow step's tool against its connector's tool list.
+- **The four groups:**
+  - **Fix needed**: wrong for everyone (key rejected, access denied (403), address gone or not found, redirect, not an MCP endpoint, server down, no tools, an error no rule recognises). Who acts: the connector owner.
+  - **Reconnect, then recheck**: a login expired or a limit was hit. Who acts: you.
+  - **Can't check with this account**: not connected or not visible to this account. Not a defect.
+  - **Working**: connected and its tools came back.
+- **How sure:** each connector shows *sure* (a flag or AMP's own exact sentence), *likely* (a status code or keyword) or *best guess*. An error no rule recognises is **Unrecognised error** (Fix needed, best guess) and is listed so new wording gets noticed.
+- **Workflow kinds (switch on):** each workflow step is tagged **Live** (published), **Template** (a shared template; its steps do not run), **Draft only**, **Not in lists** (not in this account's lists: it may belong to another company, be a hidden platform workflow, or have no link) or **Unknown** (the lists could not be read). The Workflow steps tab filters by kind (default **Live**) and the "tool missing" headline counts Live steps only; the rest are noted separately. Labels are per account.
+- **Results page:** a donut and four cards (click a slice to filter; click it again, the pill, the centre or Esc to show everything), a Servers table, Workflow steps grouped by connector, a Tools tab (browse a connector's tools, search every connector), and a Changes tab that compares with the previous run of the same account on the same site. Downloads: CSV, JSON and a ticket text per connector.
+- **Changes between runs:** each saved run records a rules version. When the sorting rules changed since the last run, status changes are not compared that once (shown as "rules updated"). A connector known only from workflows is not reported as a change when one run read workflows and the other did not.
+- **AI review (optional):** with a Gemini key (`GEMINI_API_KEY` in your environment, `.env.local` or `.env`, then restart the server; only the Gemini variables are read from those files), a toggle on the Plan step writes a short diagnosis and next step for up to 60 problems per run (worst first, 20 per request), labelled "AI-written, check before acting". Only connector names, our plain-words verdict, AMP's scrubbed error text and tool names with input field names go to Google; never tokens, keys, addresses or people. The AI never changes a status.
+- **Safety:** every request goes through the same safety gate as the other modules (base host only, throttled, audited). Allowed for this module: `getmcpservers`, `getmcpservertools`, the workflow reads (`GET /api/elsa-agents/workflow-definitions` and its detail, the designer `GET /elsa/api/workflow-definitions/by-definition-id/<id>`) and one pinned list `POST /api/GetAIAutomationWorkflows` (type "definitions" with boolean flags). The connector tool-call route (`callmcptools`) stays blocked. Every AMP call sends the jwt cookie **and** a matching `X-CSRF-Token` cookie and header (without it AMP answers 200 with an empty list).
+- **Output:** `output/_mcp/<run>/result.json`, a scrubbed raw-answer file per non-working connector (`raw/`), and a per-site, per-account history for the Changes tab. Past runs are listed in the page.
+- **Command line:** `npm run mcp -- --config run.config.json --account admin=<jwt-file>` checks connectors only; add `--workflows` to also check workflow steps. A jwt value is never accepted on the command line, only a file path. Exit code `2` when something needs a fix.
+- **Not covered:** the non-MCP CRM connectors, workflow steps that make plain web requests, workflow steps whose connector is chosen at run time, and live tool calls (deliberately not built: AMP's own read-only flag is a hint, not a safety control).
+- **Tests:** `npm test` (classifier, nodes, snapshots, kinds, run engine, AI prompt safety, gate) and the end-to-end suites `npm run e2e:mcp` (page against stubs), `e2e:mcp-run`, `e2e:mcp-ai`, `e2e:mcp-kind` (workflow labels) and `e2e:mcp-scope` (the switch: a connectors-only run sends no workflow request), all against a fake AMP.
 
 ## Keeping jwts safe
 
@@ -251,6 +278,8 @@ npm run run                         # full run
 npm run run -- --only partner_sales # one user type
 npm run run -- --headed             # watch the browser
 npm run run -- --debug              # detailed developer logs
+npm run mcp -- --account admin=jwt-admin.txt              # MCP connector health, connectors only (a jwt FILE, never a value)
+npm run mcp -- --account admin=jwt-admin.txt --workflows  # also read workflows and check their steps
 ```
 
 Config options include `parallelUsers` (default 3), `delayMs`, `pageTimeoutMs`, `settleMs`, `fingerprintThreshold` and `headless`. Exit code: `0` all pass, `2` failures found, `1` setup/run error, `130` cancelled. Delete `.env.local` after the run.
@@ -288,7 +317,7 @@ src/
 | `src/core/util/` | Logger, token masking, audit log, route helpers, `runLimited` (parallel users) |
 | `src/modules/pages/` | `index.ts` routes and card · `ui.html` wizard · `run.ts` engine and CLI commands · `config.ts` run settings · `probe/` browser and menu · `verdict/` state, frame, verdict · `report/write.ts` · `user-check.ts` (the engine offered to the setter) |
 | `src/modules/setter/` | `index.ts` routes and card · `setter.html` wizard · `sliders.ts` page → module → slider table and plan · `session.ts` Super Admin check · `editor.ts` role editor driver · `nav.ts`/`navrun.ts` Navigation Layout · `run.ts` run + report · `ai.ts` AI review · `safety.ts` the setter's extra allowed writes |
-| `src/modules/mcp/` | `index.ts` routes and card · `mcp.html` · `run.ts` engine and CLI command · `classify.ts`, `snapshot.ts`, `nodes.ts`, `ai.ts` |
+| `src/modules/mcp/` | `index.ts` routes and card · `mcp.html` page · `run.ts` engine and CLI command · `classify.ts` rules (state, group, certainty, rules version) · `kinds.ts` workflow kind labels · `nodes.ts` workflow steps · `snapshot.ts` history, changes, combine · `ai.ts` Gemini notes and prompt safety |
 | `tests/` | Unit tests; `tests/e2e/fake-amp.ts` simulates AMP for the end-to-end tests |
 
 **Adding a testing module:** create `src/modules/<name>/index.ts` that exports a `TestModule` (its card, page and routes), import only from `src/core/`, and add it to `src/app/registry.ts`. It then shows in the catalog and runs with `npm start`.
