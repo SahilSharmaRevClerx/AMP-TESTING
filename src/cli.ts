@@ -11,7 +11,7 @@ Usage:
   npm run check -- [options]     Validate each user type's token and show who it belongs to
   npm run menu  -- [options]     Show each user type's menu links vs the rulebook
   npm run run -- [options]       Full run: tokens → menus → page checks → compare → report
-  npm run mcp -- [options]       MCP connector health: workflows → servers → live tool lists → report (read-only)
+  npm run mcp -- [options]       MCP connector health: servers → live tool lists → report (read-only; add --workflows to also check workflow steps)
 
 Options:
   --config <file>     Run config (default: run.config.json)
@@ -22,6 +22,7 @@ Options:
   --debug             Detailed developer logs (every page, request and blocked call)
   --account <k=f>     (mcp only, repeatable) account key + file holding its jwt; never a jwt value
   --delay-ms <n>      (mcp only) pause between AMP calls in ms (default 300)
+  --workflows         (mcp only) also read the workflows and check their connector steps (default: connectors only)
 `;
 
 function parseArgs(argv: string[]): { command: string; opts: RunOptions } {
@@ -43,6 +44,7 @@ function parseArgs(argv: string[]): { command: string; opts: RunOptions } {
       if (!Number.isFinite(v)) throw new Error('--delay-ms needs a numeric value in ms');
       opts.delayMs = v;
     }
+    else if (a === '--workflows') opts.workflows = true;
     else if (a === '--dry-run') opts.dryRun = true;
     else if (a === '--headed') opts.headed = true;
     else if (a === '--debug' || a === '--verbose') setLogLevel('debug');

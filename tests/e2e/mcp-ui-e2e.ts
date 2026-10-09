@@ -18,7 +18,7 @@ const JWT_DEFAULT = 'mcp-e2e-default-jwt-0123456789abcdef';
 const EVIL = '<img src=x onerror=alert(1)>';
 
 interface E2EServer { id: number; name: string; state: string; bucket: string; tools: number; toolNames: string[]; detail: string; hint: string }
-interface E2ENode { workflow: string; tool: string; server: number; state: string; bucket: string; hint: string }
+interface E2ENode { workflow: string; tool: string; server: number; state: string; bucket: string; hint: string; workflowKind?: string }
 interface E2EAccount { title: string; sub: string; servers: E2EServer[]; nodes: E2ENode[] }
 
 const RESULT: { host: string; when: string; order: string[]; accounts: Record<string, E2EAccount>; changes: Record<string, unknown[]>; firstRun: Record<string, boolean>; notCovered: { webRequestNodes: number } } = {
@@ -38,8 +38,8 @@ const RESULT: { host: string; when: string; order: string[]; accounts: Record<st
         { id: 10, name: '=cmd|calc', state: 'URL_404', bucket: 'BROKEN', tools: 0, toolNames: [], detail: '404', hint: 'Edit the URL.' },
       ],
       nodes: [
-        { workflow: 'WF1', tool: 'good_tool', server: 4, state: 'OK', bucket: 'HEALTHY', hint: '' },
-        { workflow: 'WF1', tool: 'missing_tool', server: 4, state: 'TOOL_MISSING: missing_tool', bucket: 'BROKEN', hint: 'Wrong server?' },
+        { workflow: 'WF1', tool: 'good_tool', server: 4, state: 'OK', bucket: 'HEALTHY', hint: '', workflowKind: 'live' },
+        { workflow: 'WF1', tool: 'missing_tool', server: 4, state: 'TOOL_MISSING: missing_tool', bucket: 'BROKEN', hint: 'Wrong server?', workflowKind: 'live' },
       ],
     },
     combined: { title: 'Combined', sub: '', servers: [], nodes: [] },

@@ -9,7 +9,8 @@
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { chromium } from 'playwright';
@@ -21,6 +22,7 @@ const JWT_PARTNER = TOKENS.partner_sales.jwt;
 const DUMMY_KEY = 'stub-dummy-gemini-key-0123456789';
 const ROOT = process.cwd();
 const OUTPUT_DIR = join(ROOT, 'output');
+const SHOTS15 = join(ROOT, 'notes', 'demo', 'p15');
 
 const prompts: string[] = [];
 
@@ -90,7 +92,9 @@ async function main(): Promise<number> {
   let hang: Server | null = null;
   try {
     keyed = await startServer(4603, { GEMINI_API_KEY: DUMMY_KEY, GEMINI_BASE_URL: geminiUrl });
-    const page = await browser.newPage({ viewport: { width: 1180, height: 900 } });
+    const dlDir = mkdtempSync(join(tmpdir(), 'mcp-ai-e2e-dl-'));
+    mkdirSync(SHOTS15, { recursive: true });
+    const page = await browser.newPage({ viewport: { width: 1180, height: 900 }, acceptDownloads: true });
     page.on('pageerror', (err) => failures.push(`page script error: ${err.message}`));
     try {
       await page.goto(`${keyed.base}/mcp`);
@@ -105,6 +109,8 @@ async function main(): Promise<number> {
       await page.waitForFunction(() => (document.getElementById('users-msg')?.textContent ?? '').length > 0);
       await page.click('#next-2');
       await page.waitForFunction(() => (document.getElementById('plan-words')?.textContent ?? '').length > 0);
+      await page.click('#opt-wf');
+      await page.waitForFunction(() => (document.getElementById('plan-words')?.textContent ?? '').includes('workflows,') || (document.getElementById('plan-words')?.textContent ?? '').includes(' workflows'));
       const aiHelp = (await page.evaluate(() => document.getElementById('ai-help')?.textContent ?? '')) as string;
       if (!aiHelp.includes('Google')) failures.push(`plan AI help missing Google note: ${aiHelp}`);
       const toggleDisabled = (await page.evaluate(() => (document.getElementById('opt-ai') as HTMLInputElement)?.disabled)) as boolean;
@@ -124,13 +130,33 @@ async function main(): Promise<number> {
       if (!expText.includes('AI note') || !expText.includes('check before acting')) {
         failures.push(`AI note missing in expanded row: ${expText.slice(0, 160)}`);
       }
+      // P15 T2: the coverage line shows how many problems got a note.
+      const covLine = (await page.evaluate(() => document.getElementById('ai-cov')?.textContent ?? '')) as string;
+      if (!covLine.includes('AI wrote notes for')) failures.push(`AI coverage line missing: ${covLine.slice(0, 160)}`);
+      // P15 T2: the CSV carries the coverage line plus AI note columns.
+      const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-csv')]);
+      const csvPath = join(dlDir, 'ai.csv');
+      await dl.saveAs(csvPath);
+      const csv = readFileSync(csvPath, 'utf8');
+      for (const want of ['AI wrote notes for', 'AI note', 'AI next step', 'AI-written, check before acting', 'Stub note for']) {
+        if (!csv.includes(want)) failures.push(`CSV missing AI coverage/notes: ${want}`);
+      }
+      for (const jwt of [JWT_ADMIN, JWT_PARTNER, DUMMY_KEY]) if (csv.includes(jwt)) failures.push('secret material in CSV download');
+      // P15 T4 screenshot (fake AMP only): the AI coverage line on results.
+      await page.evaluate(() => document.getElementById('ai-cov')?.scrollIntoView({ block: 'center' }));
+      await page.screenshot({ path: join(SHOTS15, '2-ai-coverage.png') });
       // Run 2: toggle OFF — no AI notes anywhere.
       await page.click('#btn-again');
       await page.fill('#key-1', 'admin');
       await page.fill('#jwt-1', JWT_ADMIN);
       await page.fill('#jwt-2', JWT_PARTNER);
       await page.click('#next-2');
+      // Wait for the step itself first: plan-words still holds run 1's text
+      // until the token check passes and the fresh plan lands (stale-text race).
+      await page.waitForSelector('#step-3:not([hidden])', { timeout: 20000 });
       await page.waitForFunction(() => (document.getElementById('plan-words')?.textContent ?? '').length > 0);
+      await page.click('#opt-wf');
+      await page.waitForFunction(() => (document.getElementById('plan-words')?.textContent ?? '').includes('workflows,') || (document.getElementById('plan-words')?.textContent ?? '').includes(' workflows'));
       await page.click('#next-3');
       const beforeId = (await currentRun(keyed.base))?.id ?? null;
       await page.evaluate(() => ((document.getElementById('opt-ai') as HTMLInputElement).checked = false)); // really OFF for this run
@@ -139,6 +165,9 @@ async function main(): Promise<number> {
       await page.waitForFunction(() => !document.getElementById('step-5')?.hidden, null, { timeout: 60000 }); // the results step is on screen
       const noAi = (await page.evaluate(() => document.body.innerText)) as string;
       if (noAi.includes('AI note')) failures.push(`AI note shown on a toggle-off run: ...${noAi.slice(Math.max(0, noAi.indexOf('AI note') - 100), noAi.indexOf('AI note') + 100).replace(/s+/g, ' ')}...`);
+      const covHidden = (await page.evaluate(() => document.getElementById('ai-cov')?.hidden ?? false)) as boolean;
+      if (!covHidden) failures.push('AI coverage line shown on a toggle-off run');
+      rmSync(dlDir, { recursive: true, force: true });
     } finally {
       await page.close();
     }

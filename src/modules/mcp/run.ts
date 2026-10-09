@@ -19,10 +19,11 @@ import { runLimited } from '../../core/util/limit';
 import { cleanJwt, forgetSecrets, scrub } from '../../core/util/mask';
 import { createLogger } from '../../core/util/logger';
 import { unwrapResponse, toolInfoOf } from './classify';
-import { classifyNode, classifyServerResponse, RULES_VERSION, toolSchemasOf } from './classify';
+import { checkArgs, classifyNode, classifyServerResponse, RULES_VERSION, toolSchemasOf } from './classify';
+import { kindOfWorkflow, readWorkflowLists, type WorkflowListSets } from './kinds';
 import { extractMcpNodes, type McpNode } from './nodes';
 import { combineAccounts, diffSnapshots, hostOf, loadPrevious, saveSnapshot } from './snapshot';
-import type { McpAccountResult, McpNodeRow, McpResult, McpServerRow } from './types';
+import type { McpAccountResult, McpNodeRow, McpResult, McpServerRow, McpWorkflowKind } from './types';
 
 const log = createLogger('mcp');
 
@@ -67,7 +68,7 @@ export interface McpProgress {
   /** When each stage of the current account started and ended (ms since epoch). */
   stageTimes?: Partial<Record<McpStage, McpStageTime>>;
   /** Counts found so far, for the stage list ("225 workflows · 88 steps · 317 connectors"). */
-  facts?: { workflows?: number; nodes?: number; servers?: number; aiItems?: number };
+  facts?: { workflows?: number; nodes?: number; servers?: number; aiItems?: number; lists?: number };
   tally?: McpTally;
 }
 
@@ -84,6 +85,8 @@ export interface McpRunInput {
   accounts: McpAccountInput[];
   outputDir: string;
   delayMs?: number;
+  /** Read the workflows and check their connector steps. Default true here; the page, routes and CLI turn it off unless asked. */
+  checkWorkflows?: boolean;
   signal?: AbortSignal;
   onProgress?: (p: McpProgress) => void;
   /** Server-assigned id so run files land where the routes expect. */
@@ -142,6 +145,10 @@ async function getJson(t: McpTransport, path: string): Promise<{ ok: boolean; st
 export interface McpTransport {
   post(func: 'getmcpservers' | 'getmcpservertools', body: unknown): Promise<{ status: number; json: unknown }>;
   get(path: string): Promise<{ ok: boolean; status: number; json: unknown }>;
+  /** P14 workflow-kind lists (optional: absent in older stubs, then every step reads Unknown). */
+  postWorkflowList?(body: unknown): Promise<{ status: number; json: unknown }>;
+  /** P14 designer read for public templates our endpoint does not list (Latest version). */
+  getLatest?(path: string): Promise<{ ok: boolean; status: number; json: unknown }>;
 }
 
 function gateTransport(gate: RequestGate, userType: string, creds: Credentials): McpTransport {
@@ -159,6 +166,25 @@ function gateTransport(gate: RequestGate, userType: string, creds: Credentials):
       return { status: res.status, json };
     },
     async get(path) {
+      const res = await gate.fetch(userType, 'GET', gate.resolve(path), creds);
+      if (!res.ok) return { ok: false, status: res.status, json: null };
+      try {
+        return { ok: true, status: res.status, json: await res.json() };
+      } catch {
+        return { ok: false, status: res.status, json: null };
+      }
+    },
+    async postWorkflowList(body) {
+      const res = await gate.fetch(userType, 'POST', gate.resolve('/api/GetAIAutomationWorkflows'), creds, body);
+      let json: unknown = null;
+      try {
+        json = await res.json();
+      } catch {
+        json = null;
+      }
+      return { status: res.status, json };
+    },
+    async getLatest(path) {
       const res = await gate.fetch(userType, 'GET', gate.resolve(path), creds);
       if (!res.ok) return { ok: false, status: res.status, json: null };
       try {
@@ -243,49 +269,106 @@ export async function runMcpHealth(input: McpRunInput): Promise<McpResult> {
       tally = { fix: 0, reconnect: 0, cantCheck: 0, working: 0, checked: 0 };
       lastStage = null;
 
-      // ---- 1. workflows -> MCP nodes -------------------------------------
-      emit('workflows', 'Reading workflows', title, 0, 1);
-      say(`[${a.key}] Reading the workflow list…`);
+      // ---- 1. workflows -> MCP nodes (optional: connector-only runs skip it) --
+      const wfOn = input.checkWorkflows !== false;
       let defs: { definitionId: string; name: string }[] = [];
       let workflowsReachable = true;
-      try {
-        const r = await getJson(t, '/api/elsa-agents/workflow-definitions');
-        if (!r.ok || !Array.isArray(r.json)) workflowsReachable = false;
-        else defs = (r.json as { definitionId?: unknown; name?: unknown }[]).filter(
-          (d): d is { definitionId: string; name: string } => typeof d?.definitionId === 'string' && typeof d?.name === 'string',
-        );
-      } catch (e) {
-        workflowsReachable = false;
-        say(`[${a.key}] workflow list failed: ${scrub((e as Error).message).slice(0, 120)}`);
-      }
       const extracted: McpNode[] = [];
-      if (workflowsReachable) {
-        say(`[${a.key}] Found ${defs.length} workflows; reading each one for connector steps…`);
-        facts.workflows = defs.length;
-        let done = 0;
-        const perWorkflow = await runLimited(defs, 4, async (d) => {
-          checkCancel(input.signal);
-          try {
-            const r = await getJson(t, `/api/elsa-agents/workflow-definitions/${encodeURIComponent(d.definitionId)}`);
-            if (r.ok) {
-              const ex = extractMcpNodes(r.json, typeof d.name === 'string' ? d.name : d.definitionId);
-              webRequestNodes += ex.webRequestNodes;
-              return ex.nodes;
-            }
-          } catch {
-            /* skip one bad definition, like the script */
-          }
-          return [] as McpNode[];
-        });
-        for (const list of perWorkflow) {
-          extracted.push(...list);
-          done += 1;
-          emit('workflows', 'Reading workflows', `${done}/${defs.length}`, done, defs.length);
+      if (wfOn) {
+        emit('workflows', 'Reading workflows', title, 0, 1);
+        say(`[${a.key}] Reading the workflow list…`);
+        try {
+          const r = await getJson(t, '/api/elsa-agents/workflow-definitions');
+          if (!r.ok || !Array.isArray(r.json)) workflowsReachable = false;
+          else defs = (r.json as { definitionId?: unknown; name?: unknown }[]).filter(
+            (d): d is { definitionId: string; name: string } => typeof d?.definitionId === 'string' && typeof d?.name === 'string',
+          );
+        } catch (e) {
+          workflowsReachable = false;
+          say(`[${a.key}] workflow list failed: ${scrub((e as Error).message).slice(0, 120)}`);
         }
-        say(`[${a.key}] Found ${extracted.length} workflow steps that call a connector`);
-        facts.nodes = extracted.length;
+        if (workflowsReachable) {
+          say(`[${a.key}] Found ${defs.length} workflows; reading each one for connector steps…`);
+          facts.workflows = defs.length;
+          let done = 0;
+          const perWorkflow = await runLimited(defs, 4, async (d) => {
+            checkCancel(input.signal);
+            try {
+              const r = await getJson(t, `/api/elsa-agents/workflow-definitions/${encodeURIComponent(d.definitionId)}`);
+              if (r.ok) {
+                const ex = extractMcpNodes(r.json, typeof d.name === 'string' ? d.name : d.definitionId);
+                webRequestNodes += ex.webRequestNodes;
+                for (const n of ex.nodes) n.definitionId = d.definitionId;
+                return ex.nodes;
+              }
+            } catch {
+              /* skip one bad definition, like the script */
+            }
+            return [] as McpNode[];
+          });
+          for (const list of perWorkflow) {
+            extracted.push(...list);
+            done += 1;
+            emit('workflows', 'Reading workflows', `${done}/${defs.length}`, done, defs.length);
+          }
+          say(`[${a.key}] Found ${extracted.length} workflow steps that call a connector`);
+          facts.nodes = extracted.length;
+          // ---- 1b. workflow kinds: AMP's own lists say which workflow is live,
+          // a draft, or a shared template (P14, read-only). One read per tab
+          // folder; public templates our endpoint does not list are read
+          // through the designer Latest endpoint and labelled Template.
+          const listed = new Set(defs.map((d) => d.definitionId));
+          let sets: WorkflowListSets = { published: new Set(), draft: new Set(), public: new Set(), ok: false, reads: 0 };
+          if (typeof t.postWorkflowList === 'function') {
+            try {
+              sets = await readWorkflowLists({ postWorkflowList: (b) => t.postWorkflowList!(b) });
+            } catch (e) {
+              say(`[${a.key}] workflow lists failed: ${scrub((e as Error).message).slice(0, 120)}`);
+              sets = { published: new Set(), draft: new Set(), public: new Set(), ok: false, reads: 0 };
+            }
+          }
+          if (sets.ok) {
+            facts.lists = sets.reads;
+            say(`[${a.key}] Read ${sets.reads} workflow lists to tell live workflows from drafts and templates…`);
+            const missing = [...sets.public].filter((id) => !listed.has(id));
+            if (missing.length && typeof t.getLatest === 'function') {
+              say(`[${a.key}] Reading ${missing.length} shared template${missing.length === 1 ? '' : 's'} our list does not have…`);
+              const perTemplate = await runLimited(missing, 4, async (id) => {
+                checkCancel(input.signal);
+                try {
+                  const r = await t.getLatest!(`/elsa/api/workflow-definitions/by-definition-id/${encodeURIComponent(id)}?versionOptions=Latest`);
+                  if (r.ok) {
+                    const g = r.json as { name?: unknown };
+                    const ex = extractMcpNodes(r.json, typeof g?.name === 'string' && g.name ? g.name : id);
+                    webRequestNodes += ex.webRequestNodes;
+                    for (const n of ex.nodes) n.definitionId = id;
+                    return ex.nodes;
+                  }
+                } catch {
+                  /* skip one unreadable template */
+                }
+                return [] as McpNode[];
+              });
+              let templateNodes = 0;
+              for (const list of perTemplate) {
+                extracted.push(...list);
+                templateNodes += list.length;
+              }
+              facts.nodes = extracted.length;
+              say(`[${a.key}] Found ${templateNodes} connector step${templateNodes === 1 ? '' : 's'} in shared templates`);
+            }
+            const kindOf = (id: string | undefined): McpWorkflowKind =>
+              kindOfWorkflow(id ?? '', sets, !!id && listed.has(id));
+            for (const n of extracted) (n as McpNode & { workflowKind?: McpWorkflowKind }).workflowKind = kindOf(n.definitionId);
+          } else {
+            for (const n of extracted) (n as McpNode & { workflowKind?: McpWorkflowKind }).workflowKind = 'unknown';
+            say(`[${a.key}] WARNING: the workflow lists could not be read. Steps are still checked, but none can be labelled live, draft or template.`);
+          }
+        } else {
+          say(`[${a.key}] WARNING: the workflow list could not be read. Connector checks still run, but workflow steps will not be checked.`);
+        }
       } else {
-        say(`[${a.key}] WARNING: the workflow list could not be read. Connector checks still run, but workflow steps will not be checked.`);
+        say(`[${a.key}] Workflow steps are not checked in this run (connector health only).`);
       }
 
       // ---- 2. visible servers per scope ----------------------------------
@@ -386,14 +469,21 @@ export async function runMcpHealth(input: McpRunInput): Promise<McpResult> {
         return row;
       });
       const byServer = new Map<number, McpServerRow>(servers.map((s) => [s.id, s]));
-      const nodes: McpNodeRow[] = extracted.map((n) =>
-        classifyNode(
+      const nodes: McpNodeRow[] = extracted.map((n) => {
+        const row = classifyNode(
           { workflow: n.workflow, tool: n.tool, toolNames: n.toolNames, serverId: n.serverId, nonLiteral: n.nonLiteral },
           typeof n.serverId === 'number' ? byServer.get(n.serverId) : undefined,
-        ),
-      );
+        );
+        const kind = (n as McpNode & { workflowKind?: McpWorkflowKind }).workflowKind;
+        if (kind) row.workflowKind = kind;
+        // Argument check (P15 T3): fixed arguments vs the tool's input schema.
+        // A separate note only: it never changes the row's health bucket.
+        const serverRow = typeof n.serverId === 'number' ? byServer.get(n.serverId) : undefined;
+        row.argCheck = checkArgs(n.argKeys, n.toolNames, n.tool, serverRow?.toolSchemas ?? []);
+        return row;
+      });
       const healthy = servers.filter((s) => s.bucket === 'HEALTHY').length;
-      const sub = workflowsReachable ? `${defs.length} workflows, ${extracted.length} nodes` : 'workflows unreachable, nodes not checked';
+      const sub = !wfOn ? 'connector health only' : workflowsReachable ? `${defs.length} workflows, ${extracted.length} nodes` : 'workflows unreachable, nodes not checked';
       const account: McpAccountResult = {
         title,
         sub,
@@ -407,7 +497,7 @@ export async function runMcpHealth(input: McpRunInput): Promise<McpResult> {
 
       // ---- 5. snapshot + diff (same host + label only) ----------------------
       // Snapshots only need states and tool names for the diff; keep tool descriptions out of them.
-      const cur = { base: input.environment.baseUrl, host, label: a.key, when, servers: servers.map(({ toolInfo: _toolInfo, ...rest }) => rest), nodes, rulesVersion: RULES_VERSION };
+      const cur = { base: input.environment.baseUrl, host, label: a.key, when, servers: servers.map(({ toolInfo: _toolInfo, ...rest }) => rest), nodes, rulesVersion: RULES_VERSION, workflowsChecked: wfOn };
       const prev = loadPrevious(input.outputDir, host, a.key);
       saveSnapshot(input.outputDir, cur);
       const d = diffSnapshots(prev?.snapshot ?? null, cur);
@@ -423,7 +513,7 @@ export async function runMcpHealth(input: McpRunInput): Promise<McpResult> {
     const order = input.accounts.map((a) => a.key);
     accounts.combined = combineAccounts(accounts, order);
     emit('report', 'Done', '', 1, 1, true);
-    return { host, when: new Date().toISOString(), order: [...order, 'combined'], accounts, changes, firstRun, rulesChanged, rulesVersion: RULES_VERSION, notCovered: { webRequestNodes } };
+    return { host, when: new Date().toISOString(), order: [...order, 'combined'], accounts, changes, firstRun, rulesChanged, rulesVersion: RULES_VERSION, workflowsChecked: input.checkWorkflows !== false, notCovered: { webRequestNodes } };
   } finally {
     forgetSecrets([...creds.values()].flatMap((c) => [c.jwt, c.csrf]));
     creds.clear();
@@ -441,7 +531,7 @@ const ACCOUNT_KEY_RE = /^[a-z0-9_]{1,40}$/;
  * (there is no flag that takes one). Numeric args are validated, never coerced
  * silently. Exit 0 = ran clean, 2 = something needs a fix, 1 = error (thrown).
  */
-export async function commandMcp(opts: Pick<CliOptions, 'configFile' | 'account' | 'delayMs' | 'dryRun'>): Promise<number> {
+export async function commandMcp(opts: Pick<CliOptions, 'configFile' | 'account' | 'delayMs' | 'dryRun' | 'workflows'>): Promise<number> {
   const cfg = loadSiteConfig(opts.configFile ?? 'run.config.json');
   const specs = opts.account ?? [];
   if (!specs.length) throw new Error('Pass at least one --account <key>=<jwt-file> (a jwt value is never accepted on the command line)');
@@ -470,7 +560,7 @@ export async function commandMcp(opts: Pick<CliOptions, 'configFile' | 'account'
   if (opts.dryRun) {
     console.log(`DRY RUN — no requests will be made.\nEnvironment: ${cfg.environment.name} (${cfg.environment.baseUrl})`);
     console.log(`Accounts: ${accounts.map((a) => a.key).join(', ')}`);
-    console.log('Planned: workflow list, visible servers per scope (company|org|user), live tool list per server, snapshot + diff.');
+    console.log(`Planned: ${opts.workflows ? 'workflow list, ' : ''}visible servers per scope (company|org|user), live tool list per server, snapshot + diff.${opts.workflows ? '' : ' Workflows are not read (add --workflows to check workflow steps).'}`);
     return 0;
   }
   console.log(`MCP health check against ${cfg.environment.name} (${cfg.environment.baseUrl})`);
@@ -480,6 +570,7 @@ export async function commandMcp(opts: Pick<CliOptions, 'configFile' | 'account'
     accounts,
     outputDir: cfg.outputDir,
     delayMs,
+    checkWorkflows: opts.workflows === true,
     onProgress: (p) => {
       if (p.stage !== lastStage) {
         lastStage = p.stage;
@@ -502,8 +593,13 @@ export async function commandMcp(opts: Pick<CliOptions, 'configFile' | 'account'
     console.log(`  [${key}] ${a.servers.length} connectors: ${fix} need a fix · ${recon} need reconnecting · ${cant} can't be checked with this account · ${ok} working`);
   }
   console.log(`Output: ${join(cfg.outputDir, '_mcp')} (snapshots, raw answers, audit)`);
+  // Broken live steps fail the run; broken steps the lists could not label
+  // (Unknown) fail it too, since non-live cannot be proven. Template, draft
+  // and unlisted steps never do: they are reported, not counted.
   const needsFix = Object.values(result.accounts).some(
-    (a) => a.servers.some((s) => s.bucket === 'BROKEN') || a.nodes.some((n) => n.bucket === 'BROKEN'),
+    (a) =>
+      a.servers.some((s) => s.bucket === 'BROKEN') ||
+      a.nodes.some((n) => n.bucket === 'BROKEN' && (!n.workflowKind || n.workflowKind === 'live' || n.workflowKind === 'unknown')),
   );
   return needsFix ? 2 : 0;
 }

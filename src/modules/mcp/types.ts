@@ -22,6 +22,7 @@ export type McpServerState =
   | 'UNREACHABLE'
   | 'UNKNOWN_ERROR'
   | 'MISCONFIGURED'
+  | 'SERVICE_ACCOUNT_REFUSED'
   | 'RATE_LIMITED'
   | 'NO_TOOLS'
   | 'API_ERROR';
@@ -45,13 +46,16 @@ export interface McpServerRow {
   httpStatus?: number;
   /** Tool names with AMP's own one-line description (trimmed). Shown to the tester only; never sent to the AI. Absent on older runs. */
   toolInfo?: { name: string; description?: string }[];
-  /** Tool input-schema field names/types only — never values (for triage). */
-  toolSchemas?: { name: string; fields: { name: string; type: string }[] }[];
+  /** Tool input-schema field names/types/required only — never values (for triage and the argument check). */
+  toolSchemas?: { name: string; fields: { name: string; type: string }[]; required: string[] }[];
   /** AI triage note (P11). Absent when triage did not run or judged nothing. */
   ai?: { diagnosis: string; nextStep: string; confidence: 'high' | 'medium' | 'low' };
   /** Relative URL of the saved raw-answer file, when one exists. */
   rawUrl?: string;
 }
+
+/** What kind of workflow a step belongs to (P14): the UI lists decide per account. Absent on older runs. */
+export type McpWorkflowKind = 'live' | 'draft' | 'template' | 'unlisted' | 'unknown';
 
 /** One workflow-node row. state is OK | TOOL_MISSING[: tools] | NOT_CHECKED | SERVER_<state>. */
 export interface McpNodeRow {
@@ -61,6 +65,14 @@ export interface McpNodeRow {
   state: string;
   bucket: McpBucket;
   hint: string;
+  /** Which list the workflow came from (additive, optional so older snapshots still read). */
+  workflowKind?: McpWorkflowKind;
+  /**
+   * Fixed-arguments check against the tool's input schema (additive, optional).
+   * A separate note only: never changes the health bucket. Absent on older runs
+   * and on steps whose arguments are not a fixed JSON object.
+   */
+  argCheck?: { state: 'ok' | 'missing' | 'extra' | 'not_checked'; missing?: string[]; extra?: string[] };
   /** AI triage note (P11). Absent when triage did not run or judged nothing. */
   ai?: { diagnosis: string; nextStep: string; confidence: 'high' | 'medium' | 'low' };
 }
@@ -102,5 +114,9 @@ export interface McpResult {
   /** Per account: set when the previous run used different classification rules, so state flips were not compared. */
   rulesChanged?: Record<string, { from: string; to: string }>;
   rulesVersion?: string;
+  /** False when the run was connector-only: no workflows were read, so nodes are empty. */
+  workflowsChecked?: boolean;
+  /** How many problems got an AI note (absent when AI review was off or the run predates it). */
+  aiCoverage?: { noted: number; eligible: number; cap: number };
   notCovered: { webRequestNodes: number };
 }

@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { assertSafeEnvironment, decideBrowserRequest, isReadOnlyApiFunc, RequestGate, SafetyError } from '../src/core/safety/gate';
+import { assertSafeEnvironment, checkWorkflowListBody, decideBrowserRequest, isReadOnlyApiFunc, RequestGate, SafetyError } from '../src/core/safety/gate';
 import { AuditLog } from '../src/core/util/audit';
 
 const HOST = 'aisb.amp.vg';
@@ -116,5 +116,63 @@ describe('RequestGate (P08 MCP Connector Health, Phase 0 read-only)', () => {
 
   it.each(['POST', 'PUT', 'DELETE'])('keeps %s to /api/elsa-agents blocked', (m) => {
     expect(gate.checkToolRequest(m, new URL(`https://${HOST}/api/elsa-agents/workflow-definitions`))).not.toBeNull();
+  });
+});
+
+describe('RequestGate (P14 workflow-kind labels, read-only)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'gate-p14-'));
+  const audit = new AuditLog(join(dir, 'audit.jsonl'));
+  const gate = new RequestGate({ name: 'AISB', baseUrl: `https://${HOST}`, isProduction: false }, 0, audit);
+  const goodBody = {
+    type: 'definitions',
+    isPublished: true,
+    isPublic: false,
+    hasCategory: false,
+    isAgentic: false,
+    page: 0,
+    pageSize: 1000,
+    Page: 0,
+    PageSize: 1000,
+    sort: 'updatedon',
+    ascending: false,
+    search: '',
+    filters: [],
+    condition: false,
+    format: 4,
+  };
+
+  it('allows the narrow workflow-list POST with the pinned body shape', () => {
+    expect(gate.checkToolRequest('POST', new URL(`https://${HOST}/api/GetAIAutomationWorkflows`))).toBeNull();
+    expect(checkWorkflowListBody(goodBody)).toBeNull();
+  });
+
+  it.each([
+    { body: { ...goodBody, type: 'instances' }, why: 'wrong type' },
+    { body: { ...goodBody, isPublished: undefined }, why: 'missing flag' },
+    { body: { ...goodBody, isPublic: 'yes' }, why: 'non-boolean flag' },
+    { body: { ...goodBody, pageSize: 5000 }, why: 'oversized page' },
+    { body: { ...goodBody, extra: 1 }, why: 'unknown field' },
+    { body: 'definitions', why: 'non-object body' },
+    { body: null, why: 'null body' },
+  ])('refuses a different body ($why)', ({ body }) => {
+    expect(checkWorkflowListBody(body)).not.toBeNull();
+  });
+
+  it.each([
+    `https://${HOST}/api/GetAIAutomationWorkflow`,
+    `https://${HOST}/api/SaveAIAutomationWorkflow`,
+    `https://${HOST}/api/GetAIAutomationWorkflows/extra`,
+    `https://${HOST}/api/GetMCPServers`,
+  ])('refuses a different path (%s)', (u) => {
+    expect(gate.checkToolRequest('POST', new URL(u))).not.toBeNull();
+  });
+
+  it('refuses a write-like name on the api.ashx path as before', () => {
+    expect(gate.checkToolRequest('POST', new URL(api('callmcptools')))).toMatch(/not allow-listed/);
+  });
+
+  it('lets the designer Latest GET through (reads one workflow graph, version pinned in the URL)', () => {
+    expect(gate.checkToolRequest('GET', new URL(`https://${HOST}/elsa/api/workflow-definitions/by-definition-id/abc123?versionOptions=Latest`))).toBeNull();
+    expect(gate.checkToolRequest('GET', new URL(`https://${HOST}/elsa/api/workflow-definitions/by-definition-id/abc123?versionOptions=Published`))).toBeNull();
   });
 });

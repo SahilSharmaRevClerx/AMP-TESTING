@@ -56,6 +56,23 @@ describe('rules version (a rule change is never shown as a connector change)', (
   });
 });
 
+describe('scope switch (connectors only vs with workflows)', () => {
+  const hidden = (id: number): McpServerRow => ({ ...row(id, 'NOT_VISIBLE', 'NEEDS_YOU'), name: '(not visible)' });
+  it('a connector known only from workflows is not a change when the scope differs between runs', () => {
+    const prev = { ...snap('default', [row(4, 'OK', 'HEALTHY', ['a'])]), workflowsChecked: false };
+    const cur = { ...snap('default', [row(4, 'OK', 'HEALTHY', ['a']), hidden(99)]), workflowsChecked: true };
+    expect(diffSnapshots(prev, cur).serverChanges).toEqual([]);
+    expect(diffSnapshots(cur, prev).serverChanges).toEqual([]);
+  });
+  it('same scope: a workflow-only connector appearing is still a change; visible connectors always count', () => {
+    const a = { ...snap('default', [row(4, 'OK', 'HEALTHY', ['a'])]), workflowsChecked: true };
+    const b = { ...snap('default', [row(4, 'DEAD_HOST', 'BROKEN', ['a']), hidden(99)]), workflowsChecked: true };
+    expect(diffSnapshots(a, b).serverChanges.map((c) => c.id).sort()).toEqual([4, 99]);
+    const c = { ...snap('default', [row(4, 'DEAD_HOST', 'BROKEN', ['a'])]), workflowsChecked: false };
+    expect(diffSnapshots(a, c).serverChanges.map((x) => x.id)).toEqual([4]);
+  });
+});
+
 describe('combineAccounts (best verdict wins)', () => {
   it('order HEALTHY, BROKEN, MAYBE, NEEDS_YOU', () => {
     const accounts = {

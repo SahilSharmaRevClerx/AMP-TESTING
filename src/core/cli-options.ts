@@ -9,4 +9,6 @@ export interface CliOptions {
   account?: string[];
   /** MCP only: pause between AMP calls in ms. */
   delayMs?: number;
+  /** MCP only: also read the workflows and check their connector steps. */
+  workflows?: boolean;
 }

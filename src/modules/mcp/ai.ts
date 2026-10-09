@@ -47,6 +47,25 @@ export interface TriageNote {
   confidence: 'high' | 'medium' | 'low';
 }
 
+/** How many problems got an AI note (additive on the result; absent when AI was off). */
+export interface AiCoverage {
+  noted: number;
+  eligible: number;
+  cap: number;
+}
+
+export function aiCoverageOf(eligible: number, noted: number, cap: number = TRIAGE_CAP): AiCoverage {
+  return { noted, eligible, cap };
+}
+
+/** Plain-words coverage line for the page, tickets and CSV. Empty when AI was off. */
+export function aiCoverageLine(cov: AiCoverage | undefined | null): string {
+  if (!cov) return '';
+  if (cov.eligible <= 0) return 'AI review ran: nothing needed a note.';
+  if (cov.noted >= cov.eligible) return `AI wrote notes for all ${cov.eligible} problem${cov.eligible === 1 ? '' : 's'}.`;
+  return `AI wrote notes for ${cov.noted} of ${cov.eligible} problems. The rest were not sent (limit ${cov.cap} per run, worst first).`;
+}
+
 export interface TriageToolFields {
   name: string;
   fields: { name: string; type: string }[];
@@ -87,6 +106,7 @@ const REASON_WORDS: Record<string, string> = {
   RATE_LIMITED: 'Too many requests, retry later',
   API_ERROR: 'AMP call failed',
   MISCONFIGURED: 'Connector is misconfigured',
+  SERVICE_ACCOUNT_REFUSED: 'Service account refused',
   NOT_CONNECTED: "You haven't connected this one",
   NOT_VISIBLE: "This account can't see this connector",
   OK: 'Connected, tools came back',

@@ -106,8 +106,14 @@ async function main(): Promise<number> {
     await page.waitForFunction(() => (document.getElementById('users-msg')?.textContent ?? '').length > 0);
     await page.click('#next-2');
     await page.waitForFunction(() => (document.getElementById('plan-words')?.textContent ?? '').length > 0);
+    // Workflow steps are an opt-in: the switch starts off and the plan says no workflow is read.
+    const offWords = await page.evaluate(() => document.getElementById('plan-words')?.textContent ?? '');
+    if (!offWords.includes('Workflows are not read') || offWords.includes('3 workflows')) failures.push(`plan should say workflows are not read by default: ${offWords}`);
+    if (await page.locator('#opt-wf').isChecked()) failures.push('Also check workflow steps should start off');
+    await page.click('#opt-wf');
+    await page.waitForFunction(() => (document.getElementById('plan-words')?.textContent ?? '').includes('3 workflows'));
     const planWords = await page.evaluate(() => document.getElementById('plan-words')?.textContent ?? '');
-    if (!planWords.includes('2 workflows')) failures.push(`plan does not read 2 workflows: ${planWords}`);
+    if (!planWords.includes('3 workflows')) failures.push(`plan does not read 3 workflows: ${planWords}`);
     await page.click('#next-3');
     await snapRows('on Run step');
     // Run screen before Start: a preview of every stage, no spinner, Start visible and Cancel not.
@@ -134,10 +140,10 @@ async function main(): Promise<number> {
     await page.waitForFunction(() => (document.getElementById('summary')?.textContent ?? '').length > 0, null, { timeout: 60000 });
 
     const bodyText = (await page.evaluate(() => document.body.innerText)) as string;
-    for (const want of ['2 need a fix', 'Dead MCP', 'Key MCP', 'Who acts']) {
+    for (const want of ['3 need a fix', 'Dead MCP', 'Key MCP', 'Service account refused', 'Who acts']) {
       if (!bodyText.includes(want)) failures.push(`missing expected text: ${want}`);
     }
-    if (['2 need a fix', 'Dead MCP', 'Key MCP'].some((w) => !bodyText.includes(w))) {
+    if (['3 need a fix', 'Dead MCP', 'Key MCP'].some((w) => !bodyText.includes(w))) {
       const d = (await page.evaluate(() => ({
         summary: document.getElementById('summary')?.textContent ?? '',
         meta: document.getElementById('meta')?.textContent ?? '',
@@ -172,6 +178,8 @@ async function main(): Promise<number> {
     const found = (await page.evaluate(() => Array.from(document.querySelectorAll('#view .found')).map((f) => (f as HTMLElement).innerText))) as string[];
     if (!found.some((f) => f.includes('good_tool') && f.includes('Healthy MCP'))) failures.push(`tool search did not find good_tool on Healthy MCP: ${JSON.stringify(found)}`);
     await page.click('[data-tab="nodes"]');
+    // The tab defaults to live steps only; the draft steps need the All filter.
+    await page.click('[data-kind="ALL"]');
     const nodesText = (await page.evaluate(() => document.getElementById('view')?.innerText ?? '')) as string;
     for (const want of ['missing_tool', 'does not exist', 'run time']) {
       if (!nodesText.includes(want)) failures.push(`nodes tab missing: ${want}`);
@@ -204,6 +212,8 @@ async function main(): Promise<number> {
     try {
       await page.waitForSelector('#step-3:not([hidden])', { timeout: 20000 });
       await page.waitForFunction(() => (document.getElementById('plan-words')?.textContent ?? '').length > 0);
+      await page.click('#opt-wf');
+      await page.waitForFunction(() => (document.getElementById('plan-words')?.textContent ?? '').includes('3 workflows'));
       await page.click('#next-3', { timeout: 15000 });
     } catch (e) {
       const snap = await page.evaluate(() => ({

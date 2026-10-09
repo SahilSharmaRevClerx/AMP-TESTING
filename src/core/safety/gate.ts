@@ -23,6 +23,53 @@ export class SafetyError extends Error {
  */
 export const TOOL_API_ALLOWLIST = new Set(['getpermissiondataforuser', 'getmodulesfornavigationlayout', 'getmodulesettingdata', 'getmcpservers', 'getmcpservertools']);
 
+/** The one POST /api/<FuncName> path the tool itself may call (P14 workflow-kind labels, read-only). */
+const WORKFLOW_LIST_PATH = /^\/api\/GetAIAutomationWorkflows$/i;
+
+/**
+ * Body fields the workflow-list read may send. type + the four tab flags are
+ * required (the server reads omitted flags as false, so the reader always
+ * sends them); grid paging/sort keys are optional; the rest is the UI's own
+ * envelope, read by GetJsonGridOptions or ignored. Anything else is refused.
+ */
+const WORKFLOW_LIST_BODY_KEYS = new Set([
+  'type', 'ispublished', 'ispublic', 'hascategory', 'isagentic',
+  'page', 'pagesize', 'sort', 'ascending', 'search', 'filters', 'condition', 'format',
+  'startdate', 'enddate', 'folder',
+]);
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+/**
+ * Shape check for POST /api/GetAIAutomationWorkflows bodies. Returns null
+ * when the body is the narrow read the MCP module needs, else a reason.
+ * Called by RequestGate.fetch before sending (see checkToolRequest for the
+ * path half); unit-tested directly in tests/gate.test.ts.
+ */
+export function checkWorkflowListBody(body: unknown): string | null {
+  if (!isRecord(body)) return 'workflow list body must be an object';
+  for (const k of Object.keys(body)) {
+    if (!WORKFLOW_LIST_BODY_KEYS.has(k.toLowerCase())) return `workflow list body has unexpected field ${k.slice(0, 40)}`;
+  }
+  if (typeof body.type !== 'string' || body.type.toLowerCase() !== 'definitions') return 'workflow list type must be "definitions"';
+  for (const f of ['isPublished', 'isPublic', 'hasCategory', 'isAgentic']) {
+    if (typeof (body as Record<string, unknown>)[f] !== 'boolean') return `workflow list field ${f} must be a boolean`;
+  }
+  const num = (v: unknown): boolean => v === undefined || (typeof v === 'number' && Number.isFinite(v));
+  if (!num(body.page) || !num(body.Page) || !num(body.pageSize) || !num(body.PageSize)) return 'workflow list paging must be numeric';
+  const ps = [body.pageSize, body.PageSize].filter((v): v is number => typeof v === 'number');
+  if (ps.some((v) => v < 1 || v > 1000)) return 'workflow list pageSize must be within 1..1000';
+  if (body.sort !== undefined && typeof body.sort !== 'string') return 'workflow list sort must be a string';
+  if (body.ascending !== undefined && typeof body.ascending !== 'boolean') return 'workflow list ascending must be a boolean';
+  if (body.search !== undefined && typeof body.search !== 'string') return 'workflow list search must be a string';
+  if (body.filters !== undefined && !Array.isArray(body.filters)) return 'workflow list filters must be an array';
+  if (body.condition !== undefined && typeof body.condition !== 'boolean') return 'workflow list condition must be a boolean';
+  if (body.format !== undefined && typeof body.format !== 'number') return 'workflow list format must be numeric';
+  return null;
+}
+
 /** API name prefixes that only read data. Anything else is treated as a write. */
 const READ_PREFIX = /^(get|load|check|has|is|can|search|find|fetch|list|count|view|lookup|preview|verify)/;
 /** Read-looking names that also write, e.g. getoraddfilter, getandsavetwiliocallrecord. */
@@ -149,6 +196,14 @@ export class RequestGate {
       log.warn('tool request blocked', { user: userType, method, path: url.pathname + url.search, reason });
       throw new SafetyError(`Blocked ${method} ${url.href}: ${reason}`);
     }
+    if (method === 'POST' && WORKFLOW_LIST_PATH.test(url.pathname)) {
+      const bodyReason = checkWorkflowListBody(body);
+      if (bodyReason) {
+        this.audit.write({ source: 'tool', userType, method, url: url.href, decision: 'blocked', reason: bodyReason });
+        log.warn('tool request blocked', { user: userType, method, path: url.pathname + url.search, reason: bodyReason });
+        throw new SafetyError(`Blocked ${method} ${url.href}: ${bodyReason}`);
+      }
+    }
     const started = Date.now();
 
     const wait = this.lastRequestAt + this.delayMs - Date.now();
@@ -195,7 +250,13 @@ export class RequestGate {
       return null;
     }
     if (method === 'POST') {
-      if (url.pathname.toLowerCase() !== '/services/api.ashx') return 'POST only allowed to /services/api.ashx';
+      if (url.pathname.toLowerCase() !== '/services/api.ashx') {
+        // The single narrow exception: the read-only workflow-list POST the MCP
+        // module's workflow-kind labels need (P14). The body shape is checked in
+        // fetch(); a write-like name never matches this path.
+        if (WORKFLOW_LIST_PATH.test(url.pathname)) return null;
+        return 'POST only allowed to /services/api.ashx';
+      }
       const funcs = apiFuncsFromUrl(url);
       if (funcs.length !== 1 || !TOOL_API_ALLOWLIST.has(funcs[0]!)) return `api ${funcs.join(',')} is not allow-listed`;
       return null;

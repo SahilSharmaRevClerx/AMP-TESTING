@@ -59,6 +59,7 @@ const MCP_FIXTURES = [
   { id: 5, name: 'Key MCP', adminScopes: ['company', 'org', 'user'], partnerScopes: ['company', 'org'] },
   { id: 6, name: 'Dead MCP', adminScopes: ['company'], partnerScopes: [] },
   { id: 8, name: 'OAuth MCP', adminScopes: ['company', 'org'], partnerScopes: [] },
+  { id: 9, name: 'ServiceAcct MCP', adminScopes: ['company'], partnerScopes: [] },
 ];
 
 /** Calls to GetMCPServerTools(4) so far: the second call lists one more tool, so a second run shows "changes". */
@@ -67,8 +68,8 @@ let healthyToolCalls = 0;
 function mcpToolList(id: number): unknown {
   if (id === 4) {
     healthyToolCalls += 1;
-    const tools = [
-      { name: 'good_tool', description: 'a good tool', inputSchema: {}, permission: 'allow', readOnly: true },
+    const tools: { name: string; description: string; inputSchema: unknown; permission: string; readOnly: boolean }[] = [
+      { name: 'good_tool', description: 'a good tool', inputSchema: { type: 'object', properties: { query: { type: 'string' }, when: { type: 'string' } }, required: ['query'] }, permission: 'allow', readOnly: true },
     ];
     if (healthyToolCalls > 1) tools.push({ name: 'new_tool', description: 'a new tool', inputSchema: {}, permission: 'allow', readOnly: true });
     return { tools };
@@ -76,6 +77,8 @@ function mcpToolList(id: number): unknown {
   if (id === 5) return { error: 'The server rejected the key in Headers' };
   if (id === 6) return { error: 'No such host is known for this tunnel' };
   if (id === 8) return { error: 'this server is not connected to your account' };
+  // P15 T1: service-account mint failure, exact AMP templates (MCP fixtures are source-shaped, synthetic hosts).
+  if (id === 9) return { error: "This connector's service account could not sign in: The token endpoint login.example.com refused the service account (HTTP 401): invalid_client" };
   return { error: 'not connected to your account' };
 }
 
@@ -84,7 +87,36 @@ const mcpLiteral = (value: unknown) => ({ expression: { type: 'Literal', value }
 const MCP_WORKFLOWS = [
   { definitionId: 'w1', name: 'WF Orders' },
   { definitionId: 'w2', name: 'WF Support' },
+  { definitionId: 'w4', name: 'WF Archive' },
 ];
+
+/**
+ * P14 workflow-kind fixtures: which definition ids AMP's own UI lists hold.
+ * w1 is published (Automation tab), w2 is draft-only, w3 is a public template
+ * our endpoint does not list at all, w4 is in no UI list (unlisted).
+ */
+const KIND_FOLDERS: Record<string, { definitionId: string; name: string }[]> = {
+  'true|false|false|false': [{ definitionId: 'w1', name: 'WF Orders' }],
+  'true|false|true|false': [],
+  'true|false|false|true': [],
+  'false|false|false|false': [{ definitionId: 'w2', name: 'WF Support' }],
+  'false|false|true|false': [],
+  'false|false|false|true': [],
+  'false|true|false|false': [{ definitionId: 'w3', name: 'Template Zoho' }],
+  'false|true|true|false': [],
+};
+
+/** Test-only switch: when true, the UI-list POSTs fail (P14 "failing list" case). */
+let kindsShouldFail = false;
+
+function kindRow(definitionId: string, name: string, flags: { isPublished: boolean; isPublic: boolean }): unknown {
+  return {
+    definitionId, name, description: `${name} description`,
+    isPublished: flags.isPublished, isPublic: flags.isPublic,
+    createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z', version: 1,
+    createdByName: 'Fake Admin', updatedByName: 'Fake Admin', category: 0,
+  };
+}
 
 function mcpWorkflowDetail(id: string): unknown {
   if (id === 'w1') {
@@ -92,6 +124,26 @@ function mcpWorkflowDetail(id: string): unknown {
       activities: [
         { type: 'ElsaServer.Activities.GmailMCP', inputs: { mcpServerId: mcpLiteral(4), toolName: mcpLiteral('good_tool') } },
         { type: 'ElsaServer.Activities.GmailMCP', inputs: { mcpServerId: mcpLiteral(4), toolName: mcpLiteral('missing_tool') } },
+        // P15 T3: fixed arguments missing the tool's required 'query' field.
+        { type: 'ElsaServer.Activities.GmailMCP', inputs: { mcpServerId: mcpLiteral(4), toolName: mcpLiteral('good_tool'), argumentsJson: mcpLiteral('{"when":"weekly"}') } },
+      ],
+    };
+  }
+  if (id === 'w4') {
+    return {
+      activities: [
+        { type: 'ElsaServer.Activities.GmailMCP', inputs: { mcpServerId: mcpLiteral(4), toolName: mcpLiteral('good_tool') } },
+      ],
+    };
+  }
+  if (id === 'w3') {
+    // A shared template with a step calling a tool its connector lacks, plus a
+    // fixed-arguments step missing the required field (noted, never counted).
+    return {
+      name: 'Template Zoho',
+      activities: [
+        { type: 'ElsaServer.Activities.GmailMCP', inputs: { mcpServerId: mcpLiteral(4), toolName: mcpLiteral('template_gone') } },
+        { type: 'ElsaServer.Activities.GmailMCP', inputs: { mcpServerId: mcpLiteral(4), toolName: mcpLiteral('good_tool'), argumentsJson: mcpLiteral('{"when":"once"}') } },
       ],
     };
   }
@@ -175,6 +227,57 @@ export function startFakeAmp(): Promise<{ server: Server; baseUrl: string }> {
       const wf = MCP_WORKFLOWS.find((w) => w.definitionId === wfDetail[1]);
       if (!wf) return send(404, '');
       return send(200, JSON.stringify(mcpWorkflowDetail(wf.definitionId)), 'application/json');
+    }
+
+    // P14 designer read for shared templates our endpoint does not list:
+    // Latest answers for every known graph, Published 404s for draft-only w3.
+    const designer = /^\/elsa\/api\/workflow-definitions\/by-definition-id\/([\w-]+)$/.exec(path);
+    if (req.method === 'GET' && designer) {
+      const version = url.searchParams.get('versionOptions') ?? 'Latest';
+      const id = designer[1]!;
+      if (id === 'w3' && version === 'Published') return send(404, JSON.stringify({ error: 'No published workflow' }), 'application/json');
+      if (id === 'w1' || id === 'w2' || id === 'w3' || id === 'w4') return send(200, JSON.stringify(mcpWorkflowDetail(id)), 'application/json');
+      return send(404, '');
+    }
+
+    // P14 UI workflow lists (AMP's own grid). Test-only failure switch for the "failing list" case.
+    if (req.method === 'POST' && path === '/test/kinds-fail') {
+      let bodyText = '';
+      req.on('data', (c: Buffer) => (bodyText += c));
+      req.on('end', () => {
+        try {
+          kindsShouldFail = (JSON.parse(bodyText || '{}') as { fail?: unknown }).fail === true;
+        } catch {
+          kindsShouldFail = false;
+        }
+        send(200, JSON.stringify({ fail: kindsShouldFail }), 'application/json');
+      });
+      return;
+    }
+    if (req.method === 'POST' && path === '/api/GetAIAutomationWorkflows') {
+      let bodyText = '';
+      req.on('data', (c: Buffer) => (bodyText += c));
+      req.on('end', () => {
+        if (kindsShouldFail) return send(500, JSON.stringify({ status: 1, error: 'fake list failure' }), 'application/json');
+        const csrfCookie = cookiesOf(req)['X-CSRF-Token'];
+        if (!csrfCookie || req.headers['x-csrf-token'] !== csrfCookie) {
+          return send(200, JSON.stringify({ status: 3, result: { code: 'c', message: 'CSRF mismatch' } }), 'application/json');
+        }
+        let body: { type?: unknown; isPublished?: unknown; isPublic?: unknown; hasCategory?: unknown; isAgentic?: unknown; page?: unknown; pageSize?: unknown } = {};
+        try {
+          body = JSON.parse(bodyText || '{}');
+        } catch {
+          /* empty */
+        }
+        if (body.type !== 'definitions') return send(200, JSON.stringify({ status: 1, error: 'fake: only definitions' }), 'application/json');
+        const key = [body.isPublished === true, body.isPublic === true, body.hasCategory === true, body.isAgentic === true].join('|');
+        const all = (KIND_FOLDERS[key] ?? []).map((w) => kindRow(w.definitionId, w.name, { isPublished: body.isPublished === true, isPublic: body.isPublic === true }));
+        const page = typeof body.page === 'number' && body.page >= 0 ? Math.floor(body.page) : 0;
+        const pageSize = typeof body.pageSize === 'number' && body.pageSize > 0 ? Math.floor(body.pageSize) : 15;
+        const slice = all.slice(page * pageSize, page * pageSize + pageSize);
+        return send(200, JSON.stringify({ status: 0, result: { item: slice, row_count: all.length } }), 'application/json');
+      });
+      return;
     }
 
     if (!user) return send(302, '', 'text/html', { Location: '/login' });

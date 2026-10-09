@@ -21,6 +21,8 @@
     "e2e:mcp": "tsx tests/e2e/mcp-ui-e2e.ts",
     "e2e:mcp-run": "tsx tests/e2e/mcp-run-e2e.ts",
     "e2e:mcp-ai": "tsx tests/e2e/mcp-ai-e2e.ts",
+    "e2e:mcp-scope": "tsx tests/e2e/mcp-scope-e2e.ts",
+    "e2e:mcp-kind": "tsx tests/e2e/mcp-kind-e2e.ts",
     "e2e:setter": "tsx tests/e2e/setter-e2e.ts",
     "e2e:handoff": "tsx tests/e2e/handoff-e2e.ts",
     "e2e:browser-start": "tsx tests/e2e/browser-start-e2e.ts"

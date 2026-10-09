@@ -11,7 +11,7 @@ import type { Environment } from '../../core/types';
 import { AuditLog } from '../../core/util/audit';
 import { createLogger } from '../../core/util/logger';
 import { forgetSecrets, scrub } from '../../core/util/mask';
-import { aiAvailable, aiModelName, buildTriageItems, TRIAGE_CAP, triage } from './ai';
+import { aiAvailable, aiCoverageOf, aiModelName, buildTriageItems, TRIAGE_CAP, triage } from './ai';
 import { McpCancelledError, runMcpHealth, type McpProgress } from './run';
 import type { McpResult } from './types';
 
@@ -36,6 +36,8 @@ interface McpRunState {
   controller: AbortController;
   /** AI review was requested for this run (the page shows an extra stage). */
   ai: boolean;
+  /** The run also reads the workflows (the page shows the workflow stage). */
+  workflows: boolean;
 }
 
 interface McpUserBody {
@@ -108,7 +110,9 @@ export function createMcpModule(): TestModule {
       }
 
       if (method === 'POST' && path === '/api/mcp/plan') {
-        const { env, users } = mcpSetup(await ctx.body<{ environment?: Environment; users?: McpUserBody[] }>());
+        const planBody = await ctx.body<{ environment?: Environment; users?: McpUserBody[]; workflows?: boolean }>();
+        const { env, users } = mcpSetup(planBody);
+        const wantWorkflows = planBody.workflows === true;
         const first = makeCredentials(users[0]!.jwt);
         try {
           const gate = new RequestGate(env, 300, new AuditLog(join(OUTPUT_DIR, '_ui', 'mcp-checks.jsonl')));
@@ -116,6 +120,7 @@ export function createMcpModule(): TestModule {
           let count = 0;
           let error: string | undefined;
           try {
+            if (!wantWorkflows) throw new Error('skipped');
             const r = await gate.fetch(users[0]!.key, 'GET', gate.resolve('/api/elsa-agents/workflow-definitions'), first);
             if (r.ok) {
               const j: unknown = await r.json().catch(() => null);
@@ -125,11 +130,11 @@ export function createMcpModule(): TestModule {
               } else error = `HTTP ${r.status}`;
             } else error = `HTTP ${r.status}`;
           } catch (e) {
-            error = scrub((e as Error).message).slice(0, 120);
+            error = wantWorkflows ? scrub((e as Error).message).slice(0, 120) : undefined;
           }
           return ctx.json(200, {
             accounts: users.length,
-            workflows: reachable ? { reachable: true, count } : { reachable: false, ...(error ? { error } : {}) },
+            workflows: !wantWorkflows ? { skipped: true } : reachable ? { reachable: true, count } : { reachable: false, ...(error ? { error } : {}) },
             estimateSeconds: Math.round(10 + users.length * (5 + count * 0.5)),
             ai: aiAvailable() ? { available: true, model: aiModelName() } : { available: false },
           });
@@ -140,13 +145,13 @@ export function createMcpModule(): TestModule {
 
       if (method === 'POST' && path === '/api/mcp/runs') {
         if (mcp?.status === 'running') throw new HttpError(409, 'An MCP run is already in progress');
-        const body = await ctx.body<{ environment?: Environment; users?: McpUserBody[]; ai?: boolean }>();
+        const body = await ctx.body<{ environment?: Environment; users?: McpUserBody[]; ai?: boolean; workflows?: boolean }>();
         const { env, users } = mcpSetup(body);
         const aiRequested = body.ai === true;
         if (aiRequested && !aiAvailable()) {
           throw new HttpError(400, 'AI review needs a Gemini key: set GEMINI_API_KEY and restart the server, or run without AI review.');
         }
-        mcp = startMcpRun(env, users, aiRequested);
+        mcp = startMcpRun(env, users, aiRequested, body.workflows === true);
         return ctx.json(202, { run: mcpPublic(mcp) });
       }
 
@@ -172,7 +177,7 @@ function mcpSetup(body: { environment?: Environment; users?: McpUserBody[] }): {
   return { env, users };
 }
 
-function startMcpRun(env: Environment, users: { key: string; jwt: string }[], aiRequested: boolean): McpRunState {
+function startMcpRun(env: Environment, users: { key: string; jwt: string }[], aiRequested: boolean, wantWorkflows: boolean): McpRunState {
   const id = newMcpRunId(env.name);
   const state: McpRunState = {
     id,
@@ -184,14 +189,16 @@ function startMcpRun(env: Environment, users: { key: string; jwt: string }[], ai
     outcome: null,
     controller: new AbortController(),
     ai: aiRequested && aiAvailable(),
+    workflows: wantWorkflows,
   };
-  log.info('mcp run started', { run: id, env: env.name, accounts: users.map((u) => u.key) });
+  log.info('mcp run started', { run: id, env: env.name, accounts: users.map((u) => u.key), workflows: wantWorkflows });
   const jwts = users.map((u) => u.jwt);
   void runMcpHealth({
     environment: env,
     accounts: users.map((u) => ({ key: u.key, jwt: u.jwt })),
     outputDir: OUTPUT_DIR,
     delayMs: 300,
+    checkWorkflows: wantWorkflows,
     signal: state.controller.signal,
     runId: id,
     onProgress: (p) => {
@@ -244,6 +251,7 @@ function startMcpRun(env: Environment, users: { key: string; jwt: string }[], ai
           }
           log.info('mcp triage attached', { run: id, items: items.length, noted: out.notes.length, model: aiModelName() });
           if (out.error) log.warn('mcp triage incomplete', { run: id, error: out.error });
+          result.aiCoverage = aiCoverageOf(items.length, out.notes.length);
         } catch (e) {
           if (e instanceof McpCancelledError) throw e;
           log.warn('mcp triage failed', { run: id, error: scrub((e as Error).message).slice(0, 160) });
@@ -294,6 +302,7 @@ function mcpPublic(s: McpRunState | null, from = 0) {
     id: s.id,
     status: s.status,
     ai: s.ai,
+    workflows: s.workflows,
     startedAt: p?.startedAt ?? Date.parse(s.startedAt),
     account: p?.account,
     stageTimes: p?.stageTimes,

@@ -456,7 +456,7 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
 <main>
   <div class="intro">
     <span class="mic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4M15 3v4M7 7h10v4a5 5 0 01-10 0zM12 16v5"/></svg></span>
-    <div><h1>MCP Connector Health</h1><p>Which connectors are broken, which just need a reconnect, and which workflow nodes call a tool that does not exist.</p></div>
+    <div><h1>MCP Connector Health</h1><p>Which connectors are broken and which just need a reconnect. Optionally, which workflow steps call a tool that does not exist.</p></div>
   </div>
 
   <nav class="stepper" id="stepper" aria-label="Progress">
@@ -528,6 +528,7 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
       <p class="hint" id="plan-words" style="margin-top:14px"></p>
       <div class="msg warn" id="plan-side">Listing tools can refresh an expired OAuth login. That is normal AMP behaviour, not something this check does on purpose.</div>
       <div class="toggle" style="margin-top:14px;opacity:.55"><input type="checkbox" class="sw" disabled><span class="tt"><b>Safe live calls</b><span>Coming later. Off for now.</span></span></div>
+      <label class="toggle" id="wf-toggle" style="margin-top:10px"><input type="checkbox" class="sw" id="opt-wf"><span class="tt"><b>Also check workflow steps</b><span>Reads every workflow (read-only, nothing is run) to find the steps that call a connector tool, and flags a step whose tool its connector does not have. Adds about a minute. Off: only the connectors are checked.</span></span></label>
       <label class="toggle" id="ai-toggle" style="margin-top:10px"><input type="checkbox" class="sw" id="opt-ai"><span class="tt"><b>AI review of the results</b><span id="ai-help">Checking whether this machine has a Gemini key…</span></span></label>
       <div id="plan-msg"></div>
     </div>
@@ -563,6 +564,7 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
       <div class="acct" id="acct" role="tablist" aria-label="Account"></div>
       <div id="limited"></div>
       <p class="sumline" id="summary"></p>
+      <p class="hint" id="ai-cov" hidden></p>
       <div id="filter-pill"></div>
       <div class="chartrow"><div class="donut" id="donut"></div><div class="cards" id="cards"></div></div>
       <div id="changes-banner"></div>
@@ -646,7 +648,7 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
   function idleRun() {
     run.last = null; stopClock();
     $('run-title').textContent = 'Ready to start'; $('run-sub').textContent = 'Press Start run. Nothing is checked in AMP until you do.'; $('runclock').textContent = '';
-    paintRunBar(aiPlanned()); renderStages(null); $('tally').hidden = true; $('beat').hidden = true;
+    paintRunBar(aiPlanned(), wfPlanned()); renderStages(null); $('tally').hidden = true; $('beat').hidden = true;
   }
   function limitTo(n) { if (state.maxStep > n) { state.maxStep = n; paintStepper(); } }
   $('stepper').addEventListener('click', function (e) {
@@ -790,29 +792,32 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
 
   // ---- 3 plan
   function fmtSecs(s) { s = Math.round(s); return s < 60 ? 'about ' + s + ' seconds' : 'about ' + Math.floor(s / 60) + ' min ' + (s % 60) + ' s'; }
+  var planSeq = 0; // the newest plan request wins, so toggling the switch quickly cannot show an older answer
   function loadPlan() {
+    var mySeq = ++planSeq;
     var list = users().filter(function (u) { return u.key && u.jwt && KEY_RE.test(u.key); });
     if (!list.length) { msg('plan-msg', 'bad', 'Go back and paste at least one account jwt first.'); return; }
     $('plan-sum').innerHTML = '';
     $('plan-words').textContent = '';
     msg('plan-msg', 'warn', SPIN + 'Working out what will be checked…');
     var body;
-    try { body = { environment: environment(), users: list.map(function (u) { return { key: u.key, jwt: u.jwt }; }) }; }
+    try { body = { environment: environment(), users: list.map(function (u) { return { key: u.key, jwt: u.jwt }; }), workflows: wfPlanned() }; }
     catch (err) { msg('plan-msg', 'bad', esc(err.message)); return; }
     api('POST', '/api/mcp/plan', body).then(function (r) {
+      if (mySeq !== planSeq) return;
       var w = r.workflows || {};
       $('plan-sum').innerHTML =
         '<div class="sbox"><div class="v">' + list.length + '</div><div class="l">account' + (list.length === 1 ? '' : 's') + '</div></div>' +
-        '<div class="sbox"><div class="v">' + (w.reachable ? esc(String(w.count || 0)) : '?') + '</div><div class="l">workflows</div></div>' +
+        (w.skipped ? '' : '<div class="sbox"><div class="v">' + (w.reachable ? esc(String(w.count || 0)) : '?') + '</div><div class="l">workflows</div></div>') +
         '<div class="sbox"><div class="v">' + esc(fmtSecs(r.estimateSeconds || 0)) + '</div><div class="l">estimated time</div></div>' +
         '<div class="sbox"><div class="v">Read-only</div><div class="l">changes nothing</div></div>';
-      $('plan-words').textContent = 'Read ' + (w.reachable ? w.count + ' workflows' : 'workflows') + ', list every connector each account can see, ask AMP to connect to each and list its tools.';
+      $('plan-words').textContent = (w.skipped ? 'List' : 'Read ' + (w.reachable ? w.count + ' workflows' : 'workflows') + ', list') + ' every connector each account can see, ask AMP to connect to each and list its tools.' + (w.skipped ? ' Workflows are not read.' : '');
       var ai = r.ai || {};
       if (ai.available) $('ai-help').innerHTML = 'Gemini (<code>' + esc(ai.model || 'gemini') + '</code>) reads the connector names, our plain-words verdict, what AMP answered, and tool names with their input field names, and writes one-line notes. This sends those to Google. Never tokens, keys, addresses, or people.';
       else { $('ai-help').textContent = 'No Gemini key on this machine, so the toggle stays off. Set GEMINI_API_KEY and restart the server to use it.'; $('opt-ai').checked = false; $('opt-ai').disabled = true; }
-      if (!w.reachable) msg('plan-msg', 'bad', 'The workflow list is unreachable' + (w.error ? ': ' + esc(w.error) : '') + '. The connector checks still run, but workflow nodes are then not checked.');
+      if (!w.skipped && !w.reachable) msg('plan-msg', 'bad', 'The workflow list is unreachable' + (w.error ? ': ' + esc(w.error) : '') + '. The connector checks still run, but workflow nodes are then not checked.');
       else msg('plan-msg', '', '');
-    }).catch(function (e) { msg('plan-msg', 'bad', esc(e.message)); });
+    }).catch(function (e) { if (mySeq === planSeq) msg('plan-msg', 'bad', esc(e.message)); });
   }
   $('next-3').addEventListener('click', function () { goStep(4); });
 
@@ -824,23 +829,29 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
 
   function fmtDur(ms) { var s = Math.max(0, Math.round(ms / 1000)); if (s < 60) return s + ' s'; var m = Math.floor(s / 60); return m + ' min' + (s % 60 ? ' ' + (s % 60) + ' s' : ''); }
   function clockText(ms) { var s = Math.max(0, Math.floor(ms / 1000)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
+  function wfPlanned() { return !!$('opt-wf').checked; }
+  $('opt-wf').addEventListener('change', function () { loadPlan(); });
   function aiPlanned() { return !!(!$('opt-ai').disabled && $('opt-ai').checked); }
 
   /** The settings that matter, always visible: read-only, whether anything goes to Google, site and accounts. */
-  function paintRunBar(aiOn) {
+  function paintRunBar(aiOn, wfOn) {
+    if (wfOn === undefined) wfOn = wfPlanned();
     var site = '', names = [];
     try { var env = environment(); site = env.name || env.baseUrl || ''; } catch (e) { site = ''; }
     try { names = users().map(function (u) { return u.key; }).filter(Boolean); } catch (e) { names = []; }
     $('runbar').innerHTML =
       '<span class="tag ok" title="This check only reads. It changes nothing in AMP.">Read-only</span>' +
       '<span class="tag' + (aiOn ? ' warn' : '') + '" title="' + (aiOn ? 'Connector names, our verdict, AMP\'s error text and tool names go to Google (Gemini). Never tokens or keys.' : 'Nothing is sent to Google.') + '">' + (aiOn ? 'AI review: on · up to ' + AI_CAP + ' notes, sent to Google' : 'AI review: off') + '</span>' +
+      '<span class="tag mute" title="' + (wfOn ? 'The workflows are read (never run) to find and check their connector steps.' : 'Only the connectors are checked. No workflow is read.') + '">' + (wfOn ? 'Workflow steps: checked' : 'Connectors only') + '</span>' +
       (site ? '<span class="tag mute">' + esc(site) + '</span>' : '') + (names.length ? '<span class="tag mute">' + esc(names.join(', ')) + '</span>' : '');
   }
 
   function stageDetail(id, state, r, f) {
     if (id === 'workflows') {
       if (state === 'next') return 'About half a minute';
-      return f.workflows != null ? esc(f.workflows + ' workflows · ' + (f.nodes != null ? f.nodes + ' connector steps' : 'reading each one…')) : 'Reading the list…';
+      var w = f.workflows != null ? esc(f.workflows + ' workflows · ' + (f.nodes != null ? f.nodes + ' connector steps' : 'reading each one…')) : 'Reading the list…';
+      if (f.lists != null) w += esc(' · ' + f.lists + ' lists read (live, drafts, templates)');
+      return w;
     }
     if (id === 'servers') return state === 'next' ? 'Every connector this account can see' : (f.servers != null ? esc(f.servers + ' connectors found') : 'Asking AMP…');
     if (id === 'tools') {
@@ -859,8 +870,8 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
 
   /** r = the server's progress object, or null for the "ready" preview (every stage still to come). */
   function renderStages(r) {
-    var ai = r ? !!r.ai : aiPlanned(), times = (r && r.stageTimes) || {}, facts = (r && r.facts) || {}, now = Date.now();
-    var defs = STAGE_DEFS.concat(ai ? [['ai', 'Write AI notes']] : []);
+    var ai = r ? !!r.ai : aiPlanned(), wf = r ? r.workflows !== false : wfPlanned(), times = (r && r.stageTimes) || {}, facts = (r && r.facts) || {}, now = Date.now();
+    var defs = STAGE_DEFS.filter(function (d) { return wf || d[0] !== 'workflows'; }).concat(ai ? [['ai', 'Write AI notes']] : []);
     var curIdx = r ? defs.map(function (d) { return d[0]; }).indexOf(r.stage) : -1;
     var over = !!(r && r.status && r.status !== 'running');
     var h = '';
@@ -936,14 +947,15 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
     var list = users().filter(function (u) { return u.key && u.jwt && KEY_RE.test(u.key); });
     if (!list.length) { msg('run-err', 'bad', 'Go back and paste at least one account jwt first.'); return; }
     var body;
-    try { body = { environment: environment(), users: list.map(function (u) { return { key: u.key, jwt: u.jwt }; }), ai: aiPlanned() }; }
+    try { body = { environment: environment(), users: list.map(function (u) { return { key: u.key, jwt: u.jwt }; }), ai: aiPlanned(), workflows: wfPlanned() }; }
     catch (err) { msg('run-err', 'bad', esc(err.message)); return; }
     rememberEnv(body.environment);
     resetRunUi();
     msg('run-err', '', ''); busy(true);
     // Show the first stage as running at once, so the screen never looks idle while the server starts.
-    var first = { stage: 'workflows', status: 'running', ai: body.ai, stageTimes: { workflows: { startedAt: Date.now() } }, facts: {}, done: 0, total: 1, startedAt: Date.now() };
-    run.last = first; paintRunBar(body.ai); $('run-title').innerHTML = SPIN + 'Starting…'; $('run-sub').textContent = ''; renderStages(first); startClock(); tick();
+    var firstStage = body.workflows ? 'workflows' : 'servers';
+    var first = { stage: firstStage, status: 'running', ai: body.ai, workflows: body.workflows, stageTimes: (function () { var st0 = {}; st0[firstStage] = { startedAt: Date.now() }; return st0; })(), facts: {}, done: 0, total: 1, startedAt: Date.now() };
+    run.last = first; paintRunBar(body.ai, body.workflows); $('run-title').innerHTML = SPIN + 'Starting…'; $('run-sub').textContent = ''; renderStages(first); startClock(); tick();
     api('POST', '/api/mcp/runs', body).then(function (r) {
       state.runId = r.run && r.run.id;
       poll();
@@ -965,7 +977,7 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
       var acct = cur.account;
       $('run-title').textContent = STAGE_TITLE[cur.stage] || 'Working…';
       $('run-sub').textContent = acct && acct.key ? (acct.count > 1 ? 'Account ' + acct.index + ' of ' + acct.count + ': ' : 'Account: ') + acct.key : '';
-      paintRunBar(!!cur.ai); renderTally(cur.tally); renderStages(cur); tick();
+      paintRunBar(!!cur.ai, cur.workflows !== false); renderTally(cur.tally); renderStages(cur); tick();
       if (cur.status === 'running') { setTimeout(poll, 1000); return; }
       stopClock(); busy(false);
       if (cur.status === 'cancelled') { msg('run-err', 'warn', 'Run cancelled. Nothing was changed in AMP.'); $('beat').hidden = true; return; }
@@ -984,7 +996,7 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
     DATA = result;
     buildCombined();
     st.acct = (DATA.order || []).filter(function (k) { return k !== 'combined'; })[0] || 'combined';
-    st.tab = 'servers'; st.group = 'ALL'; st.q = ''; st.page = 0; st.open = {};
+    st.tab = 'servers'; st.group = 'ALL'; st.kind = 'live'; st.q = ''; st.page = 0; st.open = {};
     draw();
     goStep(5);
   }
@@ -992,7 +1004,7 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
   // ---- 5 results (markup and wording lifted from notes/mockups/mcp-results.template.html)
   /* Plain wording (plan 5c): internal states never reach the screen. */
   var GROUP = { BROKEN: { n: 'Fix needed', c: 'bad', who: 'Connector owner' }, MAYBE: { n: 'Reconnect, then recheck', c: 'warn', who: 'You' }, NEEDS_YOU: { n: "Can't check with this account", c: 'mute', who: 'You, or a user who has it' }, HEALTHY: { n: 'Working', c: 'ok', who: 'Nobody' } };
-  var REASON = { UNKNOWN_ERROR: 'Unrecognised error', KEY_REJECTED: 'API key rejected', DEAD_HOST: 'Server address no longer exists', URL_404: 'Address not found (404)', REDIRECT: 'Address redirects elsewhere', HTML_NOT_MCP: 'Address is a web page, not an MCP server', UNREACHABLE: 'Server not responding', NO_TOOLS: 'Connected but offers no tools', OAUTH_EXPIRED: 'Login expired or refused', FORBIDDEN: 'Login lacks permission', RATE_LIMITED: 'Too many requests, retry later', API_ERROR: 'AMP call failed', MISCONFIGURED: 'Connector is misconfigured', NOT_CONNECTED: "You haven't connected this one", NOT_VISIBLE: "This account can't see this connector", OK: 'Connected, tools came back', NOT_CHECKED: 'Workflow picks its connector at run time, not checked' };
+  var REASON = { UNKNOWN_ERROR: 'Unrecognised error', KEY_REJECTED: 'API key rejected', SERVICE_ACCOUNT_REFUSED: 'Service account refused', DEAD_HOST: 'Server address no longer exists', URL_404: 'Address not found (404)', REDIRECT: 'Address redirects elsewhere', HTML_NOT_MCP: 'Address is a web page, not an MCP server', UNREACHABLE: 'Server not responding', NO_TOOLS: 'Connected but offers no tools', OAUTH_EXPIRED: 'Login expired or refused', FORBIDDEN: 'Login lacks permission', RATE_LIMITED: 'Too many requests, retry later', API_ERROR: 'AMP call failed', MISCONFIGURED: 'Connector is misconfigured', NOT_CONNECTED: "You haven't connected this one", NOT_VISIBLE: "This account can't see this connector", OK: 'Connected, tools came back', NOT_CHECKED: 'Workflow picks its connector at run time, not checked' };
   var ORDER = ['BROKEN', 'MAYBE', 'NEEDS_YOU', 'HEALTHY'];
   var BEST = ['HEALTHY', 'BROKEN', 'MAYBE', 'NEEDS_YOU']; // best verdict first
   function esc2(s) { return esc(s); }
@@ -1006,8 +1018,20 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
     return REASON[stt] || 'Not checked';
   }
   function toolOf(stt) { var i = stt.indexOf(': '); return i > 0 ? stt.slice(i + 2) : ''; }
-  var st = { acct: 'combined', tab: 'servers', group: 'ALL', q: '', page: 0, open: {} };
+  var st = { acct: 'combined', tab: 'servers', group: 'ALL', kind: 'live', q: '', page: 0, open: {} };
   var PAGE = 40;
+  // Which list a workflow step's workflow came from, in plain words (internal kinds never reach the screen).
+  var KIND_ORDER = ['live', 'template', 'draft', 'unlisted', 'unknown'];
+  var KIND_WORD = { live: 'Live', template: 'Template', draft: 'Draft only', unlisted: 'Not in lists', unknown: 'Unknown' };
+  var KINDWHY = {
+    live: 'Published in this account\u2019s lists, so its steps run.',
+    template: 'A shared template. Its steps do not run; copying it makes a workflow of your own.',
+    draft: 'Only a draft exists in this account\u2019s lists, so its steps do not run yet.',
+    unlisted: 'Not in this account\u2019s lists. It may belong to another company, be a hidden platform workflow, or have no link. Its steps may still run for someone else.',
+    unknown: 'The lists could not be read, so this step could not be labelled.'
+  };
+  function kindOf(n) { return n && KIND_WORD[n.workflowKind] ? n.workflowKind : 'unknown'; }
+  function kindTag(k) { return '<span class="tag" title="' + esc(KINDWHY[k] || KINDWHY.unknown) + '">' + esc(KIND_WORD[k] || KIND_WORD.unknown) + '</span>'; }
   // The Combined tab is computed here in the browser: best bucket per server and per node.
   function buildCombined() {
     if (!DATA || !DATA.accounts) return;
@@ -1022,7 +1046,12 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
       (a.nodes || []).forEach(function (n) {
         var key = n.workflow + '|' + n.server + '|' + n.tool;
         var p = bn[key];
-        if (!p || BEST.indexOf(n.bucket) < BEST.indexOf(p.bucket)) bn[key] = n;
+        if (!p) { bn[key] = n; return; }
+        var kind = !p.workflowKind ? n.workflowKind : !n.workflowKind ? p.workflowKind
+          : (KIND_ORDER.indexOf(p.workflowKind) <= KIND_ORDER.indexOf(n.workflowKind) ? p.workflowKind : n.workflowKind);
+        var winner = BEST.indexOf(n.bucket) < BEST.indexOf(p.bucket) ? n : p;
+        if (kind === winner.workflowKind) bn[key] = winner;
+        else { var merged = {}; for (var f in winner) merged[f] = winner[f]; merged.workflowKind = kind; bn[key] = merged; }
       });
     });
     var list = keys.map(function (k) { return DATA.accounts[k].title || k; }).join(', ');
@@ -1046,6 +1075,9 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
   function drawSummary() {
     var a = cur(), c = counts(a.servers || []);
     $('summary').textContent = c.BROKEN + ' need a fix · ' + c.MAYBE + ' need reconnecting · ' + c.NEEDS_YOU + " can't be checked with this account · " + c.HEALTHY + ' working';
+    var cov = aiCoverageText(DATA.aiCoverage);
+    $('ai-cov').hidden = !cov;
+    if (cov) $('ai-cov').textContent = cov;
     var h = '';
     ORDER.forEach(function (g) {
       var d = GROUP[g];
@@ -1108,12 +1140,22 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
   $('donut').addEventListener('mouseleave', function () { var tip = $('donut').querySelector('.tip'); if (tip) tip.hidden = true; });
   function drawTabs() {
     var a = cur();
-    var tabs = [['servers', 'Servers', (a.servers || []).length], ['nodes', 'Workflow nodes', (a.nodes || []).length], ['tools', 'Tools', (a.servers || []).filter(function (s) { return s.tools > 0; }).length], ['changes', 'Changes', ((DATA.changes || {})[st.acct] || []).length]];
-    $('tabs').innerHTML = tabs.map(function (t) { return '<button type="button" role="tab" data-tab="' + t[0] + '" class="' + (st.tab === t[0] ? 'on' : '') + '" aria-selected="' + (st.tab === t[0]) + '">' + t[1] + '<span class="n">' + t[2] + '</span></button>'; }).join('');
+    var wfOn = !DATA || DATA.workflowsChecked !== false;
+    var liveNodes = (a.nodes || []).filter(function (n) { return kindOf(n) === 'live'; }).length;
+    var tabs = [['servers', 'Servers', (a.servers || []).length]].concat(wfOn ? [['nodes', 'Workflow nodes', liveNodes, 'Live steps. Use the filters on the tab to see drafts, templates and the rest.']] : []).concat([['tools', 'Tools', (a.servers || []).filter(function (s) { return s.tools > 0; }).length], ['changes', 'Changes', ((DATA.changes || {})[st.acct] || []).length]]);
+    if (!wfOn && st.tab === 'nodes') st.tab = 'servers';
+    $('tabs').innerHTML = tabs.map(function (t) { return '<button type="button" role="tab" data-tab="' + t[0] + '"' + (t[3] ? ' title="' + esc(t[3]) + '"' : '') + ' class="' + (st.tab === t[0] ? 'on' : '') + '" aria-selected="' + (st.tab === t[0]) + '">' + t[1] + '<span class="n">' + t[2] + '</span></button>'; }).join('');
   }
   function aiNote(x) {
     if (!x.ai) return '';
     return '<div class="ainote"><b>AI note</b> <span class="tag">AI-written, check before acting</span> <span class="dim">' + esc(x.ai.confidence) + ' confidence</span><div>' + esc(x.ai.diagnosis) + '</div><div>Next step: ' + esc(x.ai.nextStep) + '</div></div>';
+  }
+  /** Plain-words AI coverage line (mirrors aiCoverageLine in src/modules/mcp/ai.ts). Empty when AI was off. */
+  function aiCoverageText(c) {
+    if (!c) return '';
+    if (!(c.eligible > 0)) return 'AI review ran: nothing needed a note.';
+    if ((c.noted || 0) >= c.eligible) return 'AI wrote notes for all ' + c.eligible + ' problem' + (c.eligible === 1 ? '' : 's') + '.';
+    return 'AI wrote notes for ' + (c.noted || 0) + ' of ' + c.eligible + ' problems. The rest were not sent (limit ' + c.cap + ' per run, worst first).';
   }
   function tagFor(bucket) {
     var d = GROUP[bucket];
@@ -1175,6 +1217,21 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
     for (j = 1; j <= n; j++) { d[0][j] = j; }
     for (i = 1; i <= m; i++) for (j = 1; j <= n; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
     return d[m][n];
+  }
+  /** Plain note for the fixed-arguments check (P15 T3): a hint only, never a verdict. */
+  function argNote(n) {
+    var ac = n.argCheck;
+    if (!ac || ac.state === 'ok' || ac.state === 'not_checked') return '';
+    if (ac.state === 'missing') return '<span class="tmiss">Missing required: ' + (ac.missing || []).map(esc).join(', ') + ' <span class="dim">(likely)</span></span>';
+    return '<span class="tmiss">Unknown fields: ' + (ac.extra || []).map(esc).join(', ') + ' <span class="dim">(the connector decides)</span></span>';
+  }
+  /** CSV/text wording for the argument check. */
+  function argText(n) {
+    var ac = n.argCheck;
+    if (!ac || ac.state === 'not_checked') return 'not checked';
+    if (ac.state === 'missing') return 'Missing required: ' + (ac.missing || []).join(', ');
+    if (ac.state === 'extra') return 'Unknown fields: ' + (ac.extra || []).join(', ');
+    return 'ok';
   }
   /** For a workflow step that calls a tool its connector lacks: who else has that exact tool, and the closest names on its own connector. */
   function missingHint(n, servers) {
@@ -1245,21 +1302,57 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
   }
   function viewNodes() {
     var a = cur(), g = {};
-    (a.nodes || []).forEach(function (n) { if (st.group !== 'ALL' && n.bucket !== st.group) return; (g[n.server] = g[n.server] || []).push(n); });
+    var nodes = (a.nodes || []).filter(function (n) {
+      if (st.group !== 'ALL' && n.bucket !== st.group) return false;
+      if (st.kind !== 'ALL' && kindOf(n) !== st.kind) return false;
+      return true;
+    });
+    nodes.forEach(function (n) { (g[n.server] = g[n.server] || []).push(n); });
     var keys = Object.keys(g).sort(function (x, y) {
       var wx = Math.min.apply(null, g[x].map(function (n) { return ORDER.indexOf(n.bucket); })), wy = Math.min.apply(null, g[y].map(function (n) { return ORDER.indexOf(n.bucket); }));
       return wx - wy || g[y].length - g[x].length;
     });
-    var h = '<div class="fbar"><div class="chips"><button type="button" class="chip' + (st.group === 'ALL' ? ' on' : '') + '" data-group="ALL">All</button>';
+    // Headline totals count live steps only; the rest are kept and shown separately.
+    var liveNodes = (a.nodes || []).filter(function (n) { return kindOf(n) === 'live'; });
+    var liveMiss = liveNodes.filter(function (n) { return n.state.indexOf('TOOL_MISSING') === 0; }).length;
+    var otherMiss = {};
+    (a.nodes || []).forEach(function (n) {
+      if (n.state.indexOf('TOOL_MISSING') !== 0 || kindOf(n) === 'live') return;
+      var k = kindOf(n); otherMiss[k] = (otherMiss[k] || 0) + 1;
+    });
+    var h = '<div class="fbar"><div class="chips"><button type="button" class="chip' + (st.kind === 'ALL' ? ' on' : '') + '" data-kind="ALL">All ' + (a.nodes || []).length + '</button>';
+    KIND_ORDER.forEach(function (k) {
+      var n = (a.nodes || []).filter(function (x) { return kindOf(x) === k; }).length;
+      h += '<button type="button" class="chip' + (st.kind === k ? ' on' : '') + '" data-kind="' + k + '" title="' + esc(KINDWHY[k]) + '">' + esc(KIND_WORD[k]) + ' ' + n + '</button>';
+    });
+    h += '</div></div>';
+    h += '<p class="hint">Each workflow step that calls a connector, grouped by the connector it uses. Only live steps count in the totals below; drafts, templates and the rest are listed separately.</p>';
+    h += '<details class="help-box" open><summary>What the labels mean</summary>' +
+      KIND_ORDER.map(function (k) { return '<div class="nrow"><span class="wh"><b>' + esc(KIND_WORD[k]) + ':</b> ' + esc(KINDWHY[k]) + '</span></div>'; }).join('') + '</details>';
+    if (liveMiss > 0) h += '<p class="sumline">' + liveMiss + ' live step' + (liveMiss === 1 ? '' : 's') + ' call' + (liveMiss === 1 ? 's' : '') + ' a missing tool.</p>';
+    Object.keys(otherMiss).forEach(function (k) {
+      h += '<p class="hint">' + otherMiss[k] + ' ' + esc(KIND_WORD[k].toLowerCase()) + ' step' + (otherMiss[k] === 1 ? '' : 's') + ' also call' + (otherMiss[k] === 1 ? 's' : '') + ' a missing tool, not counted above.</p>';
+    });
+    var liveArgMiss = liveNodes.filter(function (n) { return n.argCheck && n.argCheck.state === 'missing'; }).length;
+    if (liveArgMiss > 0) h += '<p class="sumline">' + liveArgMiss + ' live step' + (liveArgMiss === 1 ? '' : 's') + ' may be missing required arguments.</p>';
+    var otherArgMiss = {};
+    (a.nodes || []).forEach(function (n) {
+      if (!n.argCheck || n.argCheck.state !== 'missing' || kindOf(n) === 'live') return;
+      var k = kindOf(n); otherArgMiss[k] = (otherArgMiss[k] || 0) + 1;
+    });
+    Object.keys(otherArgMiss).forEach(function (k) {
+      h += '<p class="hint">' + otherArgMiss[k] + ' ' + esc(KIND_WORD[k].toLowerCase()) + ' step' + (otherArgMiss[k] === 1 ? '' : 's') + ' may also be missing required arguments, not counted above.</p>';
+    });
+    h += '<div class="fbar"><div class="chips"><button type="button" class="chip' + (st.group === 'ALL' ? ' on' : '') + '" data-group="ALL">All</button>';
     var c = counts(a.nodes || []); ORDER.forEach(function (x) { h += '<button type="button" class="chip' + (st.group === x ? ' on' : '') + '" data-group="' + x + '">' + esc(GROUP[x].n) + ' ' + c[x] + '</button>'; });
-    h += '</div></div><p class="hint">Each workflow step that calls a connector, grouped by the connector it uses.</p>';
+    h += '</div></div>';
     if (!keys.length) return h + '<div class="empty">No workflow nodes match.</div>';
     keys.forEach(function (k) {
       var arr = g[k], worst = arr.reduce(function (w, n) { return ORDER.indexOf(n.bucket) < ORDER.indexOf(w) ? n.bucket : w; }, 'HEALTHY');
       h += '<details class="grp"' + (worst === 'BROKEN' ? ' open' : '') + '><summary><span class="gt">' + esc(k === '(none)' ? 'Picked at run time (no fixed connector)' : ('Connector #' + k)) + '</span><span class="dim">' + arr.length + ' node' + (arr.length === 1 ? '' : 's') + '</span>' + tagFor(worst) + '</summary><div class="gb">';
       arr.forEach(function (n) {
         var miss = n.state.indexOf('TOOL_MISSING') === 0;
-        h += '<div class="nrow"><span class="wf">' + esc(n.workflow) + '</span><span class="tl">' + esc(n.tool) + '</span>' + tagFor(n.bucket) + '<span class="wh">' + (miss ? '<b>Tool "' + esc(toolOf(n.state)) + '" does not exist on this connector.</b> ' : esc(reasonOf(n.state)) + '. ') + (n.bucket === 'HEALTHY' ? '' : esc(n.hint)) + (miss ? missingHint(n, a.servers || []) : '') + (n.ai ? ' <b>AI note (check before acting):</b> ' + esc(n.ai.diagnosis) + ' Next step: ' + esc(n.ai.nextStep) : '') + '</span></div>';
+        h += '<div class="nrow"><span class="wf">' + esc(n.workflow) + '</span>' + kindTag(kindOf(n)) + '<span class="tl">' + esc(n.tool) + '</span>' + tagFor(n.bucket) + '<span class="wh">' + (miss ? '<b>Tool "' + esc(toolOf(n.state)) + '" does not exist on this connector.</b> ' : esc(reasonOf(n.state)) + '. ') + (n.bucket === 'HEALTHY' ? '' : esc(n.hint)) + (miss ? missingHint(n, a.servers || []) : '') + argNote(n) + (n.ai ? ' <b>AI note (check before acting):</b> ' + esc(n.ai.diagnosis) + ' Next step: ' + esc(n.ai.nextStep) : '') + '</span></div>';
       });
       h += '</div></details>';
     });
@@ -1306,7 +1399,7 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
     if (!DATA) return;
     drawAcct(); drawSummary(); drawTabs();
     $('view').innerHTML = { servers: viewServers, nodes: viewNodes, tools: viewTools, changes: viewChanges }[st.tab]();
-    var nc = DATA.notCovered && DATA.notCovered.webRequestNodes;
+    var nc = DATA.workflowsChecked !== false && DATA.notCovered && DATA.notCovered.webRequestNodes;
     $('notcovered').hidden = !(nc > 0);
     if (nc > 0) $('notcovered').textContent = nc + ' WebRequest node' + (nc === 1 ? '' : 's') + (nc === 1 ? ' is' : ' are') + ' not covered by this module.';
     $('run-when').textContent = DATA.when ? 'Run finished · ' + DATA.when : '';
@@ -1314,7 +1407,10 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
   function toast(t) { var e = $('toast'); e.textContent = t; e.hidden = false; setTimeout(function () { e.hidden = true; }, 1800); }
   function ticket(s) {
     var a = cur();
-    return 'Connector: ' + s.name + ' (#' + s.id + ')\nSite: ' + DATA.host + '\nChecked as: ' + (a.title || st.acct) + ' on ' + DATA.when + '\nStatus: ' + GROUP[s.bucket].n + ' — ' + reasonOf(s.state) + (sureOf(s) ? ' (' + sureOf(s) + ')' : '') + '\nAMP said: ' + (s.detail || '(nothing)') + '\nSuggested action: ' + (s.hint || 'Nothing to do') + '\nWho acts: ' + GROUP[s.bucket].who + (s.ai ? '\nAI note (check before acting): ' + s.ai.diagnosis + ' Next step: ' + s.ai.nextStep : '');
+    var t = 'Connector: ' + s.name + ' (#' + s.id + ')\nSite: ' + DATA.host + '\nChecked as: ' + (a.title || st.acct) + ' on ' + DATA.when + '\nStatus: ' + GROUP[s.bucket].n + ' — ' + reasonOf(s.state) + (sureOf(s) ? ' (' + sureOf(s) + ')' : '') + '\nAMP said: ' + (s.detail || '(nothing)') + '\nSuggested action: ' + (s.hint || 'Nothing to do') + '\nWho acts: ' + GROUP[s.bucket].who + (s.ai ? '\nAI note (check before acting): ' + s.ai.diagnosis + ' Next step: ' + s.ai.nextStep : '');
+    var steps = (a.nodes || []).filter(function (n) { return String(n.server) === String(s.id) && n.state.indexOf('TOOL_MISSING') === 0; });
+    if (steps.length) t += '\nSteps calling a tool this connector does not have:\n' + steps.map(function (n) { return '  - ' + n.workflow + ' / ' + n.tool + ' [' + (KIND_WORD[kindOf(n)] || KIND_WORD.unknown) + ']'; }).join('\n');
+    return t;
   }
   function copy(t) {
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { toast('Copied'); }, function () { toast('Copy failed'); });
@@ -1323,20 +1419,36 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
   function download(name, type, text) { var b = new Blob([text], { type: type }), u = URL.createObjectURL(b), a = document.createElement('a'); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 500); }
   function csvCell(v) { v = String(v == null ? '' : v); if (/^[=+\-@]/.test(v)) v = "'" + v; return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   document.addEventListener('click', function (e) {
-    var t = e.target.closest('[data-acct],[data-group],[data-tab],[data-open],[data-page],[data-ticket],#copy-all,#dl-csv,#dl-json,[data-tsel],[data-copytools]'); if (!t) return;
+    var t = e.target.closest('[data-acct],[data-group],[data-kind],[data-tab],[data-open],[data-page],[data-ticket],#copy-all,#dl-csv,#dl-json,[data-tsel],[data-copytools]'); if (!t) return;
     if (!DATA) return;
     if (t.dataset.tsel) { st.tsel = t.dataset.tsel; st.tab = 'tools'; st.q = ''; draw(); }
     else if (t.dataset.copytools) { var cs = cur().servers.filter(function (x) { return String(x.id) === t.dataset.copytools; })[0]; if (cs) copy(toolItems(cs).map(function (x) { return x.name; }).join('\n')); }
     else if (t.dataset.acct) { st.acct = t.dataset.acct; st.page = 0; draw(); }
+    else if (t.dataset.kind) { st.kind = t.dataset.kind; draw(); }
     else if (t.dataset.group) { st.group = (t.classList.contains('sc') && st.group === t.dataset.group) ? 'ALL' : t.dataset.group; st.page = 0; draw(); }
     else if (t.dataset.tab) { e.preventDefault(); st.tab = t.dataset.tab; st.q = ''; draw(); }
     else if (t.dataset.open) { st.open[t.dataset.open] = !st.open[t.dataset.open]; draw(); }
     else if (t.dataset.page) { st.page += +t.dataset.page; draw(); }
     else if (t.dataset.ticket) { var s = cur().servers.filter(function (x) { return String(x.id) === t.dataset.ticket; })[0]; if (s) copy(ticket(s)); }
-    else if (t.id === 'copy-all') { copy(cur().servers.filter(function (s) { return s.bucket === 'BROKEN'; }).map(ticket).join('\n\n---\n\n')); }
+    else if (t.id === 'copy-all') {
+      var covAll = aiCoverageText(DATA.aiCoverage);
+      copy((covAll ? covAll + '\n\n' : '') + cur().servers.filter(function (s) { return s.bucket === 'BROKEN'; }).map(ticket).join('\n\n---\n\n'));
+    }
     else if (t.id === 'dl-csv') {
-      var rows = [['Connector', 'Id', 'Status', 'What is wrong', 'How sure', 'What to do', 'Who acts']];
-      cur().servers.forEach(function (s) { rows.push([s.name, s.id, GROUP[s.bucket].n, reasonOf(s.state), sureOf(s), s.bucket === 'HEALTHY' ? 'Nothing to do' : s.hint, GROUP[s.bucket].who]); });
+      var rows = [];
+      var covCsv = aiCoverageText(DATA.aiCoverage);
+      if (covCsv) {
+        rows.push([covCsv + ' AI notes are AI-written, check before acting.']);
+        rows.push([]);
+      }
+      rows.push(['Connector', 'Id', 'Status', 'What is wrong', 'How sure', 'What to do', 'Who acts', 'AI note', 'AI next step']);
+      cur().servers.forEach(function (s) { rows.push([s.name, s.id, GROUP[s.bucket].n, reasonOf(s.state), sureOf(s), s.bucket === 'HEALTHY' ? 'Nothing to do' : s.hint, GROUP[s.bucket].who, s.ai ? s.ai.diagnosis : '', s.ai ? s.ai.nextStep : '']); });
+      var ns = cur().nodes || [];
+      if (ns.length) {
+        rows.push([]);
+        rows.push(['Workflow step', 'Workflow', 'Connector', 'Tool', 'Problem', 'Kind', 'Argument check', 'What to do']);
+        ns.forEach(function (n) { rows.push(['step', n.workflow, n.server, n.tool, reasonOf(n.state), KIND_WORD[kindOf(n)] || KIND_WORD.unknown, argText(n), n.hint]); });
+      }
       download('mcp-health-' + st.acct + '.csv', 'text/csv', rows.map(function (r) { return r.map(csvCell).join(','); }).join('\n'));
     }
     else if (t.id === 'dl-json') { download('mcp-health-' + st.acct + '.json', 'application/json', JSON.stringify(cur(), null, 2)); }
@@ -1378,6 +1490,7 @@ tr.exp td{background:var(--card);border-left:3px solid var(--accent)}
     var keys = users().map(function (u) { return u.key; });
     $('users').innerHTML = ''; userSeq = 0;
     (keys.length ? keys : ['admin']).forEach(function (k) { addUser(k, ''); });
+    $('opt-wf').checked = false; // a new run asks again; workflow steps stay off unless chosen
     $('opt-ai').checked = false; // a new run asks again; the AI choice does not carry over
     msg('users-msg', '', ''); limitTo(2); goStep(2);
   });

@@ -128,6 +128,35 @@ describe('runMcpHealth (stub transport, no network)', () => {
   });
 });
 
+describe('workflow steps are optional (connector-only runs)', () => {
+  it('without checkWorkflows no workflow is read, no node is checked, connectors still are', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mcp-nowf-'));
+    const inner = stub(workflows, servers, tools);
+    const getCalls: string[] = [];
+    const t: McpTransport = { post: inner.post, get: async (path) => { getCalls.push(path); return inner.get(path); } };
+    const lines: string[] = [];
+    const r = await runMcpHealth({ environment: env, accounts: [{ key: 'default', jwt: JWT }], outputDir: dir, transport: () => t, checkWorkflows: false, onProgress: (p) => { lines.splice(0, lines.length, ...p.lines); } });
+    expect(getCalls).toEqual([]);
+    expect(r.workflowsChecked).toBe(false);
+    const acc = r.accounts.default!;
+    expect(acc.nodes).toEqual([]);
+    expect(acc.sub).toBe('connector health only');
+    expect(acc.servers.find((x) => x.id === 5)!.state).toBe('KEY_REJECTED');
+    expect(acc.servers.find((x) => x.id === 4)!.state).toBe('OK');
+    expect(lines.join(' | ')).toContain('Workflow steps are not checked in this run');
+  });
+  it('by default (and with true) the workflows are read as before', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mcp-wf-'));
+    const inner = stub(workflows, servers, tools);
+    let reads = 0;
+    const t: McpTransport = { post: inner.post, get: async (path) => { reads += 1; return inner.get(path); } };
+    const r = await runMcpHealth({ environment: env, accounts: [{ key: 'default', jwt: JWT }], outputDir: dir, transport: () => t });
+    expect(reads).toBeGreaterThan(1);
+    expect(r.workflowsChecked).toBe(true);
+    expect(r.accounts.default!.nodes.length).toBeGreaterThan(0);
+  });
+});
+
 describe('retry once for momentary answers', () => {
   const wf = { w1: { activities: [] } };
   const svs = { company: [{ id: 1, name: 'Flaky' }, { id: 2, name: 'Dead' }, { id: 3, name: 'Key' }, { id: 4, name: 'Stays down' }], org: [], user: [] };

@@ -22,7 +22,7 @@ interface Verdict {
 }
 
 /** Bump on EVERY change to the rules below, so a rule change is never shown as a connector change (see diffSnapshots). */
-export const RULES_VERSION = '2026-10-07.1';
+export const RULES_VERSION = '2026-10-09.3';
 
 const S = (state: McpServerState, bucket: McpBucket, hint: string, certainty: McpCertainty): Verdict => ({ state, bucket, hint, certainty });
 
@@ -126,6 +126,24 @@ export function classifyServerResponse(status: number, body: unknown, visible: b
   if (/was not found\. It may have been deleted/i.test(amp)) return done(S('URL_404', 'BROKEN', H.URL_404, 'high')); // MCPPromptRunner.cs:1245
   if (/returned non-JSON response/i.test(amp)) return done(S('HTML_NOT_MCP', 'BROKEN', H.HTML_NOT_MCP, 'high')); // MCPClientService.cs:325-326
   if (/returned a \d{3} redirect to/i.test(amp)) return done(S('REDIRECT', 'BROKEN', H.REDIRECT, 'high')); // MCPClientService.cs:305-306
+  // 1b. Service-account sign-in failures (P15 T1). ResolveCrmProviderConfigAsync prefixes the mint
+  // error with "This connector's service account could not sign in: " (MCPPromptRunner.cs:1266);
+  // the mint sentences come from McpServiceAccountToken.cs. Matched on AMP's part only (cut at
+  // "Server said:" above), so a vendor quote can never trigger them. Certainty is medium
+  // ("likely"): seen in source, not in a real sandbox answer. Placed before the quoted-status
+  // rule: the refused template carries "(HTTP n)", which that rule would otherwise read as a
+  // plain status (e.g. a refused 401 would misread as OAUTH_EXPIRED).
+  const svcSignIn = /service account could not sign in:\s*([\s\S]*)$/i.exec(amp);
+  if (svcSignIn) {
+    const inner = svcSignIn[1] ?? '';
+    if (/redirected to/i.test(inner)) return done(S('REDIRECT', 'BROKEN', H.REDIRECT, 'medium')); // McpServiceAccountToken.cs:247
+    const refused = /refused the service account \(HTTP (\d{3})\)/i.exec(inner);
+    if (refused) {
+      return done(S('SERVICE_ACCOUNT_REFUSED', 'BROKEN', `The service account was refused by the provider (HTTP ${refused[1]}): check its credentials with the connector owner.`, 'medium')); // McpServiceAccountToken.cs:154
+    }
+    if (/^could not reach the token endpoint/i.test(inner)) return done(S('UNREACHABLE', 'BROKEN', H.UNREACHABLE, 'medium')); // McpServiceAccountToken.cs:148
+    if (/signing key|private_key|P-256 and P-384|unencrypted PEM/i.test(inner)) return done(S('MISCONFIGURED', 'BROKEN', H.MISCONFIGURED, 'medium')); // McpServiceAccountToken.cs:27,38,43,60,64
+  }
   // 2. A status code quoted in a fixed shape in AMP's part (medium): it beats loose words such as "expired" on a 404 page.
   const quoted = quotedStatus(amp);
   const fromCode = quoted === null ? null : byStatus(quoted, 'medium');
@@ -217,12 +235,15 @@ export function bucketRank(b: McpBucket): number {
 export interface ToolSchemaFields {
   name: string;
   fields: { name: string; type: string }[];
+  /** Required input names (names only, never values); empty when the schema lists none. */
+  required: string[];
 }
 
 /**
- * Tool input-schema field names/types from a GetMCPServerTools body.
- * Reads ONLY property names and `type` strings (never values); caps at 40
- * tools × 30 fields so snapshots stay small. Used for AI triage (P11).
+ * Tool input-schema field names/types/required from a GetMCPServerTools body.
+ * Reads ONLY property names, `type` strings and `required` names (never values);
+ * caps at 40 tools × 30 fields × 30 required names so snapshots stay small.
+ * Used for AI triage (P11, which reads names/types only) and the P15 argument check.
  */
 export function toolSchemasOf(body: unknown): ToolSchemaFields[] {
   const j = unwrapResponse(body);
@@ -241,9 +262,57 @@ export function toolSchemasOf(body: unknown): ToolSchemaFields[] {
         fields.push({ name: fname.slice(0, 80), type: typeof ftype === 'string' ? ftype.slice(0, 40) : 'unknown' });
       }
     }
-    out.push({ name: rec.name.slice(0, 120), fields });
+    const required: string[] = [];
+    const reqRaw = schema && typeof schema === 'object' ? (schema as Record<string, unknown>).required : undefined;
+    if (Array.isArray(reqRaw)) {
+      for (const r of reqRaw.slice(0, 30)) {
+        if (typeof r === 'string' && r) required.push(r.slice(0, 80));
+      }
+    }
+    out.push({ name: rec.name.slice(0, 120), fields, required });
   }
   return out;
+}
+
+/**
+ * Result of comparing one workflow step's fixed arguments with its tool's
+ * input schema (P15 T3). Additive on the step row; never changes the health
+ * bucket. 'missing' wins when both apply; anything uncheckable is
+ * 'not_checked', never a guess.
+ */
+export interface ArgCheck {
+  state: 'ok' | 'missing' | 'extra' | 'not_checked';
+  missing?: string[];
+  extra?: string[];
+}
+
+/**
+ * Compares a step's top-level argument KEY names with the tool schema.
+ * Checkable ONLY when the step names one fixed tool (no toolNames list), the
+ * arguments parsed to a JSON object (argKeys present), and the tool exists in
+ * the connector's known tool list. Schemas listing neither properties nor
+ * required names have nothing to compare: not checked.
+ */
+export function checkArgs(
+  argKeys: string[] | undefined,
+  toolNames: string[] | undefined,
+  tool: string | undefined,
+  schemas: { name: string; fields?: { name: string; type: string }[]; required?: string[] }[],
+): ArgCheck {
+  if (!tool) return { state: 'not_checked' };
+  if (toolNames && toolNames.length > 0) return { state: 'not_checked' };
+  if (!argKeys) return { state: 'not_checked' };
+  const schema = schemas.find((s) => s.name === tool);
+  if (!schema) return { state: 'not_checked' };
+  // Older snapshots store schemas without `required`: read tolerantly.
+  const props = (schema.fields ?? []).map((f) => f.name);
+  const req = schema.required ?? [];
+  if (props.length === 0 && req.length === 0) return { state: 'not_checked' };
+  const missing = req.filter((r) => !argKeys.includes(r));
+  const extra = props.length > 0 ? argKeys.filter((k) => !props.includes(k)) : [];
+  if (missing.length > 0) return { state: 'missing', missing, ...(extra.length > 0 ? { extra } : {}) };
+  if (extra.length > 0) return { state: 'extra', extra };
+  return { state: 'ok' };
 }
 
 /**

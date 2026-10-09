@@ -8,6 +8,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { bucketRank } from './classify';
+import { betterKind } from './kinds';
 import type { McpAccountResult, McpNodeRow, McpServerRow, McpStateChange, McpToolChange } from './types';
 
 export interface McpSnapshot {
@@ -19,6 +20,8 @@ export interface McpSnapshot {
   nodes: McpNodeRow[];
   /** Classification rules version the states were produced with; absent in older files. */
   rulesVersion?: string;
+  /** Whether workflows were read in this run (absent = yes, older files). It decides which connectors the run could know about. */
+  workflowsChecked?: boolean;
 }
 
 export interface McpDiff {
@@ -83,17 +86,23 @@ export function diffSnapshots(prev: McpSnapshot | null, cur: McpSnapshot): McpDi
   const from = prev.rulesVersion ?? '0';
   const to = cur.rulesVersion ?? '0';
   const rulesChanged = from !== to ? { from, to } : undefined;
+  // A connector the account cannot list is only known because a workflow step names it. When one run read the
+  // workflows and the other did not, such connectors appear or vanish because of the scope, not because they changed.
+  const scopeChanged = (prev.workflowsChecked ?? true) !== (cur.workflowsChecked ?? true);
+  const workflowOnly = (s: McpServerRow): boolean => scopeChanged && s.name === '(not visible)';
   const serverChanges: McpStateChange[] = [];
   const pm = new Map(prev.servers.map((s) => [s.id, s]));
   const cm = new Map(cur.servers.map((s) => [s.id, s]));
   for (const s of cur.servers) {
     const p = pm.get(s.id);
+    if (workflowOnly(s) || (p && workflowOnly(p))) continue;
     if (!p) serverChanges.push({ what: 'server', id: s.id, name: s.name, from: '(new)', to: s.bucket, added: [], removed: [] });
     else if (!rulesChanged && (p.state !== s.state || p.bucket !== s.bucket)) {
       serverChanges.push({ what: 'server', id: s.id, name: s.name, from: p.bucket, to: s.bucket, added: [], removed: [] });
     }
   }
   for (const p of prev.servers) {
+    if (workflowOnly(p)) continue;
     if (!cm.has(p.id)) serverChanges.push({ what: 'server', id: p.id, name: p.name, from: p.bucket, to: '(gone)', added: [], removed: [] });
   }
   const pt = new Map(prev.servers.map((s) => [s.id, new Set(s.toolNames ?? [])]));
@@ -155,7 +164,16 @@ export function combineAccounts(accounts: Record<string, McpAccountResult>, orde
     for (const n of acc.nodes) {
       const k = nodeKey(n);
       const cur = bestNode.get(k);
-      if (!cur || bucketRank(n.bucket) < bucketRank(cur.bucket)) bestNode.set(k, n);
+      if (!cur) {
+        bestNode.set(k, n);
+        continue;
+      }
+      // Health first (best bucket wins, as for servers); the shown kind is the
+      // most informative one seen for the step (Live, Template, Draft only,
+      // Not in AMP's lists, Unknown), even when it came from another account.
+      const kind = !cur.workflowKind ? n.workflowKind : !n.workflowKind ? cur.workflowKind : betterKind(cur.workflowKind, n.workflowKind);
+      const winner = bucketRank(n.bucket) < bucketRank(cur.bucket) ? n : cur;
+      bestNode.set(k, kind === winner.workflowKind ? winner : { ...winner, workflowKind: kind });
     }
   }
   return {

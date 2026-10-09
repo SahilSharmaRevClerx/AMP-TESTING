@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { GoogleGenAI } from '@google/genai';
-import { aiAvailable, aiModelName, buildTriageItems, buildTriagePrompt, sanitizeForPrompt, triage, TRIAGE_BATCH, type TriageItem } from '../src/modules/mcp/ai';
+import { aiAvailable, aiCoverageLine, aiCoverageOf, aiModelName, buildTriageItems, buildTriagePrompt, sanitizeForPrompt, triage, TRIAGE_BATCH, type TriageItem } from '../src/modules/mcp/ai';
 import { toolSchemasOf } from '../src/modules/mcp/classify';
 import { forgetSecrets, registerSecret } from '../src/core/util/mask';
 import type { McpResult } from '../src/modules/mcp/types';
@@ -103,9 +103,12 @@ describe('buildTriageItems', () => {
 });
 
 describe('toolSchemasOf', () => {
-  it('keeps names and types only, never values', () => {
+  it('keeps names, types and required only, never values', () => {
     const out = toolSchemasOf({ tools: [{ name: 't', inputSchema: { properties: { id: { type: 'string' }, n: { type: 'integer' } }, required: ['id'] } }, { name: 7 }] });
-    expect(out).toEqual([{ name: 't', fields: [{ name: 'id', type: 'string' }, { name: 'n', type: 'integer' }] }]);
+    expect(out).toEqual([{ name: 't', fields: [{ name: 'id', type: 'string' }, { name: 'n', type: 'integer' }], required: ['id'] }]);
+  });
+  it('required defaults to an empty list when the schema lists none', () => {
+    expect(toolSchemasOf({ tools: [{ name: 't', inputSchema: { properties: {} } }] })).toEqual([{ name: 't', fields: [], required: [] }]);
   });
 });
 
@@ -163,6 +166,26 @@ describe('aiAvailable / aiModelName (key never read)', () => {
     } else {
       expect(aiAvailable()).toBe(false);
     }
+  });
+});
+
+describe('aiCoverageLine (P15 T2: how many problems got no AI note)', () => {
+  it('all noted', () => {
+    expect(aiCoverageLine(aiCoverageOf(12, 12))).toBe('AI wrote notes for all 12 problems.');
+    expect(aiCoverageLine(aiCoverageOf(1, 1))).toBe('AI wrote notes for all 1 problem.');
+  });
+  it('partly noted names the cap', () => {
+    expect(aiCoverageLine(aiCoverageOf(236, 59))).toBe('AI wrote notes for 59 of 236 problems. The rest were not sent (limit 60 per run, worst first).');
+  });
+  it('AI off (no coverage) shows nothing', () => {
+    expect(aiCoverageLine(undefined)).toBe('');
+    expect(aiCoverageLine(null)).toBe('');
+  });
+  it('AI failed (nothing noted) still counts', () => {
+    expect(aiCoverageLine(aiCoverageOf(5, 0))).toBe('AI wrote notes for 0 of 5 problems. The rest were not sent (limit 60 per run, worst first).');
+  });
+  it('AI ran with nothing to note', () => {
+    expect(aiCoverageLine(aiCoverageOf(0, 0))).toBe('AI review ran: nothing needed a note.');
   });
 });
 
